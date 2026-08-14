@@ -7,6 +7,10 @@ import pg from 'pg';
  * enforcement layer, not application WHERE clauses.
  */
 
+// DATE columns come back as plain 'YYYY-MM-DD' strings, never JS Date
+// objects — calendar dates must not pick up a timezone on the way through.
+pg.types.setTypeParser(1082, (v) => v);
+
 export interface Claims {
   /** user id */
   sub: string;

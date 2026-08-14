@@ -7,7 +7,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   setupOnce, appPool, closePools, withClaims, withoutClaims,
   staffClaims, memberClaims, platformClaims, type Fixtures,
-} from './helpers.js';
+} from './helpers';
 
 let fx: Fixtures;
 

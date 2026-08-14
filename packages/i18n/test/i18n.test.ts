@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { en, te, getTranslations, renderTemplate } from '../src/index.js';
+import { en, te, getTranslations, renderTemplate } from '../src/index';
 
 function collectKeys(obj: Record<string, unknown>, prefix = ''): string[] {
   return Object.entries(obj).flatMap(([k, v]) =>

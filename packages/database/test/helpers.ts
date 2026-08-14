@@ -1,6 +1,6 @@
 import pg from 'pg';
-import { dropAll, runMigrations } from '../src/migrate.js';
-import { createPool, withClaims, withoutClaims, type Claims } from '../src/client.js';
+import { dropAll, runMigrations } from '../src/migrate';
+import { createPool, withClaims, withoutClaims, type Claims } from '../src/client';
 import { SYSTEM_ROLE_PERMISSIONS, hashPassword } from '@gymflow/core';
 
 export const OWNER_URL =

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeIndianMobile, isValidIndianMobile, maskPhone, whatsappLink, PhoneError } from '../src/phone.js';
+import { normalizeIndianMobile, isValidIndianMobile, maskPhone, whatsappLink, PhoneError } from '../src/phone';
 
 describe('normalizeIndianMobile', () => {
   it('normalizes all common input shapes to E.164', () => {

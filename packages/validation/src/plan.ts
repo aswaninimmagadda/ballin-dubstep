@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoDateSchema, mediumText, minorUnitsSchema, shortText, uuidSchema } from './primitives.js';
+import { isoDateSchema, mediumText, minorUnitsSchema, shortText, uuidSchema } from './primitives';
 
 export const planTermsSchema = z.object({
   durationUnit: z.enum(['days', 'months']),

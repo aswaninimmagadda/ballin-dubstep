@@ -6,7 +6,7 @@ import {
   applyFreezeExtension,
   defaultRenewalStartDate,
   daysRemaining,
-} from '../src/membership-dates.js';
+} from '../src/membership-dates';
 
 describe('computeEndDate', () => {
   it('1-month plan from the 1st ends on last day of month', () => {

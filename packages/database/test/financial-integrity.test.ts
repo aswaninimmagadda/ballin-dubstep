@@ -3,7 +3,7 @@
  * cannot rewrite or delete payment history — the database forbids it.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { setupOnce, appPool, withClaims, staffClaims, platformClaims, type Fixtures } from './helpers.js';
+import { setupOnce, appPool, withClaims, staffClaims, platformClaims, type Fixtures } from './helpers';
 
 let fx: Fixtures;
 beforeAll(async () => {

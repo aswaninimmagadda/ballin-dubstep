@@ -9,7 +9,7 @@ import {
   formatDisplayDate,
   maxDate,
   todayInTz,
-} from '../src/dates.js';
+} from '../src/dates';
 
 describe('assertISODate', () => {
   it('accepts valid dates', () => {

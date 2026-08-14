@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { createMemberSchema } from '../src/member.js';
-import { sellMembershipSchema } from '../src/membership.js';
-import { recordPaymentSchema } from '../src/payment.js';
-import { importMemberRowSchema } from '../src/import.js';
-import { staffLoginSchema, memberLoginSchema } from '../src/auth.js';
+import { createMemberSchema } from '../src/member';
+import { sellMembershipSchema } from '../src/membership';
+import { recordPaymentSchema } from '../src/payment';
+import { importMemberRowSchema } from '../src/import';
+import { staffLoginSchema, memberLoginSchema } from '../src/auth';
 
 const UUID = '2b0a3c1e-0000-4000-8000-000000000001';
 

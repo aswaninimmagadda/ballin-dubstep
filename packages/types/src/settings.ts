@@ -1,4 +1,4 @@
-import type { UUID, ISODateTime } from './ids.js';
+import type { UUID, ISODateTime } from './ids';
 
 /**
  * Tenant settings are structured (one row per tenant) rather than a free-form

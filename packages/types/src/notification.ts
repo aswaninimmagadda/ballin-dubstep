@@ -1,4 +1,4 @@
-import type { UUID, ISODateTime, LanguageTag } from './ids.js';
+import type { UUID, ISODateTime, LanguageTag } from './ids';
 
 export type NotificationChannel = 'in_app' | 'push' | 'whatsapp_link' | 'sms' | 'email';
 

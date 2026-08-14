@@ -1,0 +1,271 @@
+#!/usr/bin/env node
+/**
+ * End-to-end test of the critical admin workflows over real HTTP against a
+ * running admin server + seeded database (spec scenarios 1-3):
+ *   1. New member: onboard → sell 3-month plan → cash payment → receipt
+ *   2. Renewal: renew with promotion → UPI payment → chained membership
+ *   3. Freeze: freeze 15 days → unfreeze → expiry extended
+ *   plus reception check-in and duplicate-check-in guard.
+ *
+ * Usage: node scripts/e2e-admin.mjs [baseUrl]
+ * Requires: admin server running, demo seed loaded, env DATABASE_URL for
+ * verification queries.
+ */
+import pg from 'pg';
+
+const BASE = process.argv[2] ?? 'http://localhost:3000';
+const DB = process.env.DATABASE_URL ?? 'postgres://gymflow:gymflow_dev_pw@localhost:5432/gymflow_dev';
+const EMAIL = process.env.E2E_EMAIL ?? 'reception@demo.gymflow.local';
+const PASSWORD = process.env.E2E_PASSWORD ?? 'gymflow-dev-password';
+
+const db = new pg.Client({ connectionString: DB });
+let cookie = '';
+let passed = 0;
+const failures = [];
+
+function check(name, cond, detail = '') {
+  if (cond) {
+    passed += 1;
+    console.log(`  ✓ ${name}`);
+  } else {
+    failures.push(name);
+    console.error(`  ✗ ${name} ${detail}`);
+  }
+}
+
+async function get(path) {
+  const res = await fetch(BASE + path, { headers: { cookie }, redirect: 'manual' });
+  return res;
+}
+
+async function getFollow(path) {
+  let res = await get(path);
+  let hops = 0;
+  while ([301, 302, 303, 307, 308].includes(res.status) && hops < 5) {
+    const loc = res.headers.get('location');
+    res = await get(loc.startsWith('http') ? new URL(loc).pathname + new URL(loc).search : loc);
+    hops += 1;
+  }
+  return res;
+}
+
+/** Extract the server-action form containing `markerField` from page HTML. */
+function extractForm(html, markerField) {
+  const forms = html.split('<form').slice(1);
+  for (const f of forms) {
+    if (!f.includes(`name="${markerField}"`)) continue;
+    const actionId = f.match(/\$ACTION_ID_([a-f0-9]+)/)?.[1];
+    const hidden = {};
+    for (const m of f.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g)) {
+      if (!m[1].startsWith('$ACTION')) hidden[m[1]] = m[2];
+    }
+    return { actionId, hidden };
+  }
+  throw new Error(`No form with field ${markerField} found`);
+}
+
+/** Post a server action form (progressive enhancement path). */
+async function postAction(path, form, fields) {
+  const fd = new FormData();
+  fd.set(`$ACTION_ID_${form.actionId}`, '');
+  for (const [k, v] of Object.entries({ ...form.hidden, ...fields })) fd.set(k, v);
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    headers: { cookie },
+    body: fd,
+    redirect: 'manual',
+  });
+  return res;
+}
+
+function redirectTarget(res) {
+  // Server actions surface redirects via x-action-redirect (303) or location.
+  return res.headers.get('x-action-redirect') ?? res.headers.get('location') ?? '';
+}
+
+async function q(sql, params = []) {
+  const r = await db.query(sql, params);
+  return r.rows;
+}
+
+async function loginAs(email) {
+  cookie = '';
+  const loginPage = await (await get('/login')).text();
+  const loginForm = extractForm(loginPage, 'email');
+  const loginRes = await postAction('/login', loginForm, { email, password: PASSWORD });
+  const setCookie = loginRes.headers.get('set-cookie') ?? '';
+  cookie = setCookie.split(';')[0];
+  return cookie.startsWith('gymflow_session=');
+}
+
+async function main() {
+  await db.connect();
+  console.log(`E2E against ${BASE}`);
+
+  // ---- login ---------------------------------------------------------------
+  console.log('\n[login]');
+  check('staff login sets a session cookie', await loginAs(EMAIL));
+
+  // ---- scenario 1: new member + sale + payment + receipt -------------------
+  console.log('\n[scenario 1 — new member]');
+  const mobile = `9${String(Math.floor(100000000 + Math.random() * 899999999))}`;
+  const step1 = await get('/members/new');
+  const step1Form = extractForm(await step1.text(), 'mobile');
+  const dupRes = await postAction('/members/new', step1Form, { mobile });
+  const step2Path = redirectTarget(dupRes).replace(/^https?:\/\/[^/]+/, '');
+  check('mobile passes duplicate check', step2Path.includes('step=2'), step2Path);
+
+  const step2Html = await (await get(step2Path)).text();
+  const createForm = extractForm(step2Html, 'firstName');
+  const branchId = step2Html.match(/name="branchId"[^>]*>\s*<option[^>]*value="([a-f0-9-]+)"/)?.[1]
+    ?? step2Html.match(/<option[^>]*value="([a-f0-9-]{36})"/)?.[1];
+  const createRes = await postAction(step2Path, createForm, {
+    mobile, branchId, firstName: 'TestE2E', lastName: 'Person', referralSource: 'walk_in',
+  });
+  const sellPath = redirectTarget(createRes).replace(/^https?:\/\/[^/]+/, '');
+  check('member created → redirected to sell', /\/members\/[a-f0-9-]+\/sell/.test(sellPath), sellPath);
+  const memberId = sellPath.match(/members\/([a-f0-9-]+)\/sell/)?.[1];
+
+  const [memberRow] = await q(`SELECT membership_number, status FROM members WHERE id = $1`, [memberId]);
+  check('member row exists with generated number', !!memberRow?.membership_number, JSON.stringify(memberRow));
+
+  const sellHtml = await (await get(sellPath)).text();
+  const sellForm = extractForm(sellHtml, 'planId');
+  const [plan3m] = await q(
+    `SELECT p.id FROM membership_plans p JOIN members m ON m.tenant_id = p.tenant_id
+     WHERE m.id = $1 AND p.name = '3 Month'`, [memberId]);
+  const today = new Date().toISOString().slice(0, 10);
+  const sellRes = await postAction(sellPath, sellForm, {
+    planId: plan3m.id, startDate: today, includeJoiningFee: 'on',
+    amount: '3000', method: 'cash',
+  });
+  check('sale redirects to member page', redirectTarget(sellRes).includes('msg=sold'), redirectTarget(sellRes));
+
+  const [ms] = await q(
+    `SELECT state, start_date::text AS s, end_date::text AS e, total_amount::bigint AS total
+     FROM memberships WHERE member_id = $1 ORDER BY created_at DESC LIMIT 1`, [memberId]);
+  check('membership active', ms?.state === 'active', JSON.stringify(ms));
+  const expectedEnd = new Date(Date.UTC(
+    +today.slice(0, 4), +today.slice(5, 7) - 1 + 3, +today.slice(8, 10)) - 86400000)
+    .toISOString().slice(0, 10);
+  check(`expiry = start + 3 months - 1 day (${expectedEnd})`, ms?.e === expectedEnd, ms?.e);
+  check('total = ₹3000 (2500 + 500 joining)', Number(ms?.total) === 300000, String(ms?.total));
+
+  const [pay] = await q(
+    `SELECT p.amount::bigint AS amount, p.method, r.receipt_number
+     FROM payments p LEFT JOIN receipts r ON r.payment_id = p.id
+     WHERE p.member_id = $1`, [memberId]);
+  check('cash payment recorded', pay?.method === 'cash' && Number(pay.amount) === 300000, JSON.stringify(pay));
+  check('receipt generated with tenant prefix', /^SVF-\d{4}-\d{6}$/.test(pay?.receipt_number ?? ''), pay?.receipt_number);
+
+  // ---- check-in + duplicate guard -----------------------------------------
+  console.log('\n[check-in]');
+  const detailHtml = await (await getFollow(`/members/${memberId}`)).text();
+  const checkinForm = extractForm(detailHtml, 'memberId');
+  const ck1 = await postAction(`/members/${memberId}`, checkinForm, {});
+  check('first check-in ok', redirectTarget(ck1).includes('msg=checkedin'), redirectTarget(ck1));
+  const ck2 = await postAction(`/members/${memberId}`, checkinForm, {});
+  check('duplicate check-in blocked', redirectTarget(ck2).includes('msg=duplicate'), redirectTarget(ck2));
+  const att = await q(`SELECT count(*)::int AS n FROM attendance WHERE member_id = $1`, [memberId]);
+  check('exactly one attendance row', att[0].n === 1, String(att[0].n));
+
+  // ---- scenario 2: renewal with promotion + UPI ---------------------------
+  console.log('\n[scenario 2 — renewal]');
+  const renewHtml = await (await get(`/members/${memberId}/renew`)).text();
+  const renewForm = extractForm(renewHtml, 'previousMembershipId');
+  const [plan6m] = await q(
+    `SELECT p.id FROM membership_plans p JOIN members m ON m.tenant_id = p.tenant_id
+     WHERE m.id = $1 AND p.name = '6 Month'`, [memberId]);
+  const renewRes = await postAction(`/members/${memberId}/renew`, renewForm, {
+    planId: plan6m.id, promotionCode: 'NEWYEAR26', amount: '4050', method: 'upi',
+    externalReference: 'UTR-E2E-1',
+  });
+  check('renewal succeeds', redirectTarget(renewRes).includes('msg=renewed'), redirectTarget(renewRes));
+
+  const renewals = await q(
+    `SELECT state, previous_membership_id, total_amount::bigint AS total, discount_amount::bigint AS disc,
+            start_date::text AS s, end_date::text AS e
+     FROM memberships WHERE member_id = $1 ORDER BY created_at DESC`, [memberId]);
+  const newest = renewals[0];
+  check('renewal chained to previous membership', !!newest.previous_membership_id);
+  check('10% promo applied (₹4500 → ₹4050)', Number(newest.total) === 405000 && Number(newest.disc) === 45000,
+    JSON.stringify({ total: newest.total, disc: newest.disc }));
+  check('renewal starts day after current expiry', newest.s > ms.e, `${newest.s} vs ${ms.e}`);
+  const [redemption] = await q(
+    `SELECT pr.discount_amount::bigint AS d FROM promotion_redemptions pr
+     JOIN promotions p ON p.id = pr.promotion_id
+     WHERE pr.member_id = $1 AND p.code = 'NEWYEAR26'`, [memberId]);
+  check('promotion redemption recorded', Number(redemption?.d) === 45000, JSON.stringify(redemption));
+
+  // Double-submit protection: replay the same renewal form (same idempotency key)
+  const replay = await postAction(`/members/${memberId}/renew`, renewForm, {
+    planId: plan6m.id, amount: '', method: 'upi',
+  });
+  const replayTarget = redirectTarget(replay);
+  const count = await q(`SELECT count(*)::int AS n FROM memberships WHERE member_id = $1`, [memberId]);
+  check('double-click renewal does not create a third membership', count[0].n === 2,
+    `${count[0].n} memberships, replay → ${replayTarget}`);
+
+  // ---- scenario 3: freeze 15 days → unfreeze → expiry extended ------------
+  console.log('\n[scenario 3 — freeze]');
+  // Freezing needs memberships.freeze — a manager permission, not reception.
+  const recepFreeze = await get(`/members/${memberId}/freeze`);
+  check('receptionist cannot open the freeze page',
+    redirectTarget(recepFreeze).includes('/forbidden'), redirectTarget(recepFreeze));
+  check('manager login', await loginAs('manager@demo.gymflow.local'));
+  const freezeHtml = await (await get(`/members/${memberId}/freeze`)).text();
+  const freezeForm = extractForm(freezeHtml, 'reason');
+  const fRes = await postAction(`/members/${memberId}/freeze`, freezeForm, {
+    startDate: today, plannedEndDate: '', reason: 'E2E medical freeze', extendsExpiry: 'on',
+  });
+  check('freeze succeeds', redirectTarget(fRes).includes('msg=frozen'), redirectTarget(fRes));
+  const [frozen] = await q(
+    `SELECT id, state FROM memberships WHERE member_id = $1 AND state = 'frozen'`, [memberId]);
+  check('the running membership is frozen (renewal stays pending)', !!frozen);
+
+  // Backdate the freeze start 15 days so unfreeze today yields a 15-day extension.
+  await db.query(
+    `UPDATE membership_freezes SET start_date = CURRENT_DATE - 15
+     WHERE membership_id = $1 AND actual_end_date IS NULL`, [frozen.id]);
+
+  const detail2 = await (await getFollow(`/members/${memberId}`)).text();
+  const unfreezeForm = extractForm(detail2, 'membershipId');
+  const uRes = await postAction(`/members/${memberId}`, unfreezeForm, {});
+  check('unfreeze succeeds', redirectTarget(uRes).includes('msg=unfrozen'), redirectTarget(uRes));
+  const [after] = await q(
+    `SELECT state, end_date::text AS e, base_end_date::text AS b
+     FROM memberships WHERE id = $1`, [frozen.id]);
+  const extension = (new Date(after.e) - new Date(after.b)) / 86400000;
+  check('membership active again', after.state === 'active');
+  check('expiry extended by 15 frozen days', extension === 15, `extended ${extension} days`);
+
+  // ---- unauthorized access -------------------------------------------------
+  console.log('\n[authorization]');
+  const savedCookie = cookie;
+  cookie = '';
+  const anon = await get(`/members/${memberId}`);
+  check('member page requires login', [302, 303, 307].includes(anon.status), String(anon.status));
+  const anonExport = await get('/api/export/members');
+  check('export API requires login', anon.status !== 200 && anonExport.status === 401, String(anonExport.status));
+  cookie = savedCookie;
+  check('receptionist relogin', await loginAs(EMAIL));
+  const recepAudit = await get('/audit');
+  check('receptionist blocked from audit log', redirectTarget(recepAudit).includes('/forbidden'),
+    `${recepAudit.status} ${redirectTarget(recepAudit)}`);
+
+  // ---- cleanup test member -------------------------------------------------
+  await db.query(`DELETE FROM attendance WHERE member_id = $1`, [memberId]);
+
+  console.log(`\n${passed} passed, ${failures.length} failed`);
+  if (failures.length) {
+    console.error('FAILURES:', failures.join(' | '));
+    process.exitCode = 1;
+  }
+}
+
+main()
+  .catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => db.end());

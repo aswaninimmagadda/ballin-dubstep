@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { indianMobileSchema, isoDateSchema, mediumText, shortText, uuidSchema } from './primitives.js';
+import { indianMobileSchema, isoDateSchema, mediumText, shortText, uuidSchema } from './primitives';
 
 export const createLeadSchema = z.object({
   branchId: uuidSchema,

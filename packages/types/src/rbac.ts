@@ -1,4 +1,4 @@
-import type { UUID, ISODateTime } from './ids.js';
+import type { UUID, ISODateTime } from './ids';
 
 /**
  * The full permission catalog. Permissions are granular strings grouped by

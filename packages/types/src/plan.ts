@@ -1,4 +1,4 @@
-import type { UUID, ISODate, ISODateTime, MinorUnits } from './ids.js';
+import type { UUID, ISODate, ISODateTime, MinorUnits } from './ids';
 
 export type PlanDurationUnit = 'days' | 'months';
 

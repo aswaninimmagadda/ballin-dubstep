@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createHash, randomBytes } from 'node:crypto';
-import { setupOnce, appPool, withoutClaims, type Fixtures } from './helpers.js';
+import { setupOnce, appPool, withoutClaims, type Fixtures } from './helpers';
 
 let fx: Fixtures;
 beforeAll(async () => {

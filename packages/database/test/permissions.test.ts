@@ -3,7 +3,7 @@
  * gate writes even for correctly-tenanted staff.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { setupOnce, appPool, withClaims, staffClaims, type Fixtures } from './helpers.js';
+import { setupOnce, appPool, withClaims, staffClaims, type Fixtures } from './helpers';
 
 let fx: Fixtures;
 beforeAll(async () => {

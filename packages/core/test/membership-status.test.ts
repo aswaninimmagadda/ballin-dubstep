@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveMembershipStatus, allowsCheckin } from '../src/membership-status.js';
+import { deriveMembershipStatus, allowsCheckin } from '../src/membership-status';
 
 const base = {
   state: 'active' as const,

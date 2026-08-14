@@ -1,4 +1,4 @@
-import type { UUID, ISODateTime } from './ids.js';
+import type { UUID, ISODateTime } from './ids';
 
 export interface AuditLog {
   id: UUID;

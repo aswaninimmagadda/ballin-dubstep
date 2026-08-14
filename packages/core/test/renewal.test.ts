@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { proposeRenewal } from '../src/renewal.js';
+import { proposeRenewal } from '../src/renewal';
 
 describe('proposeRenewal', () => {
   it('seamless renewal before expiry (6-month renewal scenario)', () => {

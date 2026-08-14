@@ -1,4 +1,4 @@
-import type { UUID, ISODate, ISODateTime } from './ids.js';
+import type { UUID, ISODate, ISODateTime } from './ids';
 
 export type LeadSource =
   | 'walk_in'

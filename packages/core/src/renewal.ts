@@ -1,5 +1,5 @@
 import type { PlanDurationUnit } from '@gymflow/types';
-import { computeEndDate, defaultRenewalStartDate } from './membership-dates.js';
+import { computeEndDate, defaultRenewalStartDate } from './membership-dates';
 
 export interface RenewalProposal {
   startDate: string;

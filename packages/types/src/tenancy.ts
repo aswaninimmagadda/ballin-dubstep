@@ -1,4 +1,4 @@
-import type { UUID, ISODateTime, CurrencyCode, LanguageTag } from './ids.js';
+import type { UUID, ISODateTime, CurrencyCode, LanguageTag } from './ids';
 
 export type TenantStatus = 'trial' | 'active' | 'suspended' | 'archived';
 

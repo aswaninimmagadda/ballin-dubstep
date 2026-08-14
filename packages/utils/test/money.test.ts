@@ -7,7 +7,7 @@ import {
   parseMoney,
   percentOf,
   MoneyError,
-} from '../src/money.js';
+} from '../src/money';
 
 describe('money integer safety', () => {
   it('rejects floats', () => {

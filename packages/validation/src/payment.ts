@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoDateSchema, mediumText, minorUnitsSchema, uuidSchema } from './primitives.js';
+import { isoDateSchema, mediumText, minorUnitsSchema, uuidSchema } from './primitives';
 
 export const recordPaymentSchema = z.object({
   memberId: uuidSchema,

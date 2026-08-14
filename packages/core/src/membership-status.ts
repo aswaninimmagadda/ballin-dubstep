@@ -1,5 +1,5 @@
 import { compareDates } from '@gymflow/utils';
-import { graceEndDate, daysRemaining } from './membership-dates.js';
+import { graceEndDate, daysRemaining } from './membership-dates';
 
 /**
  * Derived, display-oriented membership state. The database stores the

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkPromotionEligibility, type PromotionContext } from '../src/promotion-eligibility.js';
+import { checkPromotionEligibility, type PromotionContext } from '../src/promotion-eligibility';
 
 const promo = {
   isActive: true,

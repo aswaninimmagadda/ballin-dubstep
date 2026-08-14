@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { quoteMembership } from '../src/pricing.js';
+import { quoteMembership } from '../src/pricing';
 
 const planVersion = {
   basePrice: 300000, // ₹3000

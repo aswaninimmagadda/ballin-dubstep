@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { indianMobileSchema, isoDateSchema } from './primitives.js';
+import { indianMobileSchema, isoDateSchema } from './primitives';
 
 /**
  * CSV member import row (migration from notebooks/Excel).

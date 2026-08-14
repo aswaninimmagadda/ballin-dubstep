@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { indianMobileSchema } from './primitives.js';
+import { indianMobileSchema } from './primitives';
 
 export const staffLoginSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),

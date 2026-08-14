@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateMemberPassToken, verifyMemberPassToken } from '../src/member-pass.js';
+import { generateMemberPassToken, verifyMemberPassToken } from '../src/member-pass';
 
 const SECRET = 'test-secret-at-least-32-bytes-long!!';
 const MEMBER = '2b0a3c1e-0000-4000-8000-000000000001';

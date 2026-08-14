@@ -1,4 +1,4 @@
-import type { UUID, ISODate, ISODateTime } from './ids.js';
+import type { UUID, ISODate, ISODateTime } from './ids';
 
 /**
  * Member lifecycle status. This is the *person's* relationship with the gym.

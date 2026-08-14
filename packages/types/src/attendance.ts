@@ -1,4 +1,4 @@
-import type { UUID, ISODateTime } from './ids.js';
+import type { UUID, ISODateTime } from './ids';
 
 export type CheckinMethod = 'reception' | 'qr' | 'manual';
 

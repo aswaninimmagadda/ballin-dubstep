@@ -1,5 +1,5 @@
-import { en, type TranslationTree } from './en.js';
-import { te } from './te.js';
+import { en, type TranslationTree } from './en';
+import { te } from './te';
 
 export type { TranslationTree };
 export { en, te };

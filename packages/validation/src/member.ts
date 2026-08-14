@@ -6,7 +6,7 @@ import {
   pinCodeSchema,
   shortText,
   uuidSchema,
-} from './primitives.js';
+} from './primitives';
 
 export const createMemberSchema = z.object({
   branchId: uuidSchema,

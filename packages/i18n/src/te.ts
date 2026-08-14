@@ -1,4 +1,4 @@
-import type { TranslationTree } from './en.js';
+import type { TranslationTree } from './en';
 
 /** Telugu translation resource. Same shape as `en` — enforced by the type. */
 export const te: TranslationTree = {
