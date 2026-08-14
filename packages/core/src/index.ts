@@ -6,3 +6,4 @@ export * from './receipt-number.js';
 export * from './rbac.js';
 export * from './member-pass.js';
 export * from './pricing.js';
+export * from './password.js';
