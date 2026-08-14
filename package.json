@@ -1,0 +1,29 @@
+{
+  "name": "gymflow",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GymFlow — multi-tenant gym management platform (working name; see packages/config)",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,css}\" --ignore-path .gitignore",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "test:unit": "pnpm --filter @gymflow/core --filter @gymflow/utils --filter @gymflow/validation test",
+    "test:integration": "pnpm --filter @gymflow/database test",
+    "build": "pnpm -r --if-present build",
+    "db:migrate": "pnpm --filter @gymflow/database migrate",
+    "db:seed": "pnpm --filter @gymflow/database seed",
+    "db:reset": "pnpm --filter @gymflow/database reset",
+    "dev:admin": "pnpm --filter @gymflow/admin dev",
+    "dev:member": "pnpm --filter @gymflow/member start"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}
