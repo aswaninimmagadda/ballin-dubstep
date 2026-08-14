@@ -20,7 +20,8 @@ export default async function ReportsPage({
     collectionsReport(user, { from, to }),
     planMixReport(user),
   ]);
-  const canExport = hasPermission(user.permissions, 'reports.export') || user.kind === 'platform_admin';
+  const canExport =
+    hasPermission(user.permissions, 'reports.export') || user.kind === 'platform_admin';
 
   return (
     <>
@@ -29,10 +30,18 @@ export default async function ReportsPage({
         actions={
           canExport ? (
             <>
-              <Button href="/api/export/members" variant="secondary">Members CSV</Button>
-              <Button href="/api/export/payments" variant="secondary">Payments CSV</Button>
-              <Button href="/api/export/memberships" variant="secondary">Memberships CSV</Button>
-              <Button href="/api/export/attendance" variant="secondary">Attendance CSV</Button>
+              <Button href="/api/export/members" variant="secondary">
+                Members CSV
+              </Button>
+              <Button href="/api/export/payments" variant="secondary">
+                Payments CSV
+              </Button>
+              <Button href="/api/export/memberships" variant="secondary">
+                Memberships CSV
+              </Button>
+              <Button href="/api/export/attendance" variant="secondary">
+                Attendance CSV
+              </Button>
             </>
           ) : undefined
         }
@@ -59,7 +68,9 @@ export default async function ReportsPage({
           <Table headers={[tr.payments.method, 'Count', tr.payments.amount]}>
             {collections.byMethod.map((m) => (
               <tr key={m.method}>
-                <td className="px-4 py-3">{tr.payments.methods[m.method as keyof typeof tr.payments.methods] ?? m.method}</td>
+                <td className="px-4 py-3">
+                  {tr.payments.methods[m.method as keyof typeof tr.payments.methods] ?? m.method}
+                </td>
                 <td className="px-4 py-3">{m.count}</td>
                 <td className="px-4 py-3 font-medium">{formatMoney(Number(m.total))}</td>
               </tr>
@@ -68,7 +79,9 @@ export default async function ReportsPage({
         </Card>
 
         <Card>
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Membership plan mix (all time)</h2>
+          <h2 className="mb-4 text-sm font-semibold text-slate-700">
+            Membership plan mix (all time)
+          </h2>
           <Table headers={[tr.members.plan, 'Active', 'Revenue']}>
             {planMix.map((p) => (
               <tr key={p.plan_name}>

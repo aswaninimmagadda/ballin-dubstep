@@ -51,12 +51,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 
 /** Built-in role keys. Tenants may also create custom roles. */
 export type SystemRoleKey =
-  | 'owner'
-  | 'branch_manager'
-  | 'receptionist'
-  | 'trainer'
-  | 'accountant'
-  | 'member';
+  'owner' | 'branch_manager' | 'receptionist' | 'trainer' | 'accountant' | 'member';
 
 export interface Role {
   id: UUID;

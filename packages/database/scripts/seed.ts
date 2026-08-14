@@ -13,7 +13,13 @@
  * Passwords come from SEED_PASSWORD (default only for local development).
  */
 import pg from 'pg';
-import { hashPassword, SYSTEM_ROLE_PERMISSIONS, computeEndDate, fiscalYearLabel, formatReceiptNumber } from '@gymflow/core';
+import {
+  hashPassword,
+  SYSTEM_ROLE_PERMISSIONS,
+  computeEndDate,
+  fiscalYearLabel,
+  formatReceiptNumber,
+} from '@gymflow/core';
 import { addDays, todayInTz } from '@gymflow/utils';
 
 const url = process.env.DATABASE_URL;
@@ -26,7 +32,10 @@ const MEMBER_PASSWORD = process.env.SEED_MEMBER_PASSWORD ?? 'member-dev-123';
 
 const client = new pg.Client({ connectionString: url });
 
-async function q<T extends pg.QueryResultRow = pg.QueryResultRow>(text: string, params: unknown[] = []): Promise<pg.QueryResult<T>> {
+async function q<T extends pg.QueryResultRow = pg.QueryResultRow>(
+  text: string,
+  params: unknown[] = [],
+): Promise<pg.QueryResult<T>> {
   return client.query<T>(text, params);
 }
 
@@ -124,14 +133,25 @@ async function main() {
         [T, email, name],
       )
     ).rows[0]!;
-    await q(`INSERT INTO user_credentials (user_id, password_hash) VALUES ($1, $2)`, [u.id, staffHash]);
+    await q(`INSERT INTO user_credentials (user_id, password_hash) VALUES ($1, $2)`, [
+      u.id,
+      staffHash,
+    ]);
     await q(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [u.id, roleIds[roleKey]]);
     return u.id;
   }
   const ownerId = await staff('owner@demo.gymflow.local', 'Venkata Rao (Owner)', 'owner');
-  const managerId = await staff('manager@demo.gymflow.local', 'Sridevi (Manager)', 'branch_manager');
-  const receptionId = await staff('reception@demo.gymflow.local', 'Kiran (Reception)', 'receptionist');
-  const accountantId = await staff('accounts@demo.gymflow.local', 'Prasad (Accounts)', 'accountant');
+  const managerId = await staff(
+    'manager@demo.gymflow.local',
+    'Sridevi (Manager)',
+    'branch_manager',
+  );
+  const receptionId = await staff(
+    'reception@demo.gymflow.local',
+    'Kiran (Reception)',
+    'receptionist',
+  );
+  await staff('accounts@demo.gymflow.local', 'Prasad (Accounts)', 'accountant');
 
   // ---- Trainers ------------------------------------------------------------
   const trainerRows = (
@@ -161,9 +181,19 @@ async function main() {
     { name: '6 Month', months: 6, price: 450000, joining: 0 },
     { name: '12 Month', months: 12, price: 800000, joining: 0 },
     { name: 'Student 3 Month', months: 3, price: 200000, joining: 0, tags: ['student'] },
-    { name: 'Womens Morning Monthly', months: 1, price: 80000, joining: 0, tags: ['women'], timings: '05:30-10:30' },
+    {
+      name: 'Womens Morning Monthly',
+      months: 1,
+      price: 80000,
+      joining: 0,
+      tags: ['women'],
+      timings: '05:30-10:30',
+    },
   ];
-  const plans: Record<string, { planId: string; versionId: string; months: number; price: number; joining: number }> = {};
+  const plans: Record<
+    string,
+    { planId: string; versionId: string; months: number; price: number; joining: number }
+  > = {};
   for (const [i, p] of planSpecs.entries()) {
     const plan = (
       await q<{ id: string }>(
@@ -181,7 +211,13 @@ async function main() {
         [T, plan.id, p.months, p.price, p.joining, p.timings ?? null],
       )
     ).rows[0]!;
-    plans[p.name] = { planId: plan.id, versionId: ver.id, months: p.months, price: p.price, joining: p.joining };
+    plans[p.name] = {
+      planId: plan.id,
+      versionId: ver.id,
+      months: p.months,
+      price: p.price,
+      joining: p.joining,
+    };
   }
 
   // ---- Add-ons -------------------------------------------------------------
@@ -218,10 +254,36 @@ async function main() {
 
   // ---- Members -------------------------------------------------------------
   const firstNames = [
-    'Ravi', 'Lakshmi', 'Suresh', 'Padma', 'Krishna', 'Anjali', 'Ramesh', 'Sita',
-    'Naveen', 'Divya', 'Mahesh', 'Swathi', 'Kiran', 'Bhavani', 'Srinivas', 'Radha',
-    'Chandra', 'Manasa', 'Prakash', 'Jyothi', 'Venu', 'Sravani', 'Harish', 'Kavya',
-    'Gopal', 'Nandini', 'Rajesh', 'Sushma', 'Balaji', 'Meghana',
+    'Ravi',
+    'Lakshmi',
+    'Suresh',
+    'Padma',
+    'Krishna',
+    'Anjali',
+    'Ramesh',
+    'Sita',
+    'Naveen',
+    'Divya',
+    'Mahesh',
+    'Swathi',
+    'Kiran',
+    'Bhavani',
+    'Srinivas',
+    'Radha',
+    'Chandra',
+    'Manasa',
+    'Prakash',
+    'Jyothi',
+    'Venu',
+    'Sravani',
+    'Harish',
+    'Kavya',
+    'Gopal',
+    'Nandini',
+    'Rajesh',
+    'Sushma',
+    'Balaji',
+    'Meghana',
   ];
   const lastNames = ['Kumar', 'Devi', 'Reddy', 'Naidu', 'Rao', 'Prasad', 'Chowdary', 'Goud'];
   const villages = ['Madanapalle', 'Punganur', 'B Kothakota', 'Kurabalakota', 'Nimmanapalle'];
@@ -273,7 +335,11 @@ async function main() {
     }
 
     const p = plans[planName]!;
-    const end = computeEndDate({ startDate: start, durationUnit: 'months', durationValue: p.months });
+    const end = computeEndDate({
+      startDate: start,
+      durationUnit: 'months',
+      durationValue: p.months,
+    });
     const isExpired = end < today;
     const state = i === 25 ? 'frozen' : i === 26 ? 'pending' : isExpired ? 'expired' : 'active';
     const memberStatus =
@@ -287,7 +353,12 @@ async function main() {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Annamayya','Andhra Pradesh','517325',$9,$10,$11,$12)
          RETURNING id`,
         [
-          T, branch, num, fn, ln, mobile,
+          T,
+          branch,
+          num,
+          fn,
+          ln,
+          mobile,
           i % 3 === 1 ? 'female' : 'male',
           villages[i % villages.length],
           start < today ? start : today,
@@ -311,9 +382,19 @@ async function main() {
            discount_amount, promotion_id, sold_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,3,$9,$10,$11,$12,$13) RETURNING id`,
         [
-          T, branch, member.id, p.planId, p.versionId, planName,
-          start, end, state, total - discount, discount,
-          usePromo ? promoNY.id : null, receptionId,
+          T,
+          branch,
+          member.id,
+          p.planId,
+          p.versionId,
+          planName,
+          start,
+          end,
+          state,
+          total - discount,
+          discount,
+          usePromo ? promoNY.id : null,
+          receptionId,
         ],
       )
     ).rows[0]!;
@@ -337,9 +418,13 @@ async function main() {
           `INSERT INTO payments (tenant_id, branch_id, member_id, amount, method, payment_date, received_by, external_reference)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
           [
-            T, branch, member.id, total - discount,
+            T,
+            branch,
+            member.id,
+            total - discount,
             ['cash', 'upi', 'cash', 'upi', 'card_debit'][i % 5],
-            start < today ? start : today, receptionId,
+            start < today ? start : today,
+            receptionId,
             i % 2 ? `UTR${300000 + i}` : null,
           ],
         )
@@ -353,7 +438,14 @@ async function main() {
       await q(
         `INSERT INTO receipts (tenant_id, branch_id, payment_id, receipt_number, sequence, fiscal_year)
          VALUES ($1,$2,$3,$4,$5,$6)`,
-        [T, branch, payment.id, formatReceiptNumber({ prefix: 'SVF', fiscalYear: fy, sequence: receiptSeq }), receiptSeq, fy],
+        [
+          T,
+          branch,
+          payment.id,
+          formatReceiptNumber({ prefix: 'SVF', fiscalYear: fy, sequence: receiptSeq }),
+          receiptSeq,
+          fy,
+        ],
       );
     }
 
@@ -387,15 +479,31 @@ async function main() {
             (tenant_id, member_id, addon_package_id, name_snapshot, price_snapshot, trainer_id,
              sessions_total, sessions_used, start_date, end_date)
            VALUES ($1,$2,$3,'PT 8 Sessions',200000,$4,8,$5,$6,$7) RETURNING id`,
-          [T, member.id, pt8.id, branch === main.id ? trainer1!.id : trainer2!.id, i % 4, start, addDays(start, 45)],
+          [
+            T,
+            member.id,
+            pt8.id,
+            branch === main.id ? trainer1!.id : trainer2!.id,
+            i % 4,
+            start,
+            addDays(start, 45),
+          ],
         )
       ).rows[0]!;
       const hour = String(6 + Math.floor(i / 3)).padStart(2, '0');
       await q(
         `INSERT INTO trainer_sessions (tenant_id, branch_id, trainer_id, member_id, member_addon_id, session_date, start_time, end_time, status)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'scheduled')`,
-        [T, branch, branch === main.id ? trainer1!.id : trainer2!.id, member.id, addon.id,
-         addDays(today, 1 + (i % 3)), `${hour}:00`, `${hour}:55`],
+        [
+          T,
+          branch,
+          branch === main.id ? trainer1!.id : trainer2!.id,
+          member.id,
+          addon.id,
+          addDays(today, 1 + (i % 3)),
+          `${hour}:00`,
+          `${hour}:55`,
+        ],
       );
     }
   }
@@ -424,7 +532,10 @@ async function main() {
         [T, m.mobile, m.first_name],
       )
     ).rows[0]!;
-    await q(`INSERT INTO user_credentials (user_id, password_hash) VALUES ($1, $2)`, [u.id, memberHash]);
+    await q(`INSERT INTO user_credentials (user_id, password_hash) VALUES ($1, $2)`, [
+      u.id,
+      memberHash,
+    ]);
     await q(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [u.id, roleIds.member]);
     await q(`UPDATE members SET user_id = $1 WHERE id = $2`, [u.id, m.id]);
   }
@@ -464,7 +575,9 @@ async function main() {
   console.log('  Tenant: Sri Vinayaka Fitness (Demo) — slug "apfitness", 2 branches, 30 members');
   console.log('  Staff logins (password from SEED_PASSWORD, default dev-only):');
   console.log('    admin@gymflow.local (platform) / owner@demo.gymflow.local');
-  console.log('    manager@demo.gymflow.local / reception@demo.gymflow.local / accounts@demo.gymflow.local');
+  console.log(
+    '    manager@demo.gymflow.local / reception@demo.gymflow.local / accounts@demo.gymflow.local',
+  );
   console.log('  Member app: gym code "apfitness", mobiles 9876543210/11/12, SEED_MEMBER_PASSWORD');
   if (!process.env.SEED_PASSWORD) {
     console.warn('  WARNING: default dev passwords in use. Set SEED_PASSWORD for anything shared.');
@@ -473,7 +586,11 @@ async function main() {
 
 main()
   .catch(async (err) => {
-    try { await q('ROLLBACK'); } catch { /* not in tx */ }
+    try {
+      await q('ROLLBACK');
+    } catch {
+      /* not in tx */
+    }
     console.error(err);
     process.exitCode = 1;
   })

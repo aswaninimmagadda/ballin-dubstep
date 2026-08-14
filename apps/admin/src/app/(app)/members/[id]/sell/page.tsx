@@ -34,7 +34,9 @@ async function sellAction(formData: FormData): Promise<void> {
   };
   const parsed = sellMembershipSchema.safeParse(payload);
   if (!parsed.success) {
-    redirect(`/members/${memberId}/sell?error=${encodeURIComponent('Please check the form and try again.')}`);
+    redirect(
+      `/members/${memberId}/sell?error=${encodeURIComponent('Please check the form and try again.')}`,
+    );
   }
   let receipt: string | null = null;
   try {
@@ -56,11 +58,7 @@ export default async function SellPage({
   const user = await requirePermission('memberships.sell');
   const { id } = await params;
   const { error, new: isNew } = await searchParams;
-  const [detail, plans, tr] = await Promise.all([
-    getMemberDetail(user, id),
-    listPlans(user),
-    t(),
-  ]);
+  const [detail, plans, tr] = await Promise.all([getMemberDetail(user, id), listPlans(user), t()]);
   if (!detail) notFound();
   const today = todayInTz();
 
@@ -79,14 +77,26 @@ export default async function SellPage({
           <Field label={tr.members.plan} required>
             <div className="space-y-2">
               {plans.map((p, i) => (
-                <label key={p.id} className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 px-4 py-3 hover:border-primary has-checked:border-primary has-checked:bg-green-50">
+                <label
+                  key={p.id}
+                  className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 px-4 py-3 hover:border-primary has-checked:border-primary has-checked:bg-green-50"
+                >
                   <span className="flex items-center gap-3">
-                    <input type="radio" name="planId" value={p.id} required defaultChecked={i === 0} className="h-4 w-4" />
+                    <input
+                      type="radio"
+                      name="planId"
+                      value={p.id}
+                      required
+                      defaultChecked={i === 0}
+                      className="h-4 w-4"
+                    />
                     <span>
                       <span className="block text-sm font-semibold">{p.name}</span>
                       <span className="block text-xs text-slate-500">
                         {p.duration_value} {p.duration_unit === 'months' ? 'months' : 'days'}
-                        {Number(p.joining_fee) > 0 ? ` · ${tr.membership.joiningFee} ${formatMoney(Number(p.joining_fee))}` : ''}
+                        {Number(p.joining_fee) > 0
+                          ? ` · ${tr.membership.joiningFee} ${formatMoney(Number(p.joining_fee))}`
+                          : ''}
                       </span>
                     </span>
                   </span>
@@ -98,7 +108,13 @@ export default async function SellPage({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={tr.membership.startDate} required>
-              <input name="startDate" type="date" defaultValue={today} required className={inputCls} />
+              <input
+                name="startDate"
+                type="date"
+                defaultValue={today}
+                required
+                className={inputCls}
+              />
             </Field>
             <Field label={tr.membership.promotion} hint="Optional promo code">
               <input name="promotionCode" placeholder="e.g. NEWYEAR26" className={inputCls} />
@@ -111,7 +127,9 @@ export default async function SellPage({
           </label>
 
           <fieldset className="rounded-lg border border-slate-200 p-4">
-            <legend className="px-1 text-sm font-semibold text-slate-700">{tr.members.recordPayment}</legend>
+            <legend className="px-1 text-sm font-semibold text-slate-700">
+              {tr.members.recordPayment}
+            </legend>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label={`${tr.payments.amount} (₹)`} hint="Leave empty to record payment later">
                 <input name="amount" inputMode="decimal" placeholder="2500" className={inputCls} />
@@ -119,7 +137,9 @@ export default async function SellPage({
               <Field label={tr.payments.method}>
                 <select name="method" className={inputCls} defaultValue="cash">
                   {Object.entries(tr.payments.methods).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
                   ))}
                 </select>
               </Field>
@@ -131,7 +151,9 @@ export default async function SellPage({
 
           <div className="flex gap-2">
             <Button>{tr.common.confirm}</Button>
-            <Button href={`/members/${id}`} variant="secondary" type="button">{tr.common.cancel}</Button>
+            <Button href={`/members/${id}`} variant="secondary" type="button">
+              {tr.common.cancel}
+            </Button>
           </div>
         </form>
       </Card>

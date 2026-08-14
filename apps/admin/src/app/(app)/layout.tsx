@@ -76,7 +76,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
         {/* Mobile nav */}
-        <nav className="flex gap-1 overflow-x-auto border-t border-slate-100 px-2 py-1 md:hidden" aria-label="Main mobile">
+        <nav
+          className="flex gap-1 overflow-x-auto border-t border-slate-100 px-2 py-1 md:hidden"
+          aria-label="Main mobile"
+        >
           {nav.map((item) => (
             <Link
               key={item.href}

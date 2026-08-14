@@ -56,12 +56,22 @@ describe('applyDiscount', () => {
   });
   it('respects maxDiscountAmount', () => {
     expect(
-      applyDiscount({ baseAmount: 1000000, kind: 'percentage', value: 5000, maxDiscountAmount: 100000 }),
+      applyDiscount({
+        baseAmount: 1000000,
+        kind: 'percentage',
+        value: 5000,
+        maxDiscountAmount: 100000,
+      }),
     ).toEqual({ discount: 100000, payable: 900000 });
   });
   it('joining fee waiver discounts exactly the joining fee', () => {
     expect(
-      applyDiscount({ baseAmount: 350000, kind: 'joining_fee_waiver', value: 0, joiningFee: 50000 }),
+      applyDiscount({
+        baseAmount: 350000,
+        kind: 'joining_fee_waiver',
+        value: 0,
+        joiningFee: 50000,
+      }),
     ).toEqual({ discount: 50000, payable: 300000 });
   });
   it('zero-price membership stays zero', () => {

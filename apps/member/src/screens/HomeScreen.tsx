@@ -8,7 +8,20 @@ import { theme } from '../lib/theme';
 
 function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   return `${d}-${months[Number(m) - 1]}-${y}`;
 }
 
@@ -50,7 +63,8 @@ export function HomeScreen() {
   if (!me) return <Loading />;
   const membership = me.membership;
   const statusLabel = membership
-    ? (t.membership.statuses[membership.status as keyof typeof t.membership.statuses] ?? membership.status)
+    ? (t.membership.statuses[membership.status as keyof typeof t.membership.statuses] ??
+      membership.status)
     : t.members.statuses.expired;
 
   return (
@@ -62,7 +76,9 @@ export function HomeScreen() {
       {stale ? <OfflineBanner text={t.common.offline} /> : null}
 
       <Card>
-        <Muted>{me.gym.name} · {me.member.branchName}</Muted>
+        <Muted>
+          {me.gym.name} · {me.member.branchName}
+        </Muted>
         <Title>
           {me.member.firstName} {me.member.lastName ?? ''}
         </Title>
@@ -112,7 +128,12 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: theme.color.surfaceMuted },
   content: { padding: theme.spacing.md },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
   plan: { fontSize: 18, fontWeight: '700', color: theme.color.text },
   days: { fontSize: 15, fontWeight: '600', color: theme.color.primaryDark, marginTop: 6 },
   qrCard: { alignItems: 'center', gap: 12, paddingVertical: 24 },

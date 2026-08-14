@@ -19,7 +19,11 @@ async function loginAction(formData: FormData): Promise<void> {
   redirect('/');
 }
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const user = await currentUser();
   if (user && user.kind !== 'member') redirect('/');
   const { error } = await searchParams;
@@ -41,7 +45,14 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <input name="email" type="email" autoComplete="email" required className={inputCls} />
           </Field>
           <Field label={tr.auth.password} required>
-            <input name="password" type="password" autoComplete="current-password" required minLength={8} className={inputCls} />
+            <input
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              minLength={8}
+              className={inputCls}
+            />
           </Field>
           <Button className="w-full">{tr.auth.signIn}</Button>
         </form>

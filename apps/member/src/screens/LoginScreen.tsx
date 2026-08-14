@@ -70,7 +70,12 @@ export function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: theme.color.surfaceMuted, justifyContent: 'center', padding: 24 },
+  wrap: {
+    flex: 1,
+    backgroundColor: theme.color.surfaceMuted,
+    justifyContent: 'center',
+    padding: 24,
+  },
   box: {
     backgroundColor: '#fff',
     borderRadius: theme.radius.lg,

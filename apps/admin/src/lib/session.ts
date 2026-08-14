@@ -25,16 +25,16 @@ export interface SessionUser {
 }
 
 export type LoginResult =
-  | { ok: true }
-  | { ok: false; reason: 'invalid' | 'locked' | 'inactive' | 'tenant_suspended' };
+  { ok: true } | { ok: false; reason: 'invalid' | 'locked' | 'inactive' | 'tenant_suspended' };
 
 export async function loginStaff(email: string, password: string): Promise<LoginResult> {
   const ip = await clientIp();
   const failures = await asAnonymous(async (tx) => {
-    const r = await tx.query(
-      `SELECT app.recent_failed_attempts($1, $2, $3::interval) AS n`,
-      [email, ip, THROTTLE_WINDOW],
-    );
+    const r = await tx.query(`SELECT app.recent_failed_attempts($1, $2, $3::interval) AS n`, [
+      email,
+      ip,
+      THROTTLE_WINDOW,
+    ]);
     return Number((r as { rows: { n: string }[] }).rows[0]?.n ?? 0);
   });
   if (failures >= MAX_FAILED_ATTEMPTS) return { ok: false, reason: 'locked' };
@@ -45,9 +45,7 @@ export async function loginStaff(email: string, password: string): Promise<Login
   });
 
   const recordAttempt = (ok: boolean) =>
-    asAnonymous((tx) =>
-      tx.query(`SELECT app.record_login_attempt($1, $2, $3)`, [email, ip, ok]),
-    );
+    asAnonymous((tx) => tx.query(`SELECT app.record_login_attempt($1, $2, $3)`, [email, ip, ok]));
 
   if (!row || !(await verifyPassword(password, row.password_hash as string))) {
     await recordAttempt(false);
@@ -57,7 +55,12 @@ export async function loginStaff(email: string, password: string): Promise<Login
     await recordAttempt(false);
     return { ok: false, reason: 'inactive' };
   }
-  if (row.kind === 'staff' && row.tenant_status && row.tenant_status !== 'active' && row.tenant_status !== 'trial') {
+  if (
+    row.kind === 'staff' &&
+    row.tenant_status &&
+    row.tenant_status !== 'active' &&
+    row.tenant_status !== 'trial'
+  ) {
     await recordAttempt(false);
     return { ok: false, reason: 'tenant_suspended' };
   }
@@ -68,7 +71,11 @@ export async function loginStaff(email: string, password: string): Promise<Login
   const ua = (await headers()).get('user-agent') ?? '';
   await asAnonymous((tx) =>
     tx.query(`SELECT app.session_create($1, $2, $3, $4, $5)`, [
-      row.user_id, sha256(token), expires.toISOString(), ip, ua,
+      row.user_id,
+      sha256(token),
+      expires.toISOString(),
+      ip,
+      ua,
     ]),
   );
   const jar = await cookies();
@@ -101,7 +108,11 @@ export const currentUser = cache(async (): Promise<SessionUser | null> => {
     return (r as { rows: Record<string, unknown>[] }).rows[0];
   });
   if (!row || !row.is_active) return null;
-  if (row.kind === 'staff' && row.tenant_status && !['active', 'trial'].includes(row.tenant_status as string)) {
+  if (
+    row.kind === 'staff' &&
+    row.tenant_status &&
+    !['active', 'trial'].includes(row.tenant_status as string)
+  ) {
     return null;
   }
   const claims: Claims = {

@@ -25,7 +25,8 @@ async function checkMobileAction(formData: FormData): Promise<void> {
   const mobile = normalizeIndianMobile(raw).e164;
   const user = await requirePermission('members.create');
   const dups = await findDuplicates(user, mobile);
-  if (dups.length > 0) redirect(`/members/new?mobile=${encodeURIComponent(mobile)}&dup=${dups[0]!.id}`);
+  if (dups.length > 0)
+    redirect(`/members/new?mobile=${encodeURIComponent(mobile)}&dup=${dups[0]!.id}`);
   redirect(`/members/new?mobile=${encodeURIComponent(mobile)}&step=2`);
 }
 
@@ -46,7 +47,9 @@ async function createMemberAction(formData: FormData): Promise<void> {
     const leadId = raw.leadId;
     if (leadId) await markLeadConverted(user, leadId, id);
   } catch (err) {
-    redirect(`/members/new?step=2&mobile=${encodeURIComponent(raw.mobile ?? '')}&error=${encodeURIComponent(toUserMessage(err))}`);
+    redirect(
+      `/members/new?step=2&mobile=${encodeURIComponent(raw.mobile ?? '')}&error=${encodeURIComponent(toUserMessage(err))}`,
+    );
   }
   redirect(`/members/${id!}/sell?new=1`);
 }
@@ -54,7 +57,13 @@ async function createMemberAction(formData: FormData): Promise<void> {
 export default async function NewMemberPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mobile?: string; step?: string; dup?: string; error?: string; lead?: string }>;
+  searchParams: Promise<{
+    mobile?: string;
+    step?: string;
+    dup?: string;
+    error?: string;
+    lead?: string;
+  }>;
 }) {
   const user = await requirePermission('members.create');
   const { mobile, step, dup, error, lead } = await searchParams;
@@ -76,7 +85,12 @@ export default async function NewMemberPage({
     });
   }
 
-  let dupInfo: { id: string; first_name: string; last_name: string | null; membership_number: string } | null = null;
+  let dupInfo: {
+    id: string;
+    first_name: string;
+    last_name: string | null;
+    membership_number: string;
+  } | null = null;
   if (dup) {
     const dups = await findDuplicates(user, mobile ?? '');
     dupInfo = dups.find((d) => d.id === dup) ?? null;
@@ -105,7 +119,9 @@ export default async function NewMemberPage({
             {dupInfo.first_name} {dupInfo.last_name ?? ''} · {dupInfo.membership_number}
           </p>
           <div className="mt-3 flex gap-2">
-            <Button href={`/members/${dupInfo.id}`} variant="secondary">{tr.members.useExisting}</Button>
+            <Button href={`/members/${dupInfo.id}`} variant="secondary">
+              {tr.members.useExisting}
+            </Button>
           </div>
         </Card>
       ) : null}
@@ -115,8 +131,13 @@ export default async function NewMemberPage({
           <form action={checkMobileAction} className="space-y-4">
             <Field label={tr.members.mobile} required hint="We check for existing members first.">
               <input
-                name="mobile" type="tel" inputMode="numeric" autoFocus required
-                placeholder="98765 43210" className={inputCls}
+                name="mobile"
+                type="tel"
+                inputMode="numeric"
+                autoFocus
+                required
+                placeholder="98765 43210"
+                className={inputCls}
               />
             </Field>
             <Button className="w-full">{tr.common.next}</Button>
@@ -132,17 +153,27 @@ export default async function NewMemberPage({
             <Field label="Branch" required>
               <select name="branchId" required className={inputCls}>
                 {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
                 ))}
               </select>
             </Field>
             <Field label={tr.members.firstName} required>
-              <input name="firstName" required autoFocus className={inputCls}
-                defaultValue={leadData?.name?.split(' ')[0] ?? ''} />
+              <input
+                name="firstName"
+                required
+                autoFocus
+                className={inputCls}
+                defaultValue={leadData?.name?.split(' ')[0] ?? ''}
+              />
             </Field>
             <Field label={tr.members.lastName}>
-              <input name="lastName" className={inputCls}
-                defaultValue={leadData?.name?.split(' ').slice(1).join(' ') ?? ''} />
+              <input
+                name="lastName"
+                className={inputCls}
+                defaultValue={leadData?.name?.split(' ').slice(1).join(' ') ?? ''}
+              />
             </Field>
             <Field label="Gender">
               <select name="gender" className={inputCls} defaultValue="">
@@ -160,13 +191,20 @@ export default async function NewMemberPage({
               <input name="village" className={inputCls} />
             </Field>
             <Field label={tr.members.pinCode}>
-              <input name="pinCode" inputMode="numeric" pattern="[1-9][0-9]{5}" className={inputCls} />
+              <input
+                name="pinCode"
+                inputMode="numeric"
+                pattern="[1-9][0-9]{5}"
+                className={inputCls}
+              />
             </Field>
             <Field label={tr.members.trainer}>
               <select name="assignedTrainerId" className={inputCls} defaultValue="">
                 <option value="">—</option>
                 {trainers.map((x) => (
-                  <option key={x.id} value={x.id}>{x.name}</option>
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -191,8 +229,12 @@ export default async function NewMemberPage({
               </Field>
             </div>
             <div className="flex gap-2 sm:col-span-2">
-              <Button>{tr.common.next} → {tr.membership.sell}</Button>
-              <Button href="/members" variant="secondary" type="button">{tr.common.cancel}</Button>
+              <Button>
+                {tr.common.next} → {tr.membership.sell}
+              </Button>
+              <Button href="/members" variant="secondary" type="button">
+                {tr.common.cancel}
+              </Button>
             </div>
           </form>
         </Card>

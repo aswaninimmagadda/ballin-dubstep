@@ -44,12 +44,7 @@ export interface MembershipPlanVersion {
 }
 
 export type AddonKind =
-  | 'personal_training'
-  | 'group_class'
-  | 'locker'
-  | 'towel'
-  | 'nutrition'
-  | 'other';
+  'personal_training' | 'group_class' | 'locker' | 'towel' | 'nutrition' | 'other';
 
 export interface AddonPackage {
   id: UUID;

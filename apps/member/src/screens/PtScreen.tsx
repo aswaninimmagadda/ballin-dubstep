@@ -35,7 +35,11 @@ export function PtScreen() {
         data.addons.map((a) => (
           <Card key={a.id}>
             <Text style={styles.name}>{a.name_snapshot}</Text>
-            {a.trainer_name ? <Muted>{t.members.trainer}: {a.trainer_name}</Muted> : null}
+            {a.trainer_name ? (
+              <Muted>
+                {t.members.trainer}: {a.trainer_name}
+              </Muted>
+            ) : null}
             {a.sessions_total != null ? (
               <Text style={styles.sessions}>
                 {a.sessions_used} / {a.sessions_total}

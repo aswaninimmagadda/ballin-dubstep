@@ -43,15 +43,22 @@ export async function createPlan(user: SessionUser, input: CreatePlanInput): Pro
                                      display_order, tags, effective_from, effective_to)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
       [
-        user.tenantId, input.name, input.publicDescription ?? null,
-        input.internalDescription ?? null, input.displayOrder, input.tags,
-        input.effectiveFrom ?? null, input.effectiveTo ?? null,
+        user.tenantId,
+        input.name,
+        input.publicDescription ?? null,
+        input.internalDescription ?? null,
+        input.displayOrder,
+        input.tags,
+        input.effectiveFrom ?? null,
+        input.effectiveTo ?? null,
       ],
     );
     const planId = (pR.rows[0] as { id: string }).id;
     await insertVersion(tx, user.tenantId!, planId, 1, input.terms);
     await writeAudit(tx, user, {
-      action: 'plan.create', entityType: 'membership_plan', entityId: planId,
+      action: 'plan.create',
+      entityType: 'membership_plan',
+      entityId: planId,
       after: { name: input.name, basePrice: input.terms.basePrice },
     });
     return planId;
@@ -74,19 +81,26 @@ export async function updatePlanTerms(
     const next = current + 1;
     await insertVersion(tx, user.tenantId!, planId, next, terms);
     await writeAudit(tx, user, {
-      action: 'plan.update_terms', entityType: 'membership_plan', entityId: planId,
+      action: 'plan.update_terms',
+      entityType: 'membership_plan',
+      entityId: planId,
       after: { version: next, basePrice: terms.basePrice },
     });
     return next;
   });
 }
 
-export async function setPlanActive(user: SessionUser, planId: string, active: boolean): Promise<void> {
+export async function setPlanActive(
+  user: SessionUser,
+  planId: string,
+  active: boolean,
+): Promise<void> {
   return asPrincipal(user.claims, async (tx) => {
     await tx.query(`UPDATE membership_plans SET is_active = $2 WHERE id = $1`, [planId, active]);
     await writeAudit(tx, user, {
       action: active ? 'plan.activate' : 'plan.deactivate',
-      entityType: 'membership_plan', entityId: planId,
+      entityType: 'membership_plan',
+      entityId: planId,
     });
   });
 }
@@ -105,11 +119,22 @@ async function insertVersion(
        allowed_timings, max_visits_per_month, branch_ids, eligibility_note)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
     [
-      tenantId, planId, version, terms.durationUnit, terms.durationValue,
-      terms.basePrice, terms.joiningFee, terms.taxRateBps, terms.taxInclusive,
-      terms.freezeAllowanceDays, terms.maxFreezes, terms.gracePeriodDays,
-      terms.allowedTimings ?? null, terms.maxVisitsPerMonth ?? null,
-      terms.branchIds ?? null, terms.eligibilityNote ?? null,
+      tenantId,
+      planId,
+      version,
+      terms.durationUnit,
+      terms.durationValue,
+      terms.basePrice,
+      terms.joiningFee,
+      terms.taxRateBps,
+      terms.taxInclusive,
+      terms.freezeAllowanceDays,
+      terms.maxFreezes,
+      terms.gracePeriodDays,
+      terms.allowedTimings ?? null,
+      terms.maxVisitsPerMonth ?? null,
+      terms.branchIds ?? null,
+      terms.eligibilityNote ?? null,
     ],
   );
 }

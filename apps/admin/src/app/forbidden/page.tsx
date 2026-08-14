@@ -8,7 +8,9 @@ export default function ForbiddenPage() {
         Your account does not have access to this page. Ask the gym owner to grant the required
         permission if you need it.
       </p>
-      <Button href="/" variant="secondary" type="button">Go to dashboard</Button>
+      <Button href="/" variant="secondary" type="button">
+        Go to dashboard
+      </Button>
     </main>
   );
 }

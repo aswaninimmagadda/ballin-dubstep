@@ -107,7 +107,9 @@ export async function checkinMember(
     );
     if (opts.override) {
       await writeAudit(tx, user, {
-        action: 'attendance.override', entityType: 'member', entityId: m.id,
+        action: 'attendance.override',
+        entityType: 'member',
+        entityId: m.id,
         after: { note: 'check-in allowed despite inactive membership' },
       });
     }
@@ -119,7 +121,9 @@ export async function checkinMember(
 export async function resolveQrToken(user: SessionUser, token: string): Promise<string> {
   const result = verifyMemberPassToken(env.memberTokenSecret, token);
   if (!result.valid || !result.memberId) {
-    throw new UserFacingError('QR code is invalid or has expired. Ask the member to refresh their pass.');
+    throw new UserFacingError(
+      'QR code is invalid or has expired. Ask the member to refresh their pass.',
+    );
   }
   // The member must belong to this staff user's tenant (RLS enforces on read).
   const found = await asPrincipal(user.claims, async (tx) => {
@@ -130,7 +134,9 @@ export async function resolveQrToken(user: SessionUser, token: string): Promise<
   return found.id;
 }
 
-export async function todayCheckins(user: SessionUser): Promise<
+export async function todayCheckins(
+  user: SessionUser,
+): Promise<
   { id: string; name: string; membership_number: string; checked_in_at: string; method: string }[]
 > {
   return asPrincipal(user.claims, async (tx) => {

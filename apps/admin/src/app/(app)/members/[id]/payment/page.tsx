@@ -28,7 +28,9 @@ async function paymentAction(formData: FormData): Promise<void> {
       idempotencyKey: String(formData.get('idempotencyKey') ?? ''),
     };
   } catch {
-    redirect(`/members/${memberId}/payment?error=${encodeURIComponent('Enter a valid amount, e.g. 2500')}`);
+    redirect(
+      `/members/${memberId}/payment?error=${encodeURIComponent('Enter a valid amount, e.g. 2500')}`,
+    );
   }
   const parsed = recordPaymentSchema.safeParse(payload);
   if (!parsed.success) {
@@ -60,7 +62,9 @@ export default async function PaymentPage({
 
   return (
     <>
-      <PageHeader title={`${tr.members.recordPayment} — ${detail.member.first_name} ${detail.member.last_name ?? ''}`} />
+      <PageHeader
+        title={`${tr.members.recordPayment} — ${detail.member.first_name} ${detail.member.last_name ?? ''}`}
+      />
       <ErrorBanner message={error ?? null} />
       <Card className="max-w-lg">
         <form action={paymentAction} className="space-y-4">
@@ -71,12 +75,21 @@ export default async function PaymentPage({
           ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={`${tr.payments.amount} (₹)`} required>
-              <input name="amount" inputMode="decimal" required placeholder="2500" autoFocus className={inputCls} />
+              <input
+                name="amount"
+                inputMode="decimal"
+                required
+                placeholder="2500"
+                autoFocus
+                className={inputCls}
+              />
             </Field>
             <Field label={tr.payments.method} required>
               <select name="method" className={inputCls} defaultValue="cash">
                 {Object.entries(tr.payments.methods).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -91,8 +104,12 @@ export default async function PaymentPage({
             <input name="notes" className={inputCls} />
           </Field>
           <div className="flex gap-2">
-            <Button>{tr.common.confirm} → {tr.payments.receipt}</Button>
-            <Button href={`/members/${id}`} variant="secondary" type="button">{tr.common.cancel}</Button>
+            <Button>
+              {tr.common.confirm} → {tr.payments.receipt}
+            </Button>
+            <Button href={`/members/${id}`} variant="secondary" type="button">
+              {tr.common.cancel}
+            </Button>
           </div>
         </form>
       </Card>

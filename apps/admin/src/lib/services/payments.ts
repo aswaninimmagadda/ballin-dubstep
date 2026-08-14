@@ -22,9 +22,16 @@ export async function recordPayment(
                              external_reference, received_by, notes, idempotency_key)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
       [
-        user.tenantId, m.branch_id, m.id, input.amount, input.method,
-        input.paymentDate ?? today, input.externalReference ?? null, user.userId,
-        input.notes ?? null, input.idempotencyKey,
+        user.tenantId,
+        m.branch_id,
+        m.id,
+        input.amount,
+        input.method,
+        input.paymentDate ?? today,
+        input.externalReference ?? null,
+        user.userId,
+        input.notes ?? null,
+        input.idempotencyKey,
       ],
     );
     const paymentId = (pr.rows[0] as { id: string }).id;
@@ -33,7 +40,13 @@ export async function recordPayment(
       await tx.query(
         `INSERT INTO payment_allocations (tenant_id, payment_id, membership_id, member_addon_id, amount)
          VALUES ($1,$2,$3,$4,$5)`,
-        [user.tenantId, paymentId, input.membershipId ?? null, input.memberAddonId ?? null, input.amount],
+        [
+          user.tenantId,
+          paymentId,
+          input.membershipId ?? null,
+          input.memberAddonId ?? null,
+          input.amount,
+        ],
       );
     }
 
@@ -46,7 +59,10 @@ export async function recordPayment(
     const seqR = await tx.query(`SELECT app.next_receipt_seq($1, $2) AS seq`, [user.tenantId, fy]);
     const seq = Number((seqR.rows[0] as { seq: string }).seq);
     const receiptNumber = formatReceiptNumber({
-      prefix: s.receipt_prefix, fiscalYear: fy, sequence: seq, padding: s.receipt_sequence_padding,
+      prefix: s.receipt_prefix,
+      fiscalYear: fy,
+      sequence: seq,
+      padding: s.receipt_sequence_padding,
     });
     await tx.query(
       `INSERT INTO receipts (tenant_id, branch_id, payment_id, receipt_number, sequence, fiscal_year)
@@ -54,7 +70,9 @@ export async function recordPayment(
       [user.tenantId, m.branch_id, paymentId, receiptNumber, seq, fy],
     );
     await writeAudit(tx, user, {
-      action: 'payment.record', entityType: 'payment', entityId: paymentId,
+      action: 'payment.record',
+      entityType: 'payment',
+      entityId: paymentId,
       after: { amount: input.amount, method: input.method, receiptNumber },
     });
     return { paymentId, receiptNumber };
@@ -89,7 +107,9 @@ export async function refundPayment(
     const newStatus = input.amount + alreadyRefunded === paid ? 'refunded' : 'partially_refunded';
     await tx.query(`UPDATE payments SET status = $2 WHERE id = $1`, [input.paymentId, newStatus]);
     await writeAudit(tx, user, {
-      action: 'payment.refund', entityType: 'payment', entityId: input.paymentId,
+      action: 'payment.refund',
+      entityType: 'payment',
+      entityId: input.paymentId,
       after: { amount: input.amount, reason: input.reason, newStatus },
     });
   });
@@ -111,7 +131,10 @@ export interface ReceiptView {
   plan_name: string | null;
 }
 
-export async function getReceipt(user: SessionUser, paymentId: string): Promise<ReceiptView | null> {
+export async function getReceipt(
+  user: SessionUser,
+  paymentId: string,
+): Promise<ReceiptView | null> {
   return asPrincipal(user.claims, async (tx) => {
     const r = await tx.query(
       `SELECT r.receipt_number, r.created_at::text AS created_at,

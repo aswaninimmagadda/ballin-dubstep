@@ -41,9 +41,14 @@ export async function listLeads(user: SessionUser, status?: string): Promise<Lea
 export async function createLead(
   user: SessionUser,
   input: {
-    branchId: string; name: string; mobile: string; source: string;
-    interestedPlanId?: string | null; preferredTiming?: string | null;
-    followUpDate?: string | null; notes?: string | null;
+    branchId: string;
+    name: string;
+    mobile: string;
+    source: string;
+    interestedPlanId?: string | null;
+    preferredTiming?: string | null;
+    followUpDate?: string | null;
+    notes?: string | null;
   },
 ): Promise<string> {
   return asPrincipal(user.claims, async (tx) => {
@@ -52,9 +57,16 @@ export async function createLead(
                           preferred_timing, follow_up_date, notes, assigned_to)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
       [
-        user.tenantId, input.branchId, input.name, input.mobile, input.source,
-        input.interestedPlanId ?? null, input.preferredTiming ?? null,
-        input.followUpDate ?? null, input.notes ?? null, user.userId,
+        user.tenantId,
+        input.branchId,
+        input.name,
+        input.mobile,
+        input.source,
+        input.interestedPlanId ?? null,
+        input.preferredTiming ?? null,
+        input.followUpDate ?? null,
+        input.notes ?? null,
+        user.userId,
       ],
     );
     const id = (r.rows[0] as { id: string }).id;
@@ -84,14 +96,21 @@ export async function updateLeadStatus(
 }
 
 /** Mark a lead as converted once the member record is created. */
-export async function markLeadConverted(user: SessionUser, leadId: string, memberId: string): Promise<void> {
+export async function markLeadConverted(
+  user: SessionUser,
+  leadId: string,
+  memberId: string,
+): Promise<void> {
   return asPrincipal(user.claims, async (tx) => {
-    await tx.query(
-      `UPDATE leads SET status = 'won', converted_member_id = $2 WHERE id = $1`,
-      [leadId, memberId],
-    );
+    await tx.query(`UPDATE leads SET status = 'won', converted_member_id = $2 WHERE id = $1`, [
+      leadId,
+      memberId,
+    ]);
     await writeAudit(tx, user, {
-      action: 'lead.convert', entityType: 'lead', entityId: leadId, after: { memberId },
+      action: 'lead.convert',
+      entityType: 'lead',
+      entityId: leadId,
+      after: { memberId },
     });
   });
 }

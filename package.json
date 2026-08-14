@@ -2,7 +2,7 @@
   "name": "gymflow",
   "private": true,
   "version": "0.1.0",
-  "description": "GymFlow — multi-tenant gym management platform (working name; see packages/config)",
+  "description": "GymFlow \u2014 multi-tenant gym management platform (working name; see packages/config)",
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.33.0",
   "engines": {
@@ -11,7 +11,7 @@
   "scripts": {
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css}\" --ignore-path .gitignore",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,css}\" --ignore-path .gitignore",
-    "lint": "pnpm -r --if-present lint",
+    "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "test:unit": "pnpm --filter @gymflow/core --filter @gymflow/utils --filter @gymflow/validation test",
@@ -24,6 +24,8 @@
     "dev:member": "pnpm --filter @gymflow/member start"
   },
   "devDependencies": {
-    "prettier": "^3.4.2"
+    "eslint": "^9.39.5",
+    "prettier": "^3.4.2",
+    "typescript-eslint": "^8.67.0"
   }
 }

@@ -1,6 +1,7 @@
 import type { UUID, ISODate, ISODateTime, MinorUnits } from './ids';
 
-export type PaymentMethod = 'cash' | 'upi' | 'card_credit' | 'card_debit' | 'bank_transfer' | 'other';
+export type PaymentMethod =
+  'cash' | 'upi' | 'card_credit' | 'card_debit' | 'bank_transfer' | 'other';
 
 export type PaymentStatus = 'completed' | 'pending' | 'failed' | 'refunded' | 'partially_refunded';
 

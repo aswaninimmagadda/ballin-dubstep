@@ -12,8 +12,14 @@ export function ProfileScreen() {
   const [offers, setOffers] = useState<{ code: string; name: string; valid_to: string }[]>([]);
 
   useEffect(() => {
-    api.me().then((r) => setMe(r.data)).catch(() => null);
-    api.offers().then((r) => setOffers(r.data.offers)).catch(() => null);
+    api
+      .me()
+      .then((r) => setMe(r.data))
+      .catch(() => null);
+    api
+      .offers()
+      .then((r) => setOffers(r.data.offers))
+      .catch(() => null);
   }, []);
 
   return (
@@ -23,7 +29,9 @@ export function ProfileScreen() {
           <Title>
             {me.member.firstName} {me.member.lastName ?? ''}
           </Title>
-          <Muted>#{me.member.membershipNumber} · {me.member.branchName}</Muted>
+          <Muted>
+            #{me.member.membershipNumber} · {me.member.branchName}
+          </Muted>
         </Card>
       ) : null}
 
@@ -59,9 +67,13 @@ export function ProfileScreen() {
         <Card>
           <Text style={styles.label}>{me.gym.name}</Text>
           <Pressable
-            onPress={() => Linking.openURL(`https://wa.me/${me.gym.supportWhatsapp!.replace('+', '')}`)}
+            onPress={() =>
+              Linking.openURL(`https://wa.me/${me.gym.supportWhatsapp!.replace('+', '')}`)
+            }
           >
-            <Text style={styles.link}>{t.members.whatsapp}: {me.gym.supportWhatsapp}</Text>
+            <Text style={styles.link}>
+              {t.members.whatsapp}: {me.gym.supportWhatsapp}
+            </Text>
           </Pressable>
         </Card>
       ) : null}

@@ -38,15 +38,22 @@ export async function updateSettings(
   patch: Partial<
     Pick<
       TenantSettings,
-      | 'receipt_prefix' | 'default_grace_period_days' | 'max_freezes_per_year'
-      | 'max_freeze_days_per_year' | 'allow_partial_payments'
-      | 'whatsapp_renewal_template_en' | 'whatsapp_renewal_template_te'
-      | 'receipt_footer' | 'date_format'
+      | 'receipt_prefix'
+      | 'default_grace_period_days'
+      | 'max_freezes_per_year'
+      | 'max_freeze_days_per_year'
+      | 'allow_partial_payments'
+      | 'whatsapp_renewal_template_en'
+      | 'whatsapp_renewal_template_te'
+      | 'receipt_footer'
+      | 'date_format'
     >
   >,
 ): Promise<void> {
   return asPrincipal(user.claims, async (tx) => {
-    const before = await tx.query(`SELECT * FROM gym_settings WHERE tenant_id = $1`, [user.tenantId]);
+    const before = await tx.query(`SELECT * FROM gym_settings WHERE tenant_id = $1`, [
+      user.tenantId,
+    ]);
     await tx.query(
       `UPDATE gym_settings SET
          receipt_prefix = coalesce($2, receipt_prefix),
@@ -73,7 +80,9 @@ export async function updateSettings(
       ],
     );
     await writeAudit(tx, user, {
-      action: 'settings.update', entityType: 'gym_settings', entityId: user.tenantId,
+      action: 'settings.update',
+      entityType: 'gym_settings',
+      entityId: user.tenantId,
       before: { receipt_prefix: (before.rows[0] as Record<string, unknown>)?.receipt_prefix },
       after: patch as Record<string, unknown>,
     });

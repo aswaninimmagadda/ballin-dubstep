@@ -1,13 +1,7 @@
 import type { UUID, ISODate, ISODateTime } from './ids';
 
 export type LeadSource =
-  | 'walk_in'
-  | 'phone'
-  | 'whatsapp'
-  | 'social'
-  | 'referral'
-  | 'website'
-  | 'other';
+  'walk_in' | 'phone' | 'whatsapp' | 'social' | 'referral' | 'website' | 'other';
 
 export type LeadStatus =
   | 'new'

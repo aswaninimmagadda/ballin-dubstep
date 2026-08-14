@@ -40,13 +40,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   const record = (ok: boolean) =>
-    asAnonymous((tx) => tx.query(`SELECT app.record_login_attempt($1, $2, $3)`, [identifier, ip, ok]));
+    asAnonymous((tx) =>
+      tx.query(`SELECT app.record_login_attempt($1, $2, $3)`, [identifier, ip, ok]),
+    );
 
   if (!row || !(await verifyPassword(password, row.password_hash as string))) {
     await record(false);
     return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 });
   }
-  if (!row.is_active || !row.member_id || (row.tenant_status && !['active', 'trial'].includes(row.tenant_status as string))) {
+  if (
+    !row.is_active ||
+    !row.member_id ||
+    (row.tenant_status && !['active', 'trial'].includes(row.tenant_status as string))
+  ) {
     await record(false);
     return NextResponse.json({ error: 'account_unavailable' }, { status: 403 });
   }

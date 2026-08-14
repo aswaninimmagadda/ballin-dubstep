@@ -27,12 +27,12 @@ const KEYLEN = 32;
 export async function hashPassword(password: string): Promise<string> {
   if (password.length < 6) throw new Error('Password too short');
   const salt = randomBytes(16);
-  const derived = (await scrypt(password.normalize('NFKC'), salt, KEYLEN, {
+  const derived = await scrypt(password.normalize('NFKC'), salt, KEYLEN, {
     N,
     r: R,
     p: P,
     maxmem: 128 * N * R * 2,
-  }));
+  });
   return `scrypt$${N}$${R}$${P}$${salt.toString('base64')}$${derived.toString('base64')}`;
 }
 
@@ -41,19 +41,24 @@ export async function verifyPassword(password: string, stored: string): Promise<
     const parts = stored.split('$');
     if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
     const [, nStr, rStr, pStr, saltB64, hashB64] = parts as [
-      string, string, string, string, string, string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
     ];
     const n = Number(nStr);
     const r = Number(rStr);
     const p = Number(pStr);
     const salt = Buffer.from(saltB64, 'base64');
     const expected = Buffer.from(hashB64, 'base64');
-    const derived = (await scrypt(password.normalize('NFKC'), salt, expected.length, {
+    const derived = await scrypt(password.normalize('NFKC'), salt, expected.length, {
       N: n,
       r,
       p,
       maxmem: 128 * n * r * 2,
-    }));
+    });
     return derived.length === expected.length && timingSafeEqual(derived, expected);
   } catch {
     return false;

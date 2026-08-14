@@ -15,7 +15,9 @@ describe('translation completeness', () => {
   });
   it('no empty translations', () => {
     const empties = collectKeys(te as never).filter((k) => {
-      const val = k.split('.').reduce<unknown>((o, part) => (o as Record<string, unknown>)[part], te);
+      const val = k
+        .split('.')
+        .reduce<unknown>((o, part) => (o as Record<string, unknown>)[part], te);
       return typeof val === 'string' && val.trim() === '';
     });
     expect(empties).toEqual([]);

@@ -6,7 +6,16 @@ import { createLead, listLeads, updateLeadStatus } from '@/lib/services/leads';
 import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
-import { Badge, Button, Card, ErrorBanner, Field, PageHeader, Table, inputCls } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorBanner,
+  Field,
+  PageHeader,
+  Table,
+  inputCls,
+} from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +80,11 @@ export default async function LeadsPage({
             </Field>
             <Field label="Branch" required>
               <select name="branchId" className={inputCls}>
-                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label={tr.leads.source}>
@@ -96,37 +109,64 @@ export default async function LeadsPage({
         </Card>
 
         <div className="lg:col-span-2">
-          <Table headers={[tr.members.name, tr.leads.source, tr.leads.followUpDate, tr.members.status, '']}>
+          <Table
+            headers={[
+              tr.members.name,
+              tr.leads.source,
+              tr.leads.followUpDate,
+              tr.members.status,
+              '',
+            ]}
+          >
             {leads.map((lead) => (
               <tr key={lead.id}>
                 <td className="px-4 py-3">
                   <span className="font-medium">{lead.name}</span>
-                  <span className="block text-xs text-slate-400">{lead.mobile.replace('+91', '')}</span>
+                  <span className="block text-xs text-slate-400">
+                    {lead.mobile.replace('+91', '')}
+                  </span>
                 </td>
                 <td className="px-4 py-3">{lead.source}</td>
-                <td className="px-4 py-3">{lead.follow_up_date ? formatDisplayDate(lead.follow_up_date) : '—'}</td>
+                <td className="px-4 py-3">
+                  {lead.follow_up_date ? formatDisplayDate(lead.follow_up_date) : '—'}
+                </td>
                 <td className="px-4 py-3">
                   <Badge tone={lead.status === 'new' ? 'info' : 'default'}>
-                    {tr.leads.statuses[lead.status as keyof typeof tr.leads.statuses] ?? lead.status}
+                    {tr.leads.statuses[lead.status as keyof typeof tr.leads.statuses] ??
+                      lead.status}
                   </Badge>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
-                    <a href={whatsappLink(lead.mobile, `Hi ${lead.name}!`)} target="_blank" rel="noopener noreferrer"
-                       className="rounded px-2 py-1 text-xs font-semibold text-green-700 hover:bg-green-50">
+                    <a
+                      href={whatsappLink(lead.mobile, `Hi ${lead.name}!`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded px-2 py-1 text-xs font-semibold text-green-700 hover:bg-green-50"
+                    >
                       WA
                     </a>
-                    <a href={`tel:${lead.mobile}`} className="rounded px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100">
+                    <a
+                      href={`tel:${lead.mobile}`}
+                      className="rounded px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                    >
                       {tr.members.call}
                     </a>
-                    <a href={`/members/new?lead=${lead.id}`}
-                       className="rounded bg-primary px-2 py-1 text-xs font-semibold text-white hover:bg-primary-dark">
+                    <a
+                      href={`/members/new?lead=${lead.id}`}
+                      className="rounded bg-primary px-2 py-1 text-xs font-semibold text-white hover:bg-primary-dark"
+                    >
                       {tr.leads.convert}
                     </a>
                     <form action={statusAction}>
                       <input type="hidden" name="id" value={lead.id} />
                       <input type="hidden" name="status" value="lost" />
-                      <button className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-100" title="Mark lost">✕</button>
+                      <button
+                        className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-100"
+                        title="Mark lost"
+                      >
+                        ✕
+                      </button>
                     </form>
                   </div>
                 </td>

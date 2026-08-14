@@ -87,10 +87,26 @@ export function todayInTz(timezone = 'Asia/Kolkata', now: Date = new Date()): st
 }
 
 /** Format an ISO date for display, e.g. "2026-06-01" -> "01-Jun-2026". */
-export function formatDisplayDate(date: string, style: 'DD-MM-YYYY' | 'DD-Mon-YYYY' = 'DD-Mon-YYYY'): string {
+export function formatDisplayDate(
+  date: string,
+  style: 'DD-MM-YYYY' | 'DD-Mon-YYYY' = 'DD-Mon-YYYY',
+): string {
   assertISODate(date);
   const [y, m, d] = date.split('-') as [string, string, string];
   if (style === 'DD-MM-YYYY') return `${d}-${m}-${y}`;
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   return `${d}-${months[Number(m) - 1]}-${y}`;
 }

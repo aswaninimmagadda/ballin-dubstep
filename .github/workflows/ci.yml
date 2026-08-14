@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, typecheck, unit + integration tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gymflow
+          POSTGRES_PASSWORD: gymflow_dev_pw
+          POSTGRES_DB: gymflow_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U gymflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare app database role
+        run: |
+          PGPASSWORD=gymflow_dev_pw psql -h localhost -U gymflow -d gymflow_test \
+            -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='gymflow_app') THEN CREATE ROLE gymflow_app LOGIN; END IF; END \$\$;" \
+            -c "ALTER ROLE gymflow_app PASSWORD 'gymflow_app_dev_pw';"
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+      - name: Integration tests (RLS tenant isolation is release-blocking)
+        run: pnpm test:integration
+        env:
+          TEST_DATABASE_URL: postgres://gymflow:gymflow_dev_pw@localhost:5432/gymflow_test
+          TEST_DATABASE_APP_URL: postgres://gymflow_app:gymflow_app_dev_pw@localhost:5432/gymflow_test
+
+      - name: Build admin (production)
+        run: pnpm --filter @gymflow/admin build
+        env:
+          # Build-time only; runtime secrets are configured on the host.
+          DATABASE_APP_URL: postgres://gymflow_app:gymflow_app_dev_pw@localhost:5432/gymflow_test
+          SESSION_SECRET: ci-build-secret-0123456789abcdef0123456789abcdef
+          MEMBER_TOKEN_SECRET: ci-build-secret-0123456789abcdef0123456789abcdef
+
+      - name: Bundle member app (Metro export)
+        run: npx expo export --platform android --output-dir /tmp/expo-export
+        working-directory: apps/member
+        env:
+          CI: '1'

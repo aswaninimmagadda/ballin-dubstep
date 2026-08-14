@@ -51,7 +51,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ ready, signedIn, language, t: getTranslations(language), signIn, signOut, setLanguage }}
+      value={{
+        ready,
+        signedIn,
+        language,
+        t: getTranslations(language),
+        signIn,
+        signOut,
+        setLanguage,
+      }}
     >
       {children}
     </AuthContext.Provider>

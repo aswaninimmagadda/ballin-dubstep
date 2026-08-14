@@ -1,4 +1,10 @@
-import { createPool, withClaims, withoutClaims, type Claims, type Queryable } from '@gymflow/database';
+import {
+  createPool,
+  withClaims,
+  withoutClaims,
+  type Claims,
+  type Queryable,
+} from '@gymflow/database';
 import type pg from 'pg';
 import { env } from './env';
 

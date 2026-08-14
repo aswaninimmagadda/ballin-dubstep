@@ -41,28 +41,30 @@ describe('checkPromotionEligibility', () => {
     expect(checkPromotionEligibility({ ...promo, isActive: false }, ctx).reason).toBe('inactive');
   });
   it('enforces plan and branch applicability', () => {
-    expect(
-      checkPromotionEligibility({ ...promo, planIds: ['other-plan'] }, ctx).reason,
-    ).toBe('plan_not_applicable');
-    expect(
-      checkPromotionEligibility({ ...promo, branchIds: ['other-branch'] }, ctx).reason,
-    ).toBe('branch_not_applicable');
+    expect(checkPromotionEligibility({ ...promo, planIds: ['other-plan'] }, ctx).reason).toBe(
+      'plan_not_applicable',
+    );
+    expect(checkPromotionEligibility({ ...promo, branchIds: ['other-branch'] }, ctx).reason).toBe(
+      'branch_not_applicable',
+    );
   });
   it('enforces audience', () => {
+    expect(checkPromotionEligibility({ ...promo, audience: 'renewals' }, ctx).reason).toBe(
+      'audience_mismatch',
+    );
     expect(
-      checkPromotionEligibility({ ...promo, audience: 'renewals' }, ctx).reason,
-    ).toBe('audience_mismatch');
-    expect(
-      checkPromotionEligibility({ ...promo, audience: 'new_members' }, { ...ctx, isNewMember: false })
-        .reason,
+      checkPromotionEligibility(
+        { ...promo, audience: 'new_members' },
+        { ...ctx, isNewMember: false },
+      ).reason,
     ).toBe('audience_mismatch');
   });
   it('enforces usage limits', () => {
-    expect(
-      checkPromotionEligibility({ ...promo, usageLimit: 10 }, ctx).reason,
-    ).toBe('usage_limit_reached');
-    expect(
-      checkPromotionEligibility(promo, { ...ctx, memberRedemptionCount: 1 }).reason,
-    ).toBe('per_member_limit_reached');
+    expect(checkPromotionEligibility({ ...promo, usageLimit: 10 }, ctx).reason).toBe(
+      'usage_limit_reached',
+    );
+    expect(checkPromotionEligibility(promo, { ...ctx, memberRedemptionCount: 1 }).reason).toBe(
+      'per_member_limit_reached',
+    );
   });
 });

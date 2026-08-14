@@ -61,6 +61,11 @@ export function AttendanceScreen() {
 
 const styles = StyleSheet.create({
   big: { fontSize: 36, fontWeight: '800', color: theme.color.primaryDark },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
   when: { fontSize: 15, color: theme.color.text },
 });

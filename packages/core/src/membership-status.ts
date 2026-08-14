@@ -8,13 +8,7 @@ import { graceEndDate, daysRemaining } from './membership-dates';
  * so they can't go stale overnight.
  */
 export type DerivedMembershipStatus =
-  | 'pending'
-  | 'active'
-  | 'expiring_soon'
-  | 'grace_period'
-  | 'frozen'
-  | 'cancelled'
-  | 'expired';
+  'pending' | 'active' | 'expiring_soon' | 'grace_period' | 'frozen' | 'cancelled' | 'expired';
 
 export interface MembershipSnapshot {
   state: 'pending' | 'active' | 'frozen' | 'cancelled' | 'expired';

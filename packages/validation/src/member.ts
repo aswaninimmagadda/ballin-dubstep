@@ -44,8 +44,15 @@ export const memberSearchSchema = z.object({
   q: z.string().trim().max(120).default(''),
   status: z
     .enum([
-      'lead', 'trial', 'pending_activation', 'active', 'frozen',
-      'suspended', 'expired', 'cancelled', 'archived',
+      'lead',
+      'trial',
+      'pending_activation',
+      'active',
+      'frozen',
+      'suspended',
+      'expired',
+      'cancelled',
+      'archived',
     ])
     .optional(),
   branchId: uuidSchema.optional(),

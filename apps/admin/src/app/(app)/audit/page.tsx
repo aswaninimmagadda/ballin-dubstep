@@ -19,7 +19,10 @@ export default async function AuditPage() {
 
   return (
     <>
-      <PageHeader title={tr.nav.audit} subtitle="Append-only — entries can never be edited or deleted." />
+      <PageHeader
+        title={tr.nav.audit}
+        subtitle="Append-only — entries can never be edited or deleted."
+      />
       {rows.length === 0 ? (
         <EmptyState title="No activity yet." />
       ) : (
@@ -27,10 +30,14 @@ export default async function AuditPage() {
           {rows.map((row) => (
             <tr key={String(row.id)}>
               <td className="px-4 py-3 text-xs text-slate-500">
-                {new Date(String(row.created_at)).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                {new Date(String(row.created_at)).toLocaleString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
+                })}
               </td>
               <td className="px-4 py-3">{String(row.actor_label)}</td>
-              <td className="px-4 py-3"><Badge tone="info">{String(row.action)}</Badge></td>
+              <td className="px-4 py-3">
+                <Badge tone="info">{String(row.action)}</Badge>
+              </td>
               <td className="px-4 py-3 text-slate-500">{String(row.entity_type)}</td>
               <td className="px-4 py-3 text-xs text-slate-500">
                 {row.after ? JSON.stringify(row.after).slice(0, 120) : '—'}

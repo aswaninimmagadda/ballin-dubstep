@@ -42,9 +42,16 @@ export async function closePools(): Promise<void> {
   appPoolInstance = null;
 }
 
-export function staffClaims(f: TenantFixture, who: 'owner' | 'receptionist' | 'accountant'): Claims {
+export function staffClaims(
+  f: TenantFixture,
+  who: 'owner' | 'receptionist' | 'accountant',
+): Claims {
   const sub =
-    who === 'owner' ? f.ownerUserId : who === 'receptionist' ? f.receptionistUserId : f.accountantUserId;
+    who === 'owner'
+      ? f.ownerUserId
+      : who === 'receptionist'
+        ? f.receptionistUserId
+        : f.accountantUserId;
   return { sub, tenant_id: f.tenantId, kind: 'staff' };
 }
 
@@ -90,7 +97,12 @@ async function doSetup(): Promise<Fixtures> {
   }
 }
 
-async function makeTenant(client: pg.Client, slug: string, name: string, hash: string): Promise<TenantFixture> {
+async function makeTenant(
+  client: pg.Client,
+  slug: string,
+  name: string,
+  hash: string,
+): Promise<TenantFixture> {
   const t = (
     await client.query(
       `INSERT INTO tenants (slug, name, status) VALUES ($1, $2, 'active') RETURNING id`,
@@ -98,7 +110,10 @@ async function makeTenant(client: pg.Client, slug: string, name: string, hash: s
     )
   ).rows[0].id as string;
   const brand = (
-    await client.query(`INSERT INTO brands (tenant_id, name) VALUES ($1, $2) RETURNING id`, [t, name])
+    await client.query(`INSERT INTO brands (tenant_id, name) VALUES ($1, $2) RETURNING id`, [
+      t,
+      name,
+    ])
   ).rows[0].id as string;
   const branch = (
     await client.query(
@@ -118,7 +133,10 @@ async function makeTenant(client: pg.Client, slug: string, name: string, hash: s
     ).rows[0].id as string;
     roleIds[key] = r;
     for (const p of perms) {
-      await client.query(`INSERT INTO role_permissions (role_id, permission) VALUES ($1, $2)`, [r, p]);
+      await client.query(`INSERT INTO role_permissions (role_id, permission) VALUES ($1, $2)`, [
+        r,
+        p,
+      ]);
     }
   }
 
@@ -129,8 +147,14 @@ async function makeTenant(client: pg.Client, slug: string, name: string, hash: s
         [t, `${email}@${slug}.test.local`],
       )
     ).rows[0].id as string;
-    await client.query(`INSERT INTO user_credentials (user_id, password_hash) VALUES ($1, $2)`, [u, hash]);
-    await client.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [u, roleIds[roleKey]]);
+    await client.query(`INSERT INTO user_credentials (user_id, password_hash) VALUES ($1, $2)`, [
+      u,
+      hash,
+    ]);
+    await client.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [
+      u,
+      roleIds[roleKey],
+    ]);
     return u;
   }
   const owner = await mkStaff('owner', 'owner');

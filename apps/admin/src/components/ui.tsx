@@ -3,7 +3,15 @@ import Link from 'next/link';
 
 /** Small server-friendly design system: consistent, large touch targets. */
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+}) {
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -23,8 +31,16 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
   );
 }
 
-export function StatCard({ label, value, tone = 'default', href }: {
-  label: string; value: string | number; tone?: 'default' | 'success' | 'warning' | 'danger'; href?: string;
+export function StatCard({
+  label,
+  value,
+  tone = 'default',
+  href,
+}: {
+  label: string;
+  value: string | number;
+  tone?: 'default' | 'success' | 'warning' | 'danger';
+  href?: string;
 }) {
   const tones = {
     default: 'text-slate-900',
@@ -41,7 +57,10 @@ export function StatCard({ label, value, tone = 'default', href }: {
   return href ? <Link href={href}>{body}</Link> : body;
 }
 
-export function Badge({ children, tone = 'default' }: {
+export function Badge({
+  children,
+  tone = 'default',
+}: {
   children: ReactNode;
   tone?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'muted';
 }) {
@@ -54,25 +73,47 @@ export function Badge({ children, tone = 'default' }: {
     muted: 'bg-slate-100 text-slate-500',
   } as const;
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${tones[tone]}`}>
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${tones[tone]}`}
+    >
       {children}
     </span>
   );
 }
 
-export function statusTone(status: string): 'success' | 'warning' | 'danger' | 'info' | 'muted' | 'default' {
+export function statusTone(
+  status: string,
+): 'success' | 'warning' | 'danger' | 'info' | 'muted' | 'default' {
   switch (status) {
-    case 'active': return 'success';
-    case 'expiring_soon': case 'grace_period': case 'frozen': case 'pending_activation': case 'pending': return 'warning';
-    case 'expired': case 'cancelled': case 'suspended': return 'danger';
-    case 'trial': case 'lead': return 'info';
-    case 'archived': return 'muted';
-    default: return 'default';
+    case 'active':
+      return 'success';
+    case 'expiring_soon':
+    case 'grace_period':
+    case 'frozen':
+    case 'pending_activation':
+    case 'pending':
+      return 'warning';
+    case 'expired':
+    case 'cancelled':
+    case 'suspended':
+      return 'danger';
+    case 'trial':
+    case 'lead':
+      return 'info';
+    case 'archived':
+      return 'muted';
+    default:
+      return 'default';
   }
 }
 
 export function Button({
-  children, variant = 'primary', type = 'submit', href, className = '', ...rest
+  children,
+  variant = 'primary',
+  type = 'submit',
+  href,
+  className = '',
+  ...rest
 }: {
   children: ReactNode;
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -101,8 +142,16 @@ export function Button({
   );
 }
 
-export function Field({ label, children, required, hint }: {
-  label: string; children: ReactNode; required?: boolean; hint?: string;
+export function Field({
+  label,
+  children,
+  required,
+  hint,
+}: {
+  label: string;
+  children: ReactNode;
+  required?: boolean;
+  hint?: string;
 }) {
   return (
     <label className="block">
@@ -135,7 +184,10 @@ export function Table({ headers, children }: { headers: string[]; children: Reac
         <thead className="bg-slate-50">
           <tr>
             {headers.map((h) => (
-              <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <th
+                key={h}
+                className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
+              >
                 {h}
               </th>
             ))}
@@ -150,7 +202,10 @@ export function Table({ headers, children }: { headers: string[]; children: Reac
 export function ErrorBanner({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
-    <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <div
+      role="alert"
+      className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+    >
       {message}
     </div>
   );
@@ -159,7 +214,10 @@ export function ErrorBanner({ message }: { message?: string | null }) {
 export function SuccessBanner({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
-    <div role="status" className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+    <div
+      role="status"
+      className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+    >
       {message}
     </div>
   );

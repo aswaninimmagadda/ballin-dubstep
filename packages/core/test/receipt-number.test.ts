@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { fiscalYearLabel, formatReceiptNumber, formatMembershipNumber } from '../src/receipt-number';
+import {
+  fiscalYearLabel,
+  formatReceiptNumber,
+  formatMembershipNumber,
+} from '../src/receipt-number';
 
 describe('fiscalYearLabel (Indian FY: Apr–Mar)', () => {
   it('April onwards belongs to the same year', () => {

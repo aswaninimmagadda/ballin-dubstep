@@ -41,7 +41,8 @@ export function checkPromotionEligibility(
   ctx: PromotionContext,
 ): EligibilityResult {
   if (!promo.isActive) return { eligible: false, reason: 'inactive' };
-  if (compareDates(ctx.today, promo.validFrom) < 0) return { eligible: false, reason: 'not_started' };
+  if (compareDates(ctx.today, promo.validFrom) < 0)
+    return { eligible: false, reason: 'not_started' };
   if (compareDates(ctx.today, promo.validTo) > 0) return { eligible: false, reason: 'ended' };
   if (promo.planIds && !promo.planIds.includes(ctx.planId)) {
     return { eligible: false, reason: 'plan_not_applicable' };

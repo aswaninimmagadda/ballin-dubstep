@@ -49,10 +49,10 @@ describe('sessions', () => {
   it('create → lookup → revoke → lookup fails', async () => {
     const token = randomBytes(32).toString('hex');
     await withoutClaims(appPool(), (tx) =>
-      tx.query(`SELECT app.session_create($1, $2, now() + interval '12 hours', '127.0.0.1', 'test')`, [
-        fx.a.ownerUserId,
-        sha(token),
-      ]),
+      tx.query(
+        `SELECT app.session_create($1, $2, now() + interval '12 hours', '127.0.0.1', 'test')`,
+        [fx.a.ownerUserId, sha(token)],
+      ),
     );
     const found = await withoutClaims(appPool(), async (tx) => {
       const r = await tx.query(`SELECT * FROM app.session_lookup($1)`, [sha(token)]);
@@ -91,7 +91,8 @@ describe('refresh token rotation', () => {
     const t2 = sha(randomBytes(32).toString('hex'));
     await withoutClaims(appPool(), (tx) =>
       tx.query(`SELECT app.refresh_create($1, $2, now() + interval '30 days')`, [
-        fx.a.memberUserId, t1,
+        fx.a.memberUserId,
+        t1,
       ]),
     );
     const first = await withoutClaims(appPool(), async (tx) => {
@@ -104,7 +105,8 @@ describe('refresh token rotation', () => {
     // issue a successor token
     await withoutClaims(appPool(), (tx) =>
       tx.query(`SELECT app.refresh_create($1, $2, now() + interval '30 days')`, [
-        fx.a.memberUserId, t2,
+        fx.a.memberUserId,
+        t2,
       ]),
     );
 

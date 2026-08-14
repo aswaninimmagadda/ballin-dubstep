@@ -16,11 +16,7 @@ export interface Trainer {
 }
 
 export type SessionStatus =
-  | 'scheduled'
-  | 'completed'
-  | 'cancelled'
-  | 'member_no_show'
-  | 'trainer_no_show';
+  'scheduled' | 'completed' | 'cancelled' | 'member_no_show' | 'trainer_no_show';
 
 export interface TrainerSession {
   id: UUID;

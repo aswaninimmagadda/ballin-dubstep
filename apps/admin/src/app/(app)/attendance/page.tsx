@@ -2,10 +2,24 @@ import { redirect } from 'next/navigation';
 import { formatDisplayDate } from '@gymflow/utils';
 import { requirePermission } from '@/lib/session';
 import { searchMembers } from '@/lib/services/members';
-import { checkinMember, previewCheckin, todayCheckins, resolveQrToken } from '@/lib/services/attendance';
+import {
+  checkinMember,
+  previewCheckin,
+  todayCheckins,
+  resolveQrToken,
+} from '@/lib/services/attendance';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
-import { Badge, Button, Card, ErrorBanner, PageHeader, SuccessBanner, Table, inputCls } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorBanner,
+  PageHeader,
+  SuccessBanner,
+  Table,
+  inputCls,
+} from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,21 +67,31 @@ export default async function AttendancePage({
     <>
       <PageHeader title={tr.attendance.title} />
       <SuccessBanner message={msg === 'ok' ? '✓ ' + tr.attendance.checkIn : null} />
-      <ErrorBanner message={msg === 'duplicate' ? tr.attendance.alreadyCheckedIn : error ?? null} />
+      <ErrorBanner
+        message={msg === 'duplicate' ? tr.attendance.alreadyCheckedIn : (error ?? null)}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div>
           <Card>
             <form action="/attendance" method="get" className="flex gap-2">
               <input
-                type="search" name="q" defaultValue={q} autoFocus
-                placeholder={tr.attendance.searchToCheckIn} className={inputCls}
+                type="search"
+                name="q"
+                defaultValue={q}
+                autoFocus
+                placeholder={tr.attendance.searchToCheckIn}
+                className={inputCls}
               />
               <Button variant="secondary">{tr.common.search}</Button>
             </form>
             <form action={qrAction} className="mt-3 flex gap-2">
-              <input name="token" placeholder={tr.attendance.scanQr} className={inputCls}
-                aria-label={tr.attendance.scanQr} />
+              <input
+                name="token"
+                placeholder={tr.attendance.scanQr}
+                className={inputCls}
+                aria-label={tr.attendance.scanQr}
+              />
               <Button variant="secondary">QR</Button>
             </form>
 
@@ -76,10 +100,15 @@ export default async function AttendancePage({
                 {results.map((m) => (
                   <li key={m.id} className="flex items-center justify-between py-2">
                     <div>
-                      <span className="text-sm font-medium">{m.first_name} {m.last_name ?? ''}</span>
+                      <span className="text-sm font-medium">
+                        {m.first_name} {m.last_name ?? ''}
+                      </span>
                       <span className="ml-2 text-xs text-slate-400">{m.membership_number}</span>
                     </div>
-                    <a href={`/attendance?preview=${m.id}`} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-dark">
+                    <a
+                      href={`/attendance?preview=${m.id}`}
+                      className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-dark"
+                    >
                       {tr.common.next}
                     </a>
                   </li>
@@ -99,9 +128,13 @@ export default async function AttendancePage({
                     {previewData.endDate ? ` · ${formatDisplayDate(previewData.endDate)}` : ''}
                   </p>
                   {previewData.warning === 'expired' ? (
-                    <p className="mt-1 text-sm font-medium text-red-600">{tr.attendance.memberExpired}</p>
+                    <p className="mt-1 text-sm font-medium text-red-600">
+                      {tr.attendance.memberExpired}
+                    </p>
                   ) : previewData.warning === 'frozen' ? (
-                    <p className="mt-1 text-sm font-medium text-amber-600">{tr.attendance.memberFrozen}</p>
+                    <p className="mt-1 text-sm font-medium text-amber-600">
+                      {tr.attendance.memberFrozen}
+                    </p>
                   ) : null}
                 </div>
                 <form action={checkinAction} className="flex flex-col gap-2">
@@ -112,7 +145,11 @@ export default async function AttendancePage({
                     <>
                       <input type="hidden" name="override" value="1" />
                       <Button variant="danger">{tr.attendance.allowAnyway}</Button>
-                      <Button href={`/members/${previewData.memberId}/renew`} variant="secondary" type="button">
+                      <Button
+                        href={`/members/${previewData.memberId}/renew`}
+                        variant="secondary"
+                        type="button"
+                      >
                         {tr.members.renew}
                       </Button>
                     </>
@@ -124,20 +161,29 @@ export default async function AttendancePage({
         </div>
 
         <section>
-          <h2 className="mb-3 text-base font-semibold">{tr.dashboard.todayAttendance} ({today.length})</h2>
+          <h2 className="mb-3 text-base font-semibold">
+            {tr.dashboard.todayAttendance} ({today.length})
+          </h2>
           {today.length === 0 ? (
             <p className="text-sm text-slate-500">No check-ins yet today.</p>
           ) : (
             <Table headers={[tr.members.name, tr.attendance.checkedInAt, 'Method']}>
               {today.map((row) => (
                 <tr key={row.id}>
-                  <td className="px-4 py-3">{row.name} <span className="text-xs text-slate-400">{row.membership_number}</span></td>
+                  <td className="px-4 py-3">
+                    {row.name}{' '}
+                    <span className="text-xs text-slate-400">{row.membership_number}</span>
+                  </td>
                   <td className="px-4 py-3">
                     {new Date(row.checked_in_at).toLocaleTimeString('en-IN', {
-                      hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'Asia/Kolkata',
                     })}
                   </td>
-                  <td className="px-4 py-3"><Badge tone="muted">{row.method}</Badge></td>
+                  <td className="px-4 py-3">
+                    <Badge tone="muted">{row.method}</Badge>
+                  </td>
                 </tr>
               ))}
             </Table>

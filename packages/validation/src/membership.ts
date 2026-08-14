@@ -22,10 +22,12 @@ export const sellMembershipSchema = z.object({
 
 export type SellMembershipInput = z.infer<typeof sellMembershipSchema>;
 
-export const renewMembershipSchema = sellMembershipSchema.extend({
-  previousMembershipId: uuidSchema,
-  overrideStartDate: isoDateSchema.optional(),
-}).omit({ startDate: true });
+export const renewMembershipSchema = sellMembershipSchema
+  .extend({
+    previousMembershipId: uuidSchema,
+    overrideStartDate: isoDateSchema.optional(),
+  })
+  .omit({ startDate: true });
 
 export type RenewMembershipInput = z.infer<typeof renewMembershipSchema>;
 

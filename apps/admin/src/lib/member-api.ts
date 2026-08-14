@@ -53,7 +53,11 @@ export async function issueRefreshToken(userId: string): Promise<string> {
   const token = randomBytes(32).toString('base64url');
   const expires = new Date(Date.now() + REFRESH_TTL_DAYS * 86400_000);
   await asAnonymous((tx) =>
-    tx.query(`SELECT app.refresh_create($1, $2, $3)`, [userId, sha256hex(token), expires.toISOString()]),
+    tx.query(`SELECT app.refresh_create($1, $2, $3)`, [
+      userId,
+      sha256hex(token),
+      expires.toISOString(),
+    ]),
   );
   return token;
 }

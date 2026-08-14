@@ -42,7 +42,8 @@ export default async function MemberDetailPage({
   const { msg } = await searchParams;
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail) notFound();
-  const { member, currentMembership, memberships, payments, attendance, addons, openFreeze } = detail;
+  const { member, currentMembership, memberships, payments, attendance, addons, openFreeze } =
+    detail;
   const today = todayInTz();
   const wa = await renewalWhatsappLink(user, { memberId: id });
 
@@ -57,7 +58,9 @@ export default async function MemberDetailPage({
         today,
       )
     : null;
-  const daysLeft = currentMembership ? daysRemaining(String(currentMembership.end_date), today) : null;
+  const daysLeft = currentMembership
+    ? daysRemaining(String(currentMembership.end_date), today)
+    : null;
 
   const messages: Record<string, string> = {
     checkedin: `${tr.attendance.checkIn} ✓`,
@@ -82,10 +85,16 @@ export default async function MemberDetailPage({
               <Button variant="secondary">{tr.members.checkIn}</Button>
             </form>
             <Button href={`/members/${id}/renew`}>{tr.members.renew}</Button>
-            <Button href={`/members/${id}/payment`} variant="secondary">{tr.members.recordPayment}</Button>
+            <Button href={`/members/${id}/payment`} variant="secondary">
+              {tr.members.recordPayment}
+            </Button>
             {wa ? (
-              <a href={wa} target="_blank" rel="noopener noreferrer"
-                 className="btn inline-flex min-h-11 items-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
+              <a
+                href={wa}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn inline-flex min-h-11 items-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+              >
                 {tr.members.whatsapp}
               </a>
             ) : null}
@@ -99,19 +108,27 @@ export default async function MemberDetailPage({
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold">{String(currentMembership.plan_name_snapshot)}</span>
+                  <span className="text-lg font-bold">
+                    {String(currentMembership.plan_name_snapshot)}
+                  </span>
                   <Badge tone={statusTone(derived ?? '')}>
-                    {tr.membership.statuses[derived as keyof typeof tr.membership.statuses] ?? derived}
+                    {tr.membership.statuses[derived as keyof typeof tr.membership.statuses] ??
+                      derived}
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm text-slate-500">
-                  {formatDisplayDate(String(currentMembership.start_date))} → {formatDisplayDate(String(currentMembership.end_date))}
+                  {formatDisplayDate(String(currentMembership.start_date))} →{' '}
+                  {formatDisplayDate(String(currentMembership.end_date))}
                 </p>
                 {daysLeft != null && daysLeft >= 0 ? (
-                  <p className="text-sm font-medium text-slate-700">{daysLeft} {tr.members.daysRemaining}</p>
+                  <p className="text-sm font-medium text-slate-700">
+                    {daysLeft} {tr.members.daysRemaining}
+                  </p>
                 ) : null}
                 {member.trainer_name ? (
-                  <p className="mt-1 text-sm text-slate-500">{tr.members.trainer}: {String(member.trainer_name)}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {tr.members.trainer}: {String(member.trainer_name)}
+                  </p>
                 ) : null}
               </div>
               <div className="flex gap-2">
@@ -122,7 +139,9 @@ export default async function MemberDetailPage({
                     <Button variant="secondary">{tr.members.unfreeze}</Button>
                   </form>
                 ) : currentMembership.state === 'active' ? (
-                  <Button href={`/members/${id}/freeze`} variant="secondary">{tr.members.freeze}</Button>
+                  <Button href={`/members/${id}/freeze`} variant="secondary">
+                    {tr.members.freeze}
+                  </Button>
                 ) : null}
               </div>
             </div>
@@ -134,7 +153,9 @@ export default async function MemberDetailPage({
           )}
           {openFreeze ? (
             <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {tr.members.freeze}: {String(openFreeze.start_date)} → {openFreeze.planned_end_date ? String(openFreeze.planned_end_date) : '…'} · {String(openFreeze.reason)}
+              {tr.members.freeze}: {String(openFreeze.start_date)} →{' '}
+              {openFreeze.planned_end_date ? String(openFreeze.planned_end_date) : '…'} ·{' '}
+              {String(openFreeze.reason)}
             </p>
           ) : null}
         </Card>
@@ -142,13 +163,30 @@ export default async function MemberDetailPage({
         <Card>
           <h3 className="mb-2 text-sm font-semibold text-slate-700">{tr.members.overview}</h3>
           <dl className="space-y-1 text-sm">
-            <div className="flex justify-between"><dt className="text-slate-500">{tr.members.joinDate}</dt><dd>{formatDisplayDate(String(member.join_date))}</dd></div>
-            {member.village ? <div className="flex justify-between"><dt className="text-slate-500">{tr.members.village}</dt><dd>{String(member.village)}</dd></div> : null}
-            {member.emergency_contact_name ? (
-              <div className="flex justify-between"><dt className="text-slate-500">{tr.members.emergencyContact}</dt><dd>{String(member.emergency_contact_name)}</dd></div>
+            <div className="flex justify-between">
+              <dt className="text-slate-500">{tr.members.joinDate}</dt>
+              <dd>{formatDisplayDate(String(member.join_date))}</dd>
+            </div>
+            {member.village ? (
+              <div className="flex justify-between">
+                <dt className="text-slate-500">{tr.members.village}</dt>
+                <dd>{String(member.village)}</dd>
+              </div>
             ) : null}
-            <div className="flex justify-between"><dt className="text-slate-500">{tr.members.status}</dt>
-              <dd><Badge tone={statusTone(String(member.status))}>{tr.members.statuses[member.status as keyof typeof tr.members.statuses] ?? String(member.status)}</Badge></dd>
+            {member.emergency_contact_name ? (
+              <div className="flex justify-between">
+                <dt className="text-slate-500">{tr.members.emergencyContact}</dt>
+                <dd>{String(member.emergency_contact_name)}</dd>
+              </div>
+            ) : null}
+            <div className="flex justify-between">
+              <dt className="text-slate-500">{tr.members.status}</dt>
+              <dd>
+                <Badge tone={statusTone(String(member.status))}>
+                  {tr.members.statuses[member.status as keyof typeof tr.members.statuses] ??
+                    String(member.status)}
+                </Badge>
+              </dd>
             </div>
           </dl>
         </Card>
@@ -157,14 +195,24 @@ export default async function MemberDetailPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section>
           <h2 className="mb-3 text-base font-semibold">{tr.members.memberships}</h2>
-          <Table headers={[tr.members.plan, tr.membership.startDate, tr.membership.endDate, tr.membership.total, tr.members.status]}>
+          <Table
+            headers={[
+              tr.members.plan,
+              tr.membership.startDate,
+              tr.membership.endDate,
+              tr.membership.total,
+              tr.members.status,
+            ]}
+          >
             {(memberships as Record<string, unknown>[]).map((m) => (
               <tr key={String(m.id)}>
                 <td className="px-4 py-3">{String(m.plan_name_snapshot)}</td>
                 <td className="px-4 py-3">{formatDisplayDate(String(m.start_date))}</td>
                 <td className="px-4 py-3">{formatDisplayDate(String(m.end_date))}</td>
                 <td className="px-4 py-3">{formatMoney(Number(m.total_amount))}</td>
-                <td className="px-4 py-3"><Badge tone={statusTone(String(m.state))}>{String(m.state)}</Badge></td>
+                <td className="px-4 py-3">
+                  <Badge tone={statusTone(String(m.state))}>{String(m.state)}</Badge>
+                </td>
               </tr>
             ))}
           </Table>
@@ -175,18 +223,33 @@ export default async function MemberDetailPage({
           {payments.length === 0 ? (
             <p className="text-sm text-slate-500">No payments recorded.</p>
           ) : (
-            <Table headers={[tr.payments.date, tr.payments.amount, tr.payments.method, tr.payments.receiptNumber]}>
+            <Table
+              headers={[
+                tr.payments.date,
+                tr.payments.amount,
+                tr.payments.method,
+                tr.payments.receiptNumber,
+              ]}
+            >
               {(payments as Record<string, unknown>[]).map((p) => (
                 <tr key={String(p.id)}>
                   <td className="px-4 py-3">{formatDisplayDate(String(p.payment_date))}</td>
                   <td className="px-4 py-3 font-medium">{formatMoney(Number(p.amount))}</td>
-                  <td className="px-4 py-3">{tr.payments.methods[p.method as keyof typeof tr.payments.methods] ?? String(p.method)}</td>
+                  <td className="px-4 py-3">
+                    {tr.payments.methods[p.method as keyof typeof tr.payments.methods] ??
+                      String(p.method)}
+                  </td>
                   <td className="px-4 py-3">
                     {p.receipt_number ? (
-                      <Link href={`/receipts/${String(p.id)}`} className="text-primary hover:underline">
+                      <Link
+                        href={`/receipts/${String(p.id)}`}
+                        className="text-primary hover:underline"
+                      >
                         {String(p.receipt_number)}
                       </Link>
-                    ) : '—'}
+                    ) : (
+                      '—'
+                    )}
                   </td>
                 </tr>
               ))}
@@ -198,7 +261,9 @@ export default async function MemberDetailPage({
       {addons.length > 0 ? (
         <section className="mt-6">
           <h2 className="mb-3 text-base font-semibold">PT / Add-ons</h2>
-          <Table headers={['Package', tr.members.trainer, 'Sessions', 'Validity', tr.members.status]}>
+          <Table
+            headers={['Package', tr.members.trainer, 'Sessions', 'Validity', tr.members.status]}
+          >
             {(addons as Record<string, unknown>[]).map((a) => (
               <tr key={String(a.id)}>
                 <td className="px-4 py-3">{String(a.name_snapshot)}</td>
@@ -207,9 +272,12 @@ export default async function MemberDetailPage({
                   {a.sessions_total != null ? `${a.sessions_used}/${a.sessions_total}` : '∞'}
                 </td>
                 <td className="px-4 py-3">
-                  {formatDisplayDate(String(a.start_date))} → {formatDisplayDate(String(a.end_date))}
+                  {formatDisplayDate(String(a.start_date))} →{' '}
+                  {formatDisplayDate(String(a.end_date))}
                 </td>
-                <td className="px-4 py-3"><Badge tone={statusTone(String(a.state))}>{String(a.state)}</Badge></td>
+                <td className="px-4 py-3">
+                  <Badge tone={statusTone(String(a.state))}>{String(a.state)}</Badge>
+                </td>
               </tr>
             ))}
           </Table>
@@ -225,7 +293,10 @@ export default async function MemberDetailPage({
             {(attendance as Record<string, unknown>[]).map((a) => (
               <Badge key={String(a.id)} tone="muted">
                 {new Date(String(a.checked_in_at)).toLocaleString('en-IN', {
-                  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                  day: '2-digit',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
                   timeZone: 'Asia/Kolkata',
                 })}
               </Badge>

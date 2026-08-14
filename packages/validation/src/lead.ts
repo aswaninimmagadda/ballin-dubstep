@@ -17,8 +17,14 @@ export const updateLeadSchema = z.object({
   id: uuidSchema,
   status: z
     .enum([
-      'new', 'contacted', 'trial_scheduled', 'trial_completed',
-      'interested', 'follow_up', 'won', 'lost',
+      'new',
+      'contacted',
+      'trial_scheduled',
+      'trial_completed',
+      'interested',
+      'follow_up',
+      'won',
+      'lost',
     ])
     .optional(),
   followUpDate: isoDateSchema.optional().nullable(),

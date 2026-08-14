@@ -1,7 +1,13 @@
 import 'server-only';
 import {
-  computeEndDate, proposeRenewal, quoteMembership, checkPromotionEligibility,
-  fiscalYearLabel, formatReceiptNumber, freezeExtensionDays, applyFreezeExtension,
+  computeEndDate,
+  proposeRenewal,
+  quoteMembership,
+  checkPromotionEligibility,
+  fiscalYearLabel,
+  formatReceiptNumber,
+  freezeExtensionDays,
+  applyFreezeExtension,
   type MembershipQuote,
 } from '@gymflow/core';
 import { todayInTz, maxDate } from '@gymflow/utils';
@@ -57,7 +63,14 @@ interface PromotionRow {
 
 async function resolvePromotion(
   tx: Queryable,
-  opts: { code: string; planId: string; branchId: string; memberId: string; isRenewal: boolean; today: string },
+  opts: {
+    code: string;
+    planId: string;
+    branchId: string;
+    memberId: string;
+    isRenewal: boolean;
+    today: string;
+  },
 ): Promise<PromotionRow> {
   const r = await tx.query(
     `SELECT id, discount_kind, discount_value::bigint AS discount_value,
@@ -113,7 +126,8 @@ async function resolvePromotion(
   return {
     ...promo,
     discount_value: Number(promo.discount_value),
-    max_discount_amount: promo.max_discount_amount == null ? null : Number(promo.max_discount_amount),
+    max_discount_amount:
+      promo.max_discount_amount == null ? null : Number(promo.max_discount_amount),
   };
 }
 
@@ -137,8 +151,15 @@ async function recordPaymentWithReceipt(
                            external_reference, received_by, idempotency_key)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
     [
-      user.tenantId, opts.branchId, opts.memberId, opts.amount, opts.method,
-      opts.paymentDate, opts.externalReference ?? null, user.userId, opts.idempotencyKey,
+      user.tenantId,
+      opts.branchId,
+      opts.memberId,
+      opts.amount,
+      opts.method,
+      opts.paymentDate,
+      opts.externalReference ?? null,
+      user.userId,
+      opts.idempotencyKey,
     ],
   );
   const paymentId = (pr.rows[0] as { id: string }).id;
@@ -146,7 +167,13 @@ async function recordPaymentWithReceipt(
     await tx.query(
       `INSERT INTO payment_allocations (tenant_id, payment_id, membership_id, member_addon_id, amount)
        VALUES ($1,$2,$3,$4,$5)`,
-      [user.tenantId, paymentId, opts.membershipId ?? null, opts.memberAddonId ?? null, opts.amount],
+      [
+        user.tenantId,
+        paymentId,
+        opts.membershipId ?? null,
+        opts.memberAddonId ?? null,
+        opts.amount,
+      ],
     );
   }
   const settings = await tx.query(
@@ -180,33 +207,45 @@ export interface SaleResult {
 }
 
 /** Sell a new membership (optionally with immediate payment + receipt). */
-export async function sellMembership(user: SessionUser, input: SellMembershipInput): Promise<SaleResult> {
+export async function sellMembership(
+  user: SessionUser,
+  input: SellMembershipInput,
+): Promise<SaleResult> {
   const today = todayInTz();
   return asPrincipal(user.claims, async (tx) => {
-    const member = await tx.query(
-      `SELECT id, branch_id, status FROM members WHERE id = $1`,
-      [input.memberId],
-    );
+    const member = await tx.query(`SELECT id, branch_id, status FROM members WHERE id = $1`, [
+      input.memberId,
+    ]);
     const m = member.rows[0] as { id: string; branch_id: string; status: string } | undefined;
     if (!m) throw new UserFacingError('Member not found.');
 
     const pv = await latestPlanVersion(tx, input.planId);
     const promo = input.promotionCode
       ? await resolvePromotion(tx, {
-          code: input.promotionCode, planId: input.planId, branchId: m.branch_id,
-          memberId: m.id, isRenewal: false, today,
+          code: input.promotionCode,
+          planId: input.planId,
+          branchId: m.branch_id,
+          memberId: m.id,
+          isRenewal: false,
+          today,
         })
       : null;
 
     const quote = quoteMembership({
       planVersion: {
-        basePrice: pv.base_price, joiningFee: pv.joining_fee,
-        taxRateBps: pv.tax_rate_bps, taxInclusive: pv.tax_inclusive,
+        basePrice: pv.base_price,
+        joiningFee: pv.joining_fee,
+        taxRateBps: pv.tax_rate_bps,
+        taxInclusive: pv.tax_inclusive,
       },
       planName: pv.plan_name,
       includeJoiningFee: input.includeJoiningFee,
       promotion: promo
-        ? { discountKind: promo.discount_kind, discountValue: promo.discount_value, maxDiscountAmount: promo.max_discount_amount }
+        ? {
+            discountKind: promo.discount_kind,
+            discountValue: promo.discount_value,
+            maxDiscountAmount: promo.max_discount_amount,
+          }
         : null,
       manualDiscount: input.manualDiscount,
     });
@@ -225,9 +264,21 @@ export async function sellMembership(user: SessionUser, input: SellMembershipInp
          discount_amount, promotion_id, sold_by, idempotency_key)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
       [
-        user.tenantId, m.branch_id, m.id, input.planId, pv.id, pv.plan_name,
-        input.startDate, endDate, pv.grace_period_days, state, quote.total,
-        quote.discount, promo?.id ?? null, user.userId, input.idempotencyKey,
+        user.tenantId,
+        m.branch_id,
+        m.id,
+        input.planId,
+        pv.id,
+        pv.plan_name,
+        input.startDate,
+        endDate,
+        pv.grace_period_days,
+        state,
+        quote.total,
+        quote.discount,
+        promo?.id ?? null,
+        user.userId,
+        input.idempotencyKey,
       ],
     );
     const membershipId = (msR.rows[0] as { id: string }).id;
@@ -235,7 +286,12 @@ export async function sellMembership(user: SessionUser, input: SellMembershipInp
     await tx.query(
       `INSERT INTO membership_events (tenant_id, membership_id, type, data, actor_id)
        VALUES ($1,$2,'sold',$3,$4)`,
-      [user.tenantId, membershipId, JSON.stringify({ total: quote.total, plan: pv.plan_name }), user.userId],
+      [
+        user.tenantId,
+        membershipId,
+        JSON.stringify({ total: quote.total, plan: pv.plan_name }),
+        user.userId,
+      ],
     );
     if (promo) {
       await tx.query(
@@ -244,10 +300,10 @@ export async function sellMembership(user: SessionUser, input: SellMembershipInp
         [user.tenantId, promo.id, m.id, membershipId, quote.discount],
       );
     }
-    await tx.query(
-      `UPDATE members SET status = $2 WHERE id = $1`,
-      [m.id, state === 'pending' ? 'pending_activation' : 'active'],
-    );
+    await tx.query(`UPDATE members SET status = $2 WHERE id = $1`, [
+      m.id,
+      state === 'pending' ? 'pending_activation' : 'active',
+    ]);
 
     let receiptNumber: string | null = null;
     if (input.payment) {
@@ -258,14 +314,18 @@ export async function sellMembership(user: SessionUser, input: SellMembershipInp
         `SELECT allow_partial_payments FROM gym_settings WHERE tenant_id = $1`,
         [user.tenantId],
       );
-      const allowPartial = (settings.rows[0] as { allow_partial_payments: boolean })?.allow_partial_payments;
+      const allowPartial = (settings.rows[0] as { allow_partial_payments: boolean })
+        ?.allow_partial_payments;
       if (input.payment.amount < quote.total && !allowPartial) {
         throw new UserFacingError('Partial payments are not enabled for this gym.');
       }
       if (input.payment.amount > 0) {
         const rec = await recordPaymentWithReceipt(tx, user, {
-          branchId: m.branch_id, memberId: m.id, membershipId,
-          amount: input.payment.amount, method: input.payment.method,
+          branchId: m.branch_id,
+          memberId: m.id,
+          membershipId,
+          amount: input.payment.amount,
+          method: input.payment.method,
           externalReference: input.payment.externalReference,
           paymentDate: input.payment.paymentDate ?? today,
           idempotencyKey: `${input.idempotencyKey}:payment`,
@@ -275,7 +335,9 @@ export async function sellMembership(user: SessionUser, input: SellMembershipInp
     }
 
     await writeAudit(tx, user, {
-      action: 'membership.sell', entityType: 'membership', entityId: membershipId,
+      action: 'membership.sell',
+      entityType: 'membership',
+      entityId: membershipId,
       after: { plan: pv.plan_name, startDate: input.startDate, endDate, total: quote.total },
     });
     return { membershipId, startDate: input.startDate, endDate, quote, receiptNumber };
@@ -283,7 +345,10 @@ export async function sellMembership(user: SessionUser, input: SellMembershipInp
 }
 
 /** Renew: new membership row chained to the previous one. */
-export async function renewMembership(user: SessionUser, input: RenewMembershipInput): Promise<SaleResult> {
+export async function renewMembership(
+  user: SessionUser,
+  input: RenewMembershipInput,
+): Promise<SaleResult> {
   const today = todayInTz();
   return asPrincipal(user.claims, async (tx) => {
     const prevR = await tx.query(
@@ -295,7 +360,8 @@ export async function renewMembership(user: SessionUser, input: RenewMembershipI
       | { id: string; member_id: string; branch_id: string; end_date: string; state: string }
       | undefined;
     if (!prev) throw new UserFacingError('Previous membership not found.');
-    if (prev.member_id !== input.memberId) throw new UserFacingError('Membership does not belong to this member.');
+    if (prev.member_id !== input.memberId)
+      throw new UserFacingError('Membership does not belong to this member.');
     if (['pending', 'frozen'].includes(prev.state)) {
       throw new UserFacingError('This membership cannot be renewed while it is pending or frozen.');
     }
@@ -313,26 +379,37 @@ export async function renewMembership(user: SessionUser, input: RenewMembershipI
     // until its own end date — the renewal sits alongside as 'pending'.
     if (prev.state === 'active') {
       await tx.query(`UPDATE memberships SET state = 'expired' WHERE id = $1 AND end_date < $2`, [
-        prev.id, today,
+        prev.id,
+        today,
       ]);
     }
 
     const promo = input.promotionCode
       ? await resolvePromotion(tx, {
-          code: input.promotionCode, planId: input.planId, branchId: prev.branch_id,
-          memberId: prev.member_id, isRenewal: true, today,
+          code: input.promotionCode,
+          planId: input.planId,
+          branchId: prev.branch_id,
+          memberId: prev.member_id,
+          isRenewal: true,
+          today,
         })
       : null;
 
     const quote = quoteMembership({
       planVersion: {
-        basePrice: pv.base_price, joiningFee: pv.joining_fee,
-        taxRateBps: pv.tax_rate_bps, taxInclusive: pv.tax_inclusive,
+        basePrice: pv.base_price,
+        joiningFee: pv.joining_fee,
+        taxRateBps: pv.tax_rate_bps,
+        taxInclusive: pv.tax_inclusive,
       },
       planName: pv.plan_name,
       includeJoiningFee: false, // renewals never re-charge the joining fee
       promotion: promo
-        ? { discountKind: promo.discount_kind, discountValue: promo.discount_value, maxDiscountAmount: promo.max_discount_amount }
+        ? {
+            discountKind: promo.discount_kind,
+            discountValue: promo.discount_value,
+            maxDiscountAmount: promo.max_discount_amount,
+          }
         : null,
       manualDiscount: input.manualDiscount,
     });
@@ -345,16 +422,34 @@ export async function renewMembership(user: SessionUser, input: RenewMembershipI
          discount_amount, promotion_id, sold_by, previous_membership_id, idempotency_key)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
       [
-        user.tenantId, prev.branch_id, prev.member_id, input.planId, pv.id, pv.plan_name,
-        proposal.startDate, proposal.endDate, pv.grace_period_days, state, quote.total,
-        quote.discount, promo?.id ?? null, user.userId, prev.id, input.idempotencyKey,
+        user.tenantId,
+        prev.branch_id,
+        prev.member_id,
+        input.planId,
+        pv.id,
+        pv.plan_name,
+        proposal.startDate,
+        proposal.endDate,
+        pv.grace_period_days,
+        state,
+        quote.total,
+        quote.discount,
+        promo?.id ?? null,
+        user.userId,
+        prev.id,
+        input.idempotencyKey,
       ],
     );
     const membershipId = (msR.rows[0] as { id: string }).id;
     await tx.query(
       `INSERT INTO membership_events (tenant_id, membership_id, type, data, actor_id)
        VALUES ($1,$2,'renewed',$3,$4)`,
-      [user.tenantId, membershipId, JSON.stringify({ from: prev.id, total: quote.total }), user.userId],
+      [
+        user.tenantId,
+        membershipId,
+        JSON.stringify({ from: prev.id, total: quote.total }),
+        user.userId,
+      ],
     );
     if (promo) {
       await tx.query(
@@ -363,9 +458,10 @@ export async function renewMembership(user: SessionUser, input: RenewMembershipI
         [user.tenantId, promo.id, prev.member_id, membershipId, quote.discount],
       );
     }
-    await tx.query(`UPDATE members SET status = 'active' WHERE id = $1 AND status IN ('expired','pending_activation')`, [
-      prev.member_id,
-    ]);
+    await tx.query(
+      `UPDATE members SET status = 'active' WHERE id = $1 AND status IN ('expired','pending_activation')`,
+      [prev.member_id],
+    );
 
     let receiptNumber: string | null = null;
     if (input.payment && input.payment.amount > 0) {
@@ -373,8 +469,11 @@ export async function renewMembership(user: SessionUser, input: RenewMembershipI
         throw new UserFacingError('Payment is more than the amount due.');
       }
       const rec = await recordPaymentWithReceipt(tx, user, {
-        branchId: prev.branch_id, memberId: prev.member_id, membershipId,
-        amount: input.payment.amount, method: input.payment.method,
+        branchId: prev.branch_id,
+        memberId: prev.member_id,
+        membershipId,
+        amount: input.payment.amount,
+        method: input.payment.method,
         externalReference: input.payment.externalReference,
         paymentDate: input.payment.paymentDate ?? today,
         idempotencyKey: `${input.idempotencyKey}:payment`,
@@ -383,7 +482,9 @@ export async function renewMembership(user: SessionUser, input: RenewMembershipI
     }
 
     await writeAudit(tx, user, {
-      action: 'membership.renew', entityType: 'membership', entityId: membershipId,
+      action: 'membership.renew',
+      entityType: 'membership',
+      entityId: membershipId,
       after: { plan: pv.plan_name, ...proposal, total: quote.total },
     });
     return { membershipId, ...proposal, quote, receiptNumber };
@@ -392,24 +493,37 @@ export async function renewMembership(user: SessionUser, input: RenewMembershipI
 
 export async function freezeMembership(
   user: SessionUser,
-  input: { membershipId: string; startDate: string; plannedEndDate?: string | null; reason: string; note?: string | null; extendsExpiry: boolean },
+  input: {
+    membershipId: string;
+    startDate: string;
+    plannedEndDate?: string | null;
+    reason: string;
+    note?: string | null;
+    extendsExpiry: boolean;
+  },
 ): Promise<void> {
   return asPrincipal(user.claims, async (tx) => {
-    const msR = await tx.query(
-      `SELECT id, member_id, state FROM memberships WHERE id = $1`,
-      [input.membershipId],
-    );
+    const msR = await tx.query(`SELECT id, member_id, state FROM memberships WHERE id = $1`, [
+      input.membershipId,
+    ]);
     const ms = msR.rows[0] as { id: string; member_id: string; state: string } | undefined;
     if (!ms) throw new UserFacingError('Membership not found.');
-    if (ms.state !== 'active') throw new UserFacingError('Only an active membership can be frozen.');
+    if (ms.state !== 'active')
+      throw new UserFacingError('Only an active membership can be frozen.');
 
     await tx.query(
       `INSERT INTO membership_freezes
         (tenant_id, membership_id, start_date, planned_end_date, reason, note, extends_expiry, authorized_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
       [
-        user.tenantId, ms.id, input.startDate, input.plannedEndDate ?? null,
-        input.reason, input.note ?? null, input.extendsExpiry, user.userId,
+        user.tenantId,
+        ms.id,
+        input.startDate,
+        input.plannedEndDate ?? null,
+        input.reason,
+        input.note ?? null,
+        input.extendsExpiry,
+        user.userId,
       ],
     );
     await tx.query(`UPDATE memberships SET state = 'frozen' WHERE id = $1`, [ms.id]);
@@ -417,10 +531,17 @@ export async function freezeMembership(
     await tx.query(
       `INSERT INTO membership_events (tenant_id, membership_id, type, data, actor_id)
        VALUES ($1,$2,'frozen',$3,$4)`,
-      [user.tenantId, ms.id, JSON.stringify({ reason: input.reason, start: input.startDate }), user.userId],
+      [
+        user.tenantId,
+        ms.id,
+        JSON.stringify({ reason: input.reason, start: input.startDate }),
+        user.userId,
+      ],
     );
     await writeAudit(tx, user, {
-      action: 'membership.freeze', entityType: 'membership', entityId: ms.id,
+      action: 'membership.freeze',
+      entityType: 'membership',
+      entityId: ms.id,
       after: { startDate: input.startDate, reason: input.reason },
     });
   });
@@ -439,19 +560,27 @@ export async function unfreezeMembership(
       [input.membershipId],
     );
     const f = fR.rows[0] as
-      | { id: string; start_date: string; extends_expiry: boolean; end_date: string; member_id: string }
+      | {
+          id: string;
+          start_date: string;
+          extends_expiry: boolean;
+          end_date: string;
+          member_id: string;
+        }
       | undefined;
     if (!f) throw new UserFacingError('No open freeze found for this membership.');
     const actualEnd = maxDate(input.actualEndDate, f.start_date);
     const days = freezeExtensionDays(f.start_date, actualEnd);
     const newEndDate = f.extends_expiry ? applyFreezeExtension(f.end_date, days) : f.end_date;
 
-    await tx.query(
-      `UPDATE membership_freezes SET actual_end_date = $2, days = $3 WHERE id = $1`,
-      [f.id, actualEnd, days],
-    );
+    await tx.query(`UPDATE membership_freezes SET actual_end_date = $2, days = $3 WHERE id = $1`, [
+      f.id,
+      actualEnd,
+      days,
+    ]);
     await tx.query(`UPDATE memberships SET state = 'active', end_date = $2 WHERE id = $1`, [
-      input.membershipId, newEndDate,
+      input.membershipId,
+      newEndDate,
     ]);
     await tx.query(`UPDATE members SET status = 'active' WHERE id = $1`, [f.member_id]);
     await tx.query(
@@ -460,7 +589,9 @@ export async function unfreezeMembership(
       [user.tenantId, input.membershipId, JSON.stringify({ days, newEndDate }), user.userId],
     );
     await writeAudit(tx, user, {
-      action: 'membership.unfreeze', entityType: 'membership', entityId: input.membershipId,
+      action: 'membership.unfreeze',
+      entityType: 'membership',
+      entityId: input.membershipId,
       after: { days, newEndDate },
     });
     return { newEndDate };

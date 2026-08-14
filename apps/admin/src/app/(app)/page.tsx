@@ -19,19 +19,43 @@ export default async function DashboardPage() {
         actions={
           <>
             <Button href="/members/new">{tr.dashboard.quickNewMember}</Button>
-            <Button href="/members" variant="secondary">{tr.dashboard.quickFindMember}</Button>
-            <Button href="/attendance" variant="secondary">{tr.dashboard.quickCheckIn}</Button>
+            <Button href="/members" variant="secondary">
+              {tr.dashboard.quickFindMember}
+            </Button>
+            <Button href="/attendance" variant="secondary">
+              {tr.dashboard.quickCheckIn}
+            </Button>
           </>
         }
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label={tr.dashboard.activeMembers} value={data.activeMembers} tone="success" href="/members?status=active" />
+        <StatCard
+          label={tr.dashboard.activeMembers}
+          value={data.activeMembers}
+          tone="success"
+          href="/members?status=active"
+        />
         <StatCard label={tr.dashboard.expiring7Days} value={data.expiring7Days} tone="warning" />
-        <StatCard label={tr.dashboard.expiredMembers} value={data.expiredRecent} tone="danger" href="/members?status=expired" />
-        <StatCard label={tr.dashboard.todayAttendance} value={data.todayAttendance} href="/attendance" />
-        <StatCard label={tr.dashboard.todayCollections} value={formatMoney(data.todayCollections)} />
-        <StatCard label={tr.dashboard.monthCollections} value={formatMoney(data.monthCollections)} />
+        <StatCard
+          label={tr.dashboard.expiredMembers}
+          value={data.expiredRecent}
+          tone="danger"
+          href="/members?status=expired"
+        />
+        <StatCard
+          label={tr.dashboard.todayAttendance}
+          value={data.todayAttendance}
+          href="/attendance"
+        />
+        <StatCard
+          label={tr.dashboard.todayCollections}
+          value={formatMoney(data.todayCollections)}
+        />
+        <StatCard
+          label={tr.dashboard.monthCollections}
+          value={formatMoney(data.monthCollections)}
+        />
         <StatCard label={tr.dashboard.newMembersMonth} value={data.newMembersThisMonth} />
         <StatCard label={tr.dashboard.leadsFollowUp} value={data.leadsToFollowUp} href="/leads" />
       </div>
@@ -51,17 +75,29 @@ export default async function DashboardPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-lg font-semibold text-slate-900">{tr.dashboard.recentPayments}</h2>
+          <h2 className="mb-3 text-lg font-semibold text-slate-900">
+            {tr.dashboard.recentPayments}
+          </h2>
           {data.recentPayments.length === 0 ? (
             <EmptyState title="No payments yet." />
           ) : (
-            <Table headers={[tr.members.name, tr.payments.amount, tr.payments.method, tr.payments.receiptNumber]}>
+            <Table
+              headers={[
+                tr.members.name,
+                tr.payments.amount,
+                tr.payments.method,
+                tr.payments.receiptNumber,
+              ]}
+            >
               {data.recentPayments.map((p) => (
                 <tr key={p.id}>
                   <td className="px-4 py-3">{p.member_name}</td>
                   <td className="px-4 py-3 font-medium">{formatMoney(Number(p.amount))}</td>
                   <td className="px-4 py-3">
-                    <Badge>{tr.payments.methods[p.method as keyof typeof tr.payments.methods] ?? p.method}</Badge>
+                    <Badge>
+                      {tr.payments.methods[p.method as keyof typeof tr.payments.methods] ??
+                        p.method}
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 text-slate-500">{p.receipt_number ?? '—'}</td>
                 </tr>
@@ -78,7 +114,15 @@ async function ExpiryCard({
   row,
   tr,
 }: {
-  row: { member_id: string; first_name: string; last_name: string | null; mobile: string; plan_name: string; end_date: string; days_left: number };
+  row: {
+    member_id: string;
+    first_name: string;
+    last_name: string | null;
+    mobile: string;
+    plan_name: string;
+    end_date: string;
+    days_left: number;
+  };
   tr: Awaited<ReturnType<typeof t>>;
 }) {
   const user = await requirePermission('members.view');
@@ -87,7 +131,10 @@ async function ExpiryCard({
   return (
     <Card className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <Link href={`/members/${row.member_id}`} className="font-semibold text-slate-900 hover:text-primary">
+        <Link
+          href={`/members/${row.member_id}`}
+          className="font-semibold text-slate-900 hover:text-primary"
+        >
           {row.first_name} {row.last_name ?? ''}
         </Link>
         <div className="text-xs text-slate-500">

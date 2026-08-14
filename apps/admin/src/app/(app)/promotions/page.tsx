@@ -6,7 +6,16 @@ import { asPrincipal } from '@/lib/db';
 import { writeAudit } from '@/lib/audit';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
-import { Badge, Button, Card, ErrorBanner, Field, PageHeader, Table, inputCls } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorBanner,
+  Field,
+  PageHeader,
+  Table,
+  inputCls,
+} from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,11 +25,12 @@ async function createPromotionAction(formData: FormData): Promise<void> {
   const kind = String(formData.get('discountKind'));
   let value = 0;
   try {
-    value = kind === 'percentage'
-      ? Math.round(Number(formData.get('percent')) * 100) // % → bps
-      : kind === 'flat'
-        ? parseMoney(String(formData.get('flat') ?? '0'))
-        : 0;
+    value =
+      kind === 'percentage'
+        ? Math.round(Number(formData.get('percent')) * 100) // % → bps
+        : kind === 'flat'
+          ? parseMoney(String(formData.get('flat') ?? '0'))
+          : 0;
   } catch {
     redirect(`/promotions?error=${encodeURIComponent('Enter a valid discount value.')}`);
   }
@@ -34,14 +44,16 @@ async function createPromotionAction(formData: FormData): Promise<void> {
           user.tenantId,
           String(formData.get('code')),
           String(formData.get('name')),
-          kind, value,
+          kind,
+          value,
           String(formData.get('validFrom')),
           String(formData.get('validTo')),
           String(formData.get('audience') ?? 'all'),
         ],
       );
       await writeAudit(tx, user, {
-        action: 'promotion.create', entityType: 'promotion',
+        action: 'promotion.create',
+        entityType: 'promotion',
         entityId: (r.rows[0] as { id: string }).id,
         after: { code: String(formData.get('code')), kind, value },
       });
@@ -57,7 +69,8 @@ async function togglePromotionAction(formData: FormData): Promise<void> {
   const user = await requirePermission('promotions.manage');
   await asPrincipal(user.claims, (tx) =>
     tx.query(`UPDATE promotions SET is_active = $2 WHERE id = $1`, [
-      String(formData.get('id')), formData.get('active') === '1',
+      String(formData.get('id')),
+      formData.get('active') === '1',
     ]),
   );
   redirect('/promotions');
@@ -71,7 +84,8 @@ export default async function PromotionsPage({
   const user = await requirePermission('promotions.view');
   const { error } = await searchParams;
   const tr = await t();
-  const canManage = hasPermission(user.permissions, 'promotions.manage') || user.kind === 'platform_admin';
+  const canManage =
+    hasPermission(user.permissions, 'promotions.manage') || user.kind === 'platform_admin';
 
   const promos = await asPrincipal(user.claims, async (tx) => {
     const r = await tx.query(
@@ -90,7 +104,17 @@ export default async function PromotionsPage({
       <ErrorBanner message={error ?? null} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <Table headers={['Code', tr.members.name, tr.membership.discount, 'Validity', 'Uses', tr.members.status, '']}>
+          <Table
+            headers={[
+              'Code',
+              tr.members.name,
+              tr.membership.discount,
+              'Validity',
+              'Uses',
+              tr.members.status,
+              '',
+            ]}
+          >
             {promos.map((p) => (
               <tr key={String(p.id)}>
                 <td className="px-4 py-3 font-mono font-semibold">{String(p.code)}</td>
@@ -106,11 +130,14 @@ export default async function PromotionsPage({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs">
-                  {formatDisplayDate(String(p.valid_from))} – {formatDisplayDate(String(p.valid_to))}
+                  {formatDisplayDate(String(p.valid_from))} –{' '}
+                  {formatDisplayDate(String(p.valid_to))}
                 </td>
                 <td className="px-4 py-3">{Number(p.uses)}</td>
                 <td className="px-4 py-3">
-                  <Badge tone={p.is_active ? 'success' : 'muted'}>{p.is_active ? 'Active' : 'Off'}</Badge>
+                  <Badge tone={p.is_active ? 'success' : 'muted'}>
+                    {p.is_active ? 'Active' : 'Off'}
+                  </Badge>
                 </td>
                 <td className="px-4 py-3">
                   {canManage ? (
@@ -133,7 +160,13 @@ export default async function PromotionsPage({
             <h2 className="mb-3 text-sm font-semibold text-slate-700">New promotion</h2>
             <form action={createPromotionAction} className="space-y-3">
               <Field label="Code" required>
-                <input name="code" required placeholder="SANKRANTI27" pattern="[A-Za-z0-9-]{2,40}" className={inputCls} />
+                <input
+                  name="code"
+                  required
+                  placeholder="SANKRANTI27"
+                  pattern="[A-Za-z0-9-]{2,40}"
+                  className={inputCls}
+                />
               </Field>
               <Field label={tr.members.name} required>
                 <input name="name" required className={inputCls} />
@@ -147,7 +180,15 @@ export default async function PromotionsPage({
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Percent %">
-                  <input name="percent" type="number" min={0} max={100} step="0.5" placeholder="10" className={inputCls} />
+                  <input
+                    name="percent"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.5"
+                    placeholder="10"
+                    className={inputCls}
+                  />
                 </Field>
                 <Field label="Flat ₹">
                   <input name="flat" inputMode="decimal" placeholder="500" className={inputCls} />

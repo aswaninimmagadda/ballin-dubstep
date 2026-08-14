@@ -5,8 +5,15 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
-  setupOnce, appPool, closePools, withClaims, withoutClaims,
-  staffClaims, memberClaims, platformClaims, type Fixtures,
+  setupOnce,
+  appPool,
+  closePools,
+  withClaims,
+  withoutClaims,
+  staffClaims,
+  memberClaims,
+  platformClaims,
+  type Fixtures,
 } from './helpers';
 
 let fx: Fixtures;
@@ -20,8 +27,16 @@ afterAll(async () => {
 
 describe('staff cannot cross tenants', () => {
   const TABLES = [
-    'members', 'memberships', 'payments', 'receipts', 'attendance', 'leads',
-    'promotions', 'membership_plans', 'trainers', 'audit_logs',
+    'members',
+    'memberships',
+    'payments',
+    'receipts',
+    'attendance',
+    'leads',
+    'promotions',
+    'membership_plans',
+    'trainers',
+    'audit_logs',
   ];
 
   it('tenant A staff sees only tenant A rows in every business table', async () => {

@@ -14,7 +14,8 @@
 import pg from 'pg';
 
 const BASE = process.argv[2] ?? 'http://localhost:3000';
-const DB = process.env.DATABASE_URL ?? 'postgres://gymflow:gymflow_dev_pw@localhost:5432/gymflow_dev';
+const DB =
+  process.env.DATABASE_URL ?? 'postgres://gymflow:gymflow_dev_pw@localhost:5432/gymflow_dev';
 const EMAIL = process.env.E2E_EMAIL ?? 'reception@demo.gymflow.local';
 const PASSWORD = process.env.E2E_PASSWORD ?? 'gymflow-dev-password';
 
@@ -117,46 +118,84 @@ async function main() {
 
   const step2Html = await (await get(step2Path)).text();
   const createForm = extractForm(step2Html, 'firstName');
-  const branchId = step2Html.match(/name="branchId"[^>]*>\s*<option[^>]*value="([a-f0-9-]+)"/)?.[1]
-    ?? step2Html.match(/<option[^>]*value="([a-f0-9-]{36})"/)?.[1];
+  const branchId =
+    step2Html.match(/name="branchId"[^>]*>\s*<option[^>]*value="([a-f0-9-]+)"/)?.[1] ??
+    step2Html.match(/<option[^>]*value="([a-f0-9-]{36})"/)?.[1];
   const createRes = await postAction(step2Path, createForm, {
-    mobile, branchId, firstName: 'TestE2E', lastName: 'Person', referralSource: 'walk_in',
+    mobile,
+    branchId,
+    firstName: 'TestE2E',
+    lastName: 'Person',
+    referralSource: 'walk_in',
   });
   const sellPath = redirectTarget(createRes).replace(/^https?:\/\/[^/]+/, '');
-  check('member created → redirected to sell', /\/members\/[a-f0-9-]+\/sell/.test(sellPath), sellPath);
+  check(
+    'member created → redirected to sell',
+    /\/members\/[a-f0-9-]+\/sell/.test(sellPath),
+    sellPath,
+  );
   const memberId = sellPath.match(/members\/([a-f0-9-]+)\/sell/)?.[1];
 
-  const [memberRow] = await q(`SELECT membership_number, status FROM members WHERE id = $1`, [memberId]);
-  check('member row exists with generated number', !!memberRow?.membership_number, JSON.stringify(memberRow));
+  const [memberRow] = await q(`SELECT membership_number, status FROM members WHERE id = $1`, [
+    memberId,
+  ]);
+  check(
+    'member row exists with generated number',
+    !!memberRow?.membership_number,
+    JSON.stringify(memberRow),
+  );
 
   const sellHtml = await (await get(sellPath)).text();
   const sellForm = extractForm(sellHtml, 'planId');
   const [plan3m] = await q(
     `SELECT p.id FROM membership_plans p JOIN members m ON m.tenant_id = p.tenant_id
-     WHERE m.id = $1 AND p.name = '3 Month'`, [memberId]);
+     WHERE m.id = $1 AND p.name = '3 Month'`,
+    [memberId],
+  );
   const today = new Date().toISOString().slice(0, 10);
   const sellRes = await postAction(sellPath, sellForm, {
-    planId: plan3m.id, startDate: today, includeJoiningFee: 'on',
-    amount: '3000', method: 'cash',
+    planId: plan3m.id,
+    startDate: today,
+    includeJoiningFee: 'on',
+    amount: '3000',
+    method: 'cash',
   });
-  check('sale redirects to member page', redirectTarget(sellRes).includes('msg=sold'), redirectTarget(sellRes));
+  check(
+    'sale redirects to member page',
+    redirectTarget(sellRes).includes('msg=sold'),
+    redirectTarget(sellRes),
+  );
 
   const [ms] = await q(
     `SELECT state, start_date::text AS s, end_date::text AS e, total_amount::bigint AS total
-     FROM memberships WHERE member_id = $1 ORDER BY created_at DESC LIMIT 1`, [memberId]);
+     FROM memberships WHERE member_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    [memberId],
+  );
   check('membership active', ms?.state === 'active', JSON.stringify(ms));
-  const expectedEnd = new Date(Date.UTC(
-    +today.slice(0, 4), +today.slice(5, 7) - 1 + 3, +today.slice(8, 10)) - 86400000)
-    .toISOString().slice(0, 10);
+  const expectedEnd = new Date(
+    Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 1 + 3, +today.slice(8, 10)) - 86400000,
+  )
+    .toISOString()
+    .slice(0, 10);
   check(`expiry = start + 3 months - 1 day (${expectedEnd})`, ms?.e === expectedEnd, ms?.e);
   check('total = ₹3000 (2500 + 500 joining)', Number(ms?.total) === 300000, String(ms?.total));
 
   const [pay] = await q(
     `SELECT p.amount::bigint AS amount, p.method, r.receipt_number
      FROM payments p LEFT JOIN receipts r ON r.payment_id = p.id
-     WHERE p.member_id = $1`, [memberId]);
-  check('cash payment recorded', pay?.method === 'cash' && Number(pay.amount) === 300000, JSON.stringify(pay));
-  check('receipt generated with tenant prefix', /^SVF-\d{4}-\d{6}$/.test(pay?.receipt_number ?? ''), pay?.receipt_number);
+     WHERE p.member_id = $1`,
+    [memberId],
+  );
+  check(
+    'cash payment recorded',
+    pay?.method === 'cash' && Number(pay.amount) === 300000,
+    JSON.stringify(pay),
+  );
+  check(
+    'receipt generated with tenant prefix',
+    /^SVF-\d{4}-\d{6}$/.test(pay?.receipt_number ?? ''),
+    pay?.receipt_number,
+  );
 
   // ---- check-in + duplicate guard -----------------------------------------
   console.log('\n[check-in]');
@@ -165,7 +204,11 @@ async function main() {
   const ck1 = await postAction(`/members/${memberId}`, checkinForm, {});
   check('first check-in ok', redirectTarget(ck1).includes('msg=checkedin'), redirectTarget(ck1));
   const ck2 = await postAction(`/members/${memberId}`, checkinForm, {});
-  check('duplicate check-in blocked', redirectTarget(ck2).includes('msg=duplicate'), redirectTarget(ck2));
+  check(
+    'duplicate check-in blocked',
+    redirectTarget(ck2).includes('msg=duplicate'),
+    redirectTarget(ck2),
+  );
   const att = await q(`SELECT count(*)::int AS n FROM attendance WHERE member_id = $1`, [memberId]);
   check('exactly one attendance row', att[0].n === 1, String(att[0].n));
 
@@ -175,58 +218,95 @@ async function main() {
   const renewForm = extractForm(renewHtml, 'previousMembershipId');
   const [plan6m] = await q(
     `SELECT p.id FROM membership_plans p JOIN members m ON m.tenant_id = p.tenant_id
-     WHERE m.id = $1 AND p.name = '6 Month'`, [memberId]);
+     WHERE m.id = $1 AND p.name = '6 Month'`,
+    [memberId],
+  );
   const renewRes = await postAction(`/members/${memberId}/renew`, renewForm, {
-    planId: plan6m.id, promotionCode: 'NEWYEAR26', amount: '4050', method: 'upi',
+    planId: plan6m.id,
+    promotionCode: 'NEWYEAR26',
+    amount: '4050',
+    method: 'upi',
     externalReference: 'UTR-E2E-1',
   });
-  check('renewal succeeds', redirectTarget(renewRes).includes('msg=renewed'), redirectTarget(renewRes));
+  check(
+    'renewal succeeds',
+    redirectTarget(renewRes).includes('msg=renewed'),
+    redirectTarget(renewRes),
+  );
 
   const renewals = await q(
     `SELECT state, previous_membership_id, total_amount::bigint AS total, discount_amount::bigint AS disc,
             start_date::text AS s, end_date::text AS e
-     FROM memberships WHERE member_id = $1 ORDER BY created_at DESC`, [memberId]);
+     FROM memberships WHERE member_id = $1 ORDER BY created_at DESC`,
+    [memberId],
+  );
   const newest = renewals[0];
   check('renewal chained to previous membership', !!newest.previous_membership_id);
-  check('10% promo applied (₹4500 → ₹4050)', Number(newest.total) === 405000 && Number(newest.disc) === 45000,
-    JSON.stringify({ total: newest.total, disc: newest.disc }));
+  check(
+    '10% promo applied (₹4500 → ₹4050)',
+    Number(newest.total) === 405000 && Number(newest.disc) === 45000,
+    JSON.stringify({ total: newest.total, disc: newest.disc }),
+  );
   check('renewal starts day after current expiry', newest.s > ms.e, `${newest.s} vs ${ms.e}`);
   const [redemption] = await q(
     `SELECT pr.discount_amount::bigint AS d FROM promotion_redemptions pr
      JOIN promotions p ON p.id = pr.promotion_id
-     WHERE pr.member_id = $1 AND p.code = 'NEWYEAR26'`, [memberId]);
-  check('promotion redemption recorded', Number(redemption?.d) === 45000, JSON.stringify(redemption));
+     WHERE pr.member_id = $1 AND p.code = 'NEWYEAR26'`,
+    [memberId],
+  );
+  check(
+    'promotion redemption recorded',
+    Number(redemption?.d) === 45000,
+    JSON.stringify(redemption),
+  );
 
   // Double-submit protection: replay the same renewal form (same idempotency key)
   const replay = await postAction(`/members/${memberId}/renew`, renewForm, {
-    planId: plan6m.id, amount: '', method: 'upi',
+    planId: plan6m.id,
+    amount: '',
+    method: 'upi',
   });
   const replayTarget = redirectTarget(replay);
-  const count = await q(`SELECT count(*)::int AS n FROM memberships WHERE member_id = $1`, [memberId]);
-  check('double-click renewal does not create a third membership', count[0].n === 2,
-    `${count[0].n} memberships, replay → ${replayTarget}`);
+  const count = await q(`SELECT count(*)::int AS n FROM memberships WHERE member_id = $1`, [
+    memberId,
+  ]);
+  check(
+    'double-click renewal does not create a third membership',
+    count[0].n === 2,
+    `${count[0].n} memberships, replay → ${replayTarget}`,
+  );
 
   // ---- scenario 3: freeze 15 days → unfreeze → expiry extended ------------
   console.log('\n[scenario 3 — freeze]');
   // Freezing needs memberships.freeze — a manager permission, not reception.
   const recepFreeze = await get(`/members/${memberId}/freeze`);
-  check('receptionist cannot open the freeze page',
-    redirectTarget(recepFreeze).includes('/forbidden'), redirectTarget(recepFreeze));
+  check(
+    'receptionist cannot open the freeze page',
+    redirectTarget(recepFreeze).includes('/forbidden'),
+    redirectTarget(recepFreeze),
+  );
   check('manager login', await loginAs('manager@demo.gymflow.local'));
   const freezeHtml = await (await get(`/members/${memberId}/freeze`)).text();
   const freezeForm = extractForm(freezeHtml, 'reason');
   const fRes = await postAction(`/members/${memberId}/freeze`, freezeForm, {
-    startDate: today, plannedEndDate: '', reason: 'E2E medical freeze', extendsExpiry: 'on',
+    startDate: today,
+    plannedEndDate: '',
+    reason: 'E2E medical freeze',
+    extendsExpiry: 'on',
   });
   check('freeze succeeds', redirectTarget(fRes).includes('msg=frozen'), redirectTarget(fRes));
   const [frozen] = await q(
-    `SELECT id, state FROM memberships WHERE member_id = $1 AND state = 'frozen'`, [memberId]);
+    `SELECT id, state FROM memberships WHERE member_id = $1 AND state = 'frozen'`,
+    [memberId],
+  );
   check('the running membership is frozen (renewal stays pending)', !!frozen);
 
   // Backdate the freeze start 15 days so unfreeze today yields a 15-day extension.
   await db.query(
     `UPDATE membership_freezes SET start_date = CURRENT_DATE - 15
-     WHERE membership_id = $1 AND actual_end_date IS NULL`, [frozen.id]);
+     WHERE membership_id = $1 AND actual_end_date IS NULL`,
+    [frozen.id],
+  );
 
   const detail2 = await (await getFollow(`/members/${memberId}`)).text();
   const unfreezeForm = extractForm(detail2, 'membershipId');
@@ -234,7 +314,9 @@ async function main() {
   check('unfreeze succeeds', redirectTarget(uRes).includes('msg=unfrozen'), redirectTarget(uRes));
   const [after] = await q(
     `SELECT state, end_date::text AS e, base_end_date::text AS b
-     FROM memberships WHERE id = $1`, [frozen.id]);
+     FROM memberships WHERE id = $1`,
+    [frozen.id],
+  );
   const extension = (new Date(after.e) - new Date(after.b)) / 86400000;
   check('membership active again', after.state === 'active');
   check('expiry extended by 15 frozen days', extension === 15, `extended ${extension} days`);
@@ -246,12 +328,19 @@ async function main() {
   const anon = await get(`/members/${memberId}`);
   check('member page requires login', [302, 303, 307].includes(anon.status), String(anon.status));
   const anonExport = await get('/api/export/members');
-  check('export API requires login', anon.status !== 200 && anonExport.status === 401, String(anonExport.status));
+  check(
+    'export API requires login',
+    anon.status !== 200 && anonExport.status === 401,
+    String(anonExport.status),
+  );
   cookie = savedCookie;
   check('receptionist relogin', await loginAs(EMAIL));
   const recepAudit = await get('/audit');
-  check('receptionist blocked from audit log', redirectTarget(recepAudit).includes('/forbidden'),
-    `${recepAudit.status} ${redirectTarget(recepAudit)}`);
+  check(
+    'receptionist blocked from audit log',
+    redirectTarget(recepAudit).includes('/forbidden'),
+    `${recepAudit.status} ${redirectTarget(recepAudit)}`,
+  );
 
   // ---- cleanup test member -------------------------------------------------
   await db.query(`DELETE FROM attendance WHERE member_id = $1`, [memberId]);

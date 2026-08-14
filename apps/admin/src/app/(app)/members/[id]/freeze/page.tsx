@@ -23,7 +23,9 @@ async function freezeAction(formData: FormData): Promise<void> {
     extendsExpiry: formData.get('extendsExpiry') === 'on',
   });
   if (!parsed.success) {
-    redirect(`/members/${memberId}/freeze?error=${encodeURIComponent('Please fill the freeze details.')}`);
+    redirect(
+      `/members/${memberId}/freeze?error=${encodeURIComponent('Please fill the freeze details.')}`,
+    );
   }
   try {
     await freezeMembership(user, parsed.data);
@@ -60,14 +62,31 @@ export default async function FreezePage({
           <input type="hidden" name="membershipId" value={String(detail.currentMembership.id)} />
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={tr.membership.freezeStart} required>
-              <input name="startDate" type="date" defaultValue={today} required className={inputCls} />
+              <input
+                name="startDate"
+                type="date"
+                defaultValue={today}
+                required
+                className={inputCls}
+              />
             </Field>
             <Field label={tr.membership.freezeReturn}>
-              <input name="plannedEndDate" type="date" defaultValue={addDays(today, 15)} className={inputCls} />
+              <input
+                name="plannedEndDate"
+                type="date"
+                defaultValue={addDays(today, 15)}
+                className={inputCls}
+              />
             </Field>
           </div>
           <Field label={tr.membership.freezeReason} required>
-            <input name="reason" required minLength={2} placeholder="Medical / travel / personal" className={inputCls} />
+            <input
+              name="reason"
+              required
+              minLength={2}
+              placeholder="Medical / travel / personal"
+              className={inputCls}
+            />
           </Field>
           <Field label={tr.members.notes}>
             <textarea name="note" rows={2} className={inputCls} />
@@ -78,7 +97,9 @@ export default async function FreezePage({
           </label>
           <div className="flex gap-2">
             <Button>{tr.common.confirm}</Button>
-            <Button href={`/members/${id}`} variant="secondary" type="button">{tr.common.cancel}</Button>
+            <Button href={`/members/${id}`} variant="secondary" type="button">
+              {tr.common.cancel}
+            </Button>
           </div>
         </form>
       </Card>

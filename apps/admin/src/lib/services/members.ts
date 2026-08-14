@@ -38,10 +38,7 @@ export async function searchMembers(
       params.push(opts.status);
       where += ` AND m.status = $${params.length}`;
     }
-    const total = await tx.query(
-      `SELECT count(*)::int AS n FROM members m ${where}`,
-      params,
-    );
+    const total = await tx.query(`SELECT count(*)::int AS n FROM members m ${where}`, params);
     params.push(limit, offset);
     const rows = await tx.query(
       `SELECT m.id, m.membership_number, m.first_name, m.last_name, m.mobile, m.status,
@@ -68,7 +65,15 @@ export async function searchMembers(
 export async function findDuplicates(
   user: SessionUser,
   mobile: string,
-): Promise<{ id: string; first_name: string; last_name: string | null; membership_number: string; mobile: string }[]> {
+): Promise<
+  {
+    id: string;
+    first_name: string;
+    last_name: string | null;
+    membership_number: string;
+    mobile: string;
+  }[]
+> {
   return asPrincipal(user.claims, async (tx) => {
     const r = await tx.query(
       `SELECT id, first_name, last_name, membership_number, mobile
@@ -97,15 +102,31 @@ export async function createMember(
                coalesce($20::date, CURRENT_DATE),$21,$22,$23,$24,$25,'pending_activation')
        RETURNING id`,
       [
-        user.tenantId, input.branchId, membershipNumber, input.firstName,
-        input.lastName ?? null, input.preferredName ?? null, input.gender ?? null,
-        input.dateOfBirth ?? null, input.mobile, input.altMobile ?? null,
-        input.email ?? null, input.addressLine1 ?? null, input.village ?? null,
-        input.district ?? null, input.state ?? 'Andhra Pradesh', input.pinCode ?? null,
-        input.emergencyContactName ?? null, input.emergencyContactRelation ?? null,
-        input.emergencyContactPhone ?? null, input.joinDate ?? null,
-        input.referralSource ?? null, input.referredByMemberId ?? null,
-        input.assignedTrainerId ?? null, input.notes ?? null, input.tags,
+        user.tenantId,
+        input.branchId,
+        membershipNumber,
+        input.firstName,
+        input.lastName ?? null,
+        input.preferredName ?? null,
+        input.gender ?? null,
+        input.dateOfBirth ?? null,
+        input.mobile,
+        input.altMobile ?? null,
+        input.email ?? null,
+        input.addressLine1 ?? null,
+        input.village ?? null,
+        input.district ?? null,
+        input.state ?? 'Andhra Pradesh',
+        input.pinCode ?? null,
+        input.emergencyContactName ?? null,
+        input.emergencyContactRelation ?? null,
+        input.emergencyContactPhone ?? null,
+        input.joinDate ?? null,
+        input.referralSource ?? null,
+        input.referredByMemberId ?? null,
+        input.assignedTrainerId ?? null,
+        input.notes ?? null,
+        input.tags,
       ],
     );
     const id = (r.rows[0] as { id: string }).id;

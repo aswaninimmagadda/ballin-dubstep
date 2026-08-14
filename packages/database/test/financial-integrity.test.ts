@@ -3,7 +3,14 @@
  * cannot rewrite or delete payment history — the database forbids it.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { setupOnce, appPool, withClaims, staffClaims, platformClaims, type Fixtures } from './helpers';
+import {
+  setupOnce,
+  appPool,
+  withClaims,
+  staffClaims,
+  platformClaims,
+  type Fixtures,
+} from './helpers';
 
 let fx: Fixtures;
 beforeAll(async () => {
@@ -29,10 +36,9 @@ describe('payments immutability', () => {
 
   it('status may transition to refunded (the one allowed mutation)', async () => {
     const n = await withClaims(appPool(), staffClaims(fx.a, 'accountant'), async (tx) => {
-      const r = await tx.query(
-        `UPDATE payments SET status = 'partially_refunded' WHERE id = $1`,
-        [fx.a.paymentId],
-      );
+      const r = await tx.query(`UPDATE payments SET status = 'partially_refunded' WHERE id = $1`, [
+        fx.a.paymentId,
+      ]);
       return r.rowCount;
     });
     expect(n).toBe(1);
@@ -41,9 +47,10 @@ describe('payments immutability', () => {
   it('receipts are immutable: staff have no update path, and even the platform trigger blocks', async () => {
     // Staff: RLS provides no UPDATE policy for receipts — zero rows reachable.
     const n = await withClaims(appPool(), staffClaims(fx.a, 'owner'), async (tx) => {
-      const r = await tx.query(`UPDATE receipts SET receipt_number = 'FAKE-1' WHERE payment_id = $1`, [
-        fx.a.paymentId,
-      ]);
+      const r = await tx.query(
+        `UPDATE receipts SET receipt_number = 'FAKE-1' WHERE payment_id = $1`,
+        [fx.a.paymentId],
+      );
       return r.rowCount;
     });
     expect(n).toBe(0);

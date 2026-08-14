@@ -35,7 +35,9 @@ async function renewAction(formData: FormData): Promise<void> {
   };
   const parsed = renewMembershipSchema.safeParse(payload);
   if (!parsed.success) {
-    redirect(`/members/${memberId}/renew?error=${encodeURIComponent('Please check the form and try again.')}`);
+    redirect(
+      `/members/${memberId}/renew?error=${encodeURIComponent('Please check the form and try again.')}`,
+    );
   }
   try {
     await renewMembership(user, parsed.data);
@@ -88,15 +90,26 @@ export default async function RenewPage({
                 });
                 const isSame = p.name === String(base!.plan_name_snapshot);
                 return (
-                  <label key={p.id} className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 px-4 py-3 hover:border-primary has-checked:border-primary has-checked:bg-green-50">
+                  <label
+                    key={p.id}
+                    className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 px-4 py-3 hover:border-primary has-checked:border-primary has-checked:bg-green-50"
+                  >
                     <span className="flex items-center gap-3">
-                      <input type="radio" name="planId" value={p.id} required defaultChecked={isSame} className="h-4 w-4" />
+                      <input
+                        type="radio"
+                        name="planId"
+                        value={p.id}
+                        required
+                        defaultChecked={isSame}
+                        className="h-4 w-4"
+                      />
                       <span>
                         <span className="block text-sm font-semibold">
                           {p.name} {isSame ? '· current plan' : ''}
                         </span>
                         <span className="block text-xs text-slate-500">
-                          {tr.membership.newPeriod}: {formatDisplayDate(proposal.startDate)} → {formatDisplayDate(proposal.endDate)}
+                          {tr.membership.newPeriod}: {formatDisplayDate(proposal.startDate)} →{' '}
+                          {formatDisplayDate(proposal.endDate)}
                         </span>
                       </span>
                     </span>
@@ -108,11 +121,17 @@ export default async function RenewPage({
           </Field>
 
           <Field label={tr.membership.promotion} hint="Optional promo code">
-            <input name="promotionCode" placeholder="e.g. WINBACK15" className={`${inputCls} max-w-xs`} />
+            <input
+              name="promotionCode"
+              placeholder="e.g. WINBACK15"
+              className={`${inputCls} max-w-xs`}
+            />
           </Field>
 
           <fieldset className="rounded-lg border border-slate-200 p-4">
-            <legend className="px-1 text-sm font-semibold text-slate-700">{tr.members.recordPayment}</legend>
+            <legend className="px-1 text-sm font-semibold text-slate-700">
+              {tr.members.recordPayment}
+            </legend>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label={`${tr.payments.amount} (₹)`} hint="Leave empty to collect later">
                 <input name="amount" inputMode="decimal" className={inputCls} />
@@ -120,7 +139,9 @@ export default async function RenewPage({
               <Field label={tr.payments.method}>
                 <select name="method" className={inputCls} defaultValue="upi">
                   {Object.entries(tr.payments.methods).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
                   ))}
                 </select>
               </Field>
@@ -132,7 +153,9 @@ export default async function RenewPage({
 
           <div className="flex gap-2">
             <Button>{tr.common.confirm}</Button>
-            <Button href={`/members/${id}`} variant="secondary" type="button">{tr.common.cancel}</Button>
+            <Button href={`/members/${id}`} variant="secondary" type="button">
+              {tr.common.cancel}
+            </Button>
           </div>
         </form>
       </Card>

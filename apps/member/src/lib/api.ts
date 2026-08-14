@@ -153,20 +153,48 @@ export interface MeResponse {
 export const api = {
   me: () => getCached<MeResponse>('/api/member/v1/me'),
   payments: () =>
-    getCached<{ payments: { id: string; amount: string; method: string; status: string; payment_date: string; receipt_number: string | null }[] }>(
-      '/api/member/v1/payments',
-    ),
+    getCached<{
+      payments: {
+        id: string;
+        amount: string;
+        method: string;
+        status: string;
+        payment_date: string;
+        receipt_number: string | null;
+      }[];
+    }>('/api/member/v1/payments'),
   attendance: () =>
     getCached<{ attendance: { checked_in_at: string; method: string }[] }>(
       '/api/member/v1/attendance',
     ),
   pt: () =>
     getCached<{
-      addons: { id: string; name_snapshot: string; sessions_total: number | null; sessions_used: number; start_date: string; end_date: string; state: string; trainer_name: string | null }[];
-      sessions: { session_date: string; start_time: string; end_time: string; status: string; trainer_name: string | null }[];
+      addons: {
+        id: string;
+        name_snapshot: string;
+        sessions_total: number | null;
+        sessions_used: number;
+        start_date: string;
+        end_date: string;
+        state: string;
+        trainer_name: string | null;
+      }[];
+      sessions: {
+        session_date: string;
+        start_time: string;
+        end_time: string;
+        status: string;
+        trainer_name: string | null;
+      }[];
     }>('/api/member/v1/pt'),
   offers: () =>
-    getCached<{ offers: { code: string; name: string; discount_kind: string; discount_value: string; valid_to: string }[] }>(
-      '/api/member/v1/offers',
-    ),
+    getCached<{
+      offers: {
+        code: string;
+        name: string;
+        discount_kind: string;
+        discount_value: string;
+        valid_to: string;
+      }[];
+    }>('/api/member/v1/offers'),
 };
