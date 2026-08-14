@@ -21,6 +21,7 @@ export const te: TranslationTree = {
     days: 'రోజులు',
     error: 'ఏదో పొరపాటు జరిగింది. దయచేసి మళ్లీ ప్రయత్నించండి.',
     signOut: 'సైన్ అవుట్',
+    notifications: 'నోటిఫికేషన్లు',
     language: 'భాష',
   },
   nav: {

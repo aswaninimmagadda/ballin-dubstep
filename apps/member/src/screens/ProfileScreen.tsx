@@ -10,6 +10,9 @@ export function ProfileScreen() {
   const { t, language, setLanguage, signOut } = useAuth();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [offers, setOffers] = useState<{ code: string; name: string; valid_to: string }[]>([]);
+  const [notifications, setNotifications] = useState<
+    { id: string; rendered_body: string; created_at: string }[]
+  >([]);
 
   useEffect(() => {
     api
@@ -19,6 +22,10 @@ export function ProfileScreen() {
     api
       .offers()
       .then((r) => setOffers(r.data.offers))
+      .catch(() => null);
+    api
+      .notifications()
+      .then((r) => setNotifications(r.data.notifications))
       .catch(() => null);
   }, []);
 
@@ -51,6 +58,17 @@ export function ProfileScreen() {
           ))}
         </ScrollView>
       </Card>
+
+      {notifications.length > 0 ? (
+        <Card>
+          <Text style={styles.label}>{t.common.notifications}</Text>
+          {notifications.slice(0, 10).map((n) => (
+            <Text key={n.id} style={styles.offer}>
+              {n.rendered_body}
+            </Text>
+          ))}
+        </Card>
+      ) : null}
 
       {offers.length > 0 ? (
         <Card>

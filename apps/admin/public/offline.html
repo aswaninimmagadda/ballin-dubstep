@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline — GymFlow</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 24px;
+        text-align: center;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 32px;
+        max-width: 360px;
+      }
+      h1 { font-size: 20px; margin: 0 0 8px; }
+      p { font-size: 14px; color: #64748b; margin: 0 0 20px; }
+      button {
+        background: #16a34a;
+        color: #fff;
+        border: 0;
+        border-radius: 10px;
+        padding: 12px 24px;
+        font-size: 15px;
+        font-weight: 600;
+        min-height: 44px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>You are offline · మీరు ఆఫ్‌లైన్‌లో ఉన్నారు</h1>
+      <p>
+        GymFlow needs an internet connection so your records stay accurate.
+        Check the connection and try again.
+      </p>
+      <button onclick="location.reload()">Retry · మళ్లీ ప్రయత్నించండి</button>
+    </div>
+  </body>
+</html>

@@ -57,7 +57,9 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<Exclude<SystemRoleKey, 'member'>, P
     'attendance.view',
     'attendance.checkin',
     'trainers.view',
+    // Receptionists sell PT packages at the desk (spec scenario 1).
     'pt.view',
+    'pt.manage',
   ],
   trainer: [
     'members.view',

@@ -15,6 +15,7 @@ import type { SellMembershipInput, RenewMembershipInput } from '@gymflow/validat
 import { asPrincipal, type Queryable } from '../db';
 import { writeAudit } from '../audit';
 import { UserFacingError } from '../errors';
+import { queueMemberNotification } from './notifications';
 import type { SessionUser } from '../session';
 
 interface PlanVersionRow {
@@ -481,6 +482,12 @@ export async function renewMembership(
       receiptNumber = rec.receiptNumber;
     }
 
+    await queueMemberNotification(tx, user, {
+      memberId: prev.member_id,
+      event: 'renewal_completed',
+      dedupeKey: `renewal:${membershipId}`,
+      body: `${pv.plan_name} renewed: ${proposal.startDate} to ${proposal.endDate}.`,
+    });
     await writeAudit(tx, user, {
       action: 'membership.renew',
       entityType: 'membership',
@@ -488,6 +495,50 @@ export async function renewMembership(
       after: { plan: pv.plan_name, ...proposal, total: quote.total },
     });
     return { membershipId, ...proposal, quote, receiptNumber };
+  });
+}
+
+/** Cancel a membership (manager+). The row is never deleted. */
+export async function cancelMembership(
+  user: SessionUser,
+  input: { membershipId: string; reason: string },
+): Promise<void> {
+  return asPrincipal(user.claims, async (tx) => {
+    const msR = await tx.query(`SELECT id, member_id, state FROM memberships WHERE id = $1`, [
+      input.membershipId,
+    ]);
+    const ms = msR.rows[0] as { id: string; member_id: string; state: string } | undefined;
+    if (!ms) throw new UserFacingError('Membership not found.');
+    if (!['pending', 'active', 'frozen'].includes(ms.state)) {
+      throw new UserFacingError('Only a pending, active or frozen membership can be cancelled.');
+    }
+    await tx.query(
+      `UPDATE memberships SET state = 'cancelled', cancelled_at = now(), cancel_reason = $2
+       WHERE id = $1`,
+      [ms.id, input.reason],
+    );
+    // Close any open freeze so history stays consistent.
+    await tx.query(
+      `UPDATE membership_freezes SET actual_end_date = CURRENT_DATE,
+              days = GREATEST((CURRENT_DATE - start_date)::int, 1)
+       WHERE membership_id = $1 AND actual_end_date IS NULL`,
+      [ms.id],
+    );
+    await tx.query(
+      `UPDATE members SET status = 'cancelled' WHERE id = $1 AND status IN ('active','frozen','pending_activation')`,
+      [ms.member_id],
+    );
+    await tx.query(
+      `INSERT INTO membership_events (tenant_id, membership_id, type, data, actor_id)
+       VALUES ($1,$2,'cancelled',$3,$4)`,
+      [user.tenantId, ms.id, JSON.stringify({ reason: input.reason }), user.userId],
+    );
+    await writeAudit(tx, user, {
+      action: 'membership.cancel',
+      entityType: 'membership',
+      entityId: ms.id,
+      after: { reason: input.reason },
+    });
   });
 }
 

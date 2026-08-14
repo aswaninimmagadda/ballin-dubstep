@@ -5,6 +5,7 @@ import type { RecordPaymentInput } from '@gymflow/validation';
 import { asPrincipal } from '../db';
 import { writeAudit } from '../audit';
 import { UserFacingError } from '../errors';
+import { queueMemberNotification } from './notifications';
 import type { SessionUser } from '../session';
 
 export async function recordPayment(
@@ -69,6 +70,12 @@ export async function recordPayment(
        VALUES ($1,$2,$3,$4,$5,$6)`,
       [user.tenantId, m.branch_id, paymentId, receiptNumber, seq, fy],
     );
+    await queueMemberNotification(tx, user, {
+      memberId: m.id,
+      event: 'payment_received',
+      dedupeKey: `payment:${paymentId}`,
+      body: `Payment received. Receipt ${receiptNumber}.`,
+    });
     await writeAudit(tx, user, {
       action: 'payment.record',
       entityType: 'payment',

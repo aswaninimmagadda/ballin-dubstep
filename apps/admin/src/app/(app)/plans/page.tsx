@@ -4,6 +4,7 @@ import { createPlanSchema } from '@gymflow/validation';
 import { requirePermission } from '@/lib/session';
 import { hasPermission } from '@gymflow/core';
 import { createPlan, listPlans, setPlanActive } from '@/lib/services/plans';
+import { createAddonPackage, listAddonPackages } from '@/lib/services/addons';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
 import {
@@ -66,6 +67,30 @@ async function toggleActiveAction(formData: FormData): Promise<void> {
   redirect('/plans');
 }
 
+async function createAddonAction(formData: FormData): Promise<void> {
+  'use server';
+  const user = await requirePermission('plans.manage');
+  let price = 0;
+  try {
+    price = parseMoney(String(formData.get('price') ?? ''));
+  } catch {
+    redirect(`/plans?error=${encodeURIComponent('Enter a valid package price, e.g. 2000')}`);
+  }
+  const sessionsRaw = String(formData.get('sessionCount') ?? '').trim();
+  try {
+    await createAddonPackage(user, {
+      kind: String(formData.get('kind')),
+      name: String(formData.get('name')).trim(),
+      sessionCount: sessionsRaw ? Number(sessionsRaw) : null,
+      validityDays: Number(formData.get('validityDays')),
+      price,
+    });
+  } catch (err) {
+    redirect(`/plans?error=${encodeURIComponent(toUserMessage(err))}`);
+  }
+  redirect('/plans');
+}
+
 export default async function PlansPage({
   searchParams,
 }: {
@@ -74,7 +99,10 @@ export default async function PlansPage({
   const user = await requirePermission('plans.view');
   const { error } = await searchParams;
   const tr = await t();
-  const plans = await listPlans(user, true);
+  const [plans, addonPackages] = await Promise.all([
+    listPlans(user, true),
+    listAddonPackages(user, true),
+  ]);
   const canManage =
     hasPermission(user.permissions, 'plans.manage') || user.kind === 'platform_admin';
 
@@ -218,6 +246,85 @@ export default async function PlansPage({
           </Card>
         ) : null}
       </div>
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-base font-semibold text-slate-900">PT & add-on packages</h2>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <Table
+              headers={[
+                'Package',
+                'Type',
+                'Sessions',
+                'Validity',
+                tr.membership.price,
+                tr.members.status,
+              ]}
+            >
+              {addonPackages.map((a) => (
+                <tr key={a.id}>
+                  <td className="px-4 py-3 font-medium">{a.name}</td>
+                  <td className="px-4 py-3 text-slate-500">{a.kind.replace('_', ' ')}</td>
+                  <td className="px-4 py-3">{a.session_count ?? '∞'}</td>
+                  <td className="px-4 py-3">{a.validity_days} days</td>
+                  <td className="px-4 py-3">{formatMoney(Number(a.price))}</td>
+                  <td className="px-4 py-3">
+                    <Badge tone={a.is_active ? 'success' : 'muted'}>
+                      {a.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          </div>
+          {canManage ? (
+            <Card>
+              <h3 className="mb-3 text-sm font-semibold text-slate-700">New package</h3>
+              <form action={createAddonAction} className="space-y-3">
+                <Field label={tr.members.name} required>
+                  <input name="name" required placeholder="PT 10 Sessions" className={inputCls} />
+                </Field>
+                <Field label="Type" required>
+                  <select name="kind" className={inputCls} defaultValue="personal_training">
+                    <option value="personal_training">Personal training</option>
+                    <option value="group_class">Group class</option>
+                    <option value="locker">Locker</option>
+                    <option value="towel">Towel</option>
+                    <option value="nutrition">Nutrition</option>
+                    <option value="other">Other</option>
+                  </select>
+                </Field>
+                <div className="grid grid-cols-3 gap-3">
+                  <Field label="Sessions" hint="Empty = unlimited">
+                    <input
+                      name="sessionCount"
+                      type="number"
+                      min={1}
+                      max={500}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label="Validity days" required>
+                    <input
+                      name="validityDays"
+                      type="number"
+                      min={1}
+                      max={730}
+                      defaultValue={45}
+                      required
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label={`${tr.membership.price} (₹)`} required>
+                    <input name="price" inputMode="decimal" required className={inputCls} />
+                  </Field>
+                </div>
+                <Button className="w-full">{tr.common.save}</Button>
+              </form>
+            </Card>
+          ) : null}
+        </div>
+      </section>
     </>
   );
 }

@@ -22,6 +22,7 @@ export const en = {
     days: 'days',
     error: 'Something went wrong. Please try again.',
     signOut: 'Sign out',
+    notifications: 'Notifications',
     language: 'Language',
   },
   nav: {

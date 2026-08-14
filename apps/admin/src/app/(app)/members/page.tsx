@@ -34,7 +34,14 @@ export default async function MembersPage({
     <>
       <PageHeader
         title={`${tr.members.title} (${total})`}
-        actions={<Button href="/members/new">{tr.members.newMember}</Button>}
+        actions={
+          <>
+            <Button href="/members/import" variant="secondary">
+              Import CSV
+            </Button>
+            <Button href="/members/new">{tr.members.newMember}</Button>
+          </>
+        }
       />
       <form className="mb-4 flex flex-wrap gap-2" action="/members" method="get">
         <input

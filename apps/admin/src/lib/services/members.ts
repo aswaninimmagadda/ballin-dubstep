@@ -216,3 +216,28 @@ export async function getMemberDetail(user: SessionUser, id: string): Promise<Me
     };
   });
 }
+
+/**
+ * Enable member-app access: creates the member's login (sealed definer
+ * function) and returns the one-time password reception hands to the member.
+ */
+export async function enableMemberApp(
+  user: SessionUser,
+  memberId: string,
+): Promise<{ password: string; gymCode: string }> {
+  const { randomBytes } = await import('node:crypto');
+  const { hashPassword } = await import('@gymflow/core');
+  const password = randomBytes(6).toString('base64url'); // 8 chars
+  const hash = await hashPassword(password);
+  const gymCode = await asPrincipal(user.claims, async (tx) => {
+    await tx.query(`SELECT app.member_app_enable($1, $2)`, [memberId, hash]);
+    const t = await tx.query(`SELECT slug FROM tenants WHERE id = $1`, [user.tenantId]);
+    await writeAudit(tx, user, {
+      action: 'member.app_enable',
+      entityType: 'member',
+      entityId: memberId,
+    });
+    return (t.rows[0] as { slug: string }).slug;
+  });
+  return { password, gymCode };
+}

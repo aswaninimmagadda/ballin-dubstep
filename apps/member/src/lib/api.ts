@@ -187,6 +187,10 @@ export const api = {
         trainer_name: string | null;
       }[];
     }>('/api/member/v1/pt'),
+  notifications: () =>
+    getCached<{
+      notifications: { id: string; event: string; rendered_body: string; created_at: string }[];
+    }>('/api/member/v1/notifications'),
   offers: () =>
     getCached<{
       offers: {

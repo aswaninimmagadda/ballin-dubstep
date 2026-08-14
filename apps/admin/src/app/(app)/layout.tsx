@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { PRODUCT } from '@gymflow/config';
 import { requireUser, logout } from '@/lib/session';
 import { t, LANG_COOKIE, currentLanguage } from '@/lib/i18n';
+import { PwaSetup } from '@/components/pwa';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/leads', label: tr.nav.leads },
     { href: '/plans', label: tr.nav.plans },
     { href: '/promotions', label: tr.nav.promotions },
+    { href: '/trainers', label: tr.nav.trainers },
+    { href: '/staff', label: 'Staff' },
     { href: '/reports', label: tr.nav.reports },
     { href: '/settings', label: tr.nav.settings },
     { href: '/audit', label: tr.nav.audit },
@@ -41,6 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen">
+      <PwaSetup offlineText={tr.common.offline} />
       <header className="no-print sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
           <Link href="/" className="text-lg font-bold text-primary">

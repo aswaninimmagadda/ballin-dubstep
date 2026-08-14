@@ -30,16 +30,27 @@ async function unfreezeAction(formData: FormData): Promise<void> {
   redirect(`/members/${memberId}?msg=unfrozen`);
 }
 
+async function enableAppAction(formData: FormData): Promise<void> {
+  'use server';
+  const user = await requirePermission('members.edit');
+  const memberId = String(formData.get('memberId'));
+  const { enableMemberApp } = await import('@/lib/services/members');
+  const result = await enableMemberApp(user, memberId);
+  redirect(
+    `/members/${memberId}?msg=app&gymcode=${encodeURIComponent(result.gymCode)}&pw=${encodeURIComponent(result.password)}`,
+  );
+}
+
 export default async function MemberDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ msg?: string }>;
+  searchParams: Promise<{ msg?: string; gymcode?: string; pw?: string }>;
 }) {
   const user = await requirePermission('members.view');
   const { id } = await params;
-  const { msg } = await searchParams;
+  const { msg, gymcode, pw } = await searchParams;
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail) notFound();
   const { member, currentMembership, memberships, payments, attendance, addons, openFreeze } =
@@ -70,6 +81,12 @@ export default async function MemberDetailPage({
     frozen: 'Membership frozen.',
     unfrozen: 'Membership resumed.',
     paid: 'Payment recorded.',
+    addon: 'Add-on recorded.',
+    cancelled: 'Membership cancelled.',
+    app:
+      gymcode && pw
+        ? `Member app enabled. Gym code: ${gymcode} · Mobile: their number · One-time password (share now, shown once): ${pw}`
+        : 'Member app enabled.',
   };
 
   return (
@@ -87,6 +104,9 @@ export default async function MemberDetailPage({
             <Button href={`/members/${id}/renew`}>{tr.members.renew}</Button>
             <Button href={`/members/${id}/payment`} variant="secondary">
               {tr.members.recordPayment}
+            </Button>
+            <Button href={`/members/${id}/addon`} variant="secondary">
+              PT
             </Button>
             {wa ? (
               <a
@@ -189,6 +209,26 @@ export default async function MemberDetailPage({
               </dd>
             </div>
           </dl>
+          <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3">
+            {!member.user_id ? (
+              <form action={enableAppAction}>
+                <input type="hidden" name="memberId" value={id} />
+                <button className="text-sm font-semibold text-primary hover:underline">
+                  Enable member app access
+                </button>
+              </form>
+            ) : (
+              <span className="text-xs text-slate-400">Member app: enabled</span>
+            )}
+            {currentMembership ? (
+              <a
+                href={`/members/${id}/cancel`}
+                className="text-sm font-semibold text-red-600 hover:underline"
+              >
+                Cancel membership…
+              </a>
+            ) : null}
+          </div>
         </Card>
       </div>
 

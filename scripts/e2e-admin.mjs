@@ -213,6 +213,118 @@ async function main() {
   check('exactly one attendance row', att[0].n === 1, String(att[0].n));
 
   // ---- scenario 2: renewal with promotion + UPI ---------------------------
+  // ---- PT add-on (scenario 1 continues: "adds PT") ------------------------
+  console.log('\n[PT add-on]');
+  const addonHtml = await (await get(`/members/${memberId}/addon`)).text();
+  const addonForm = extractForm(addonHtml, 'addonPackageId');
+  const [pt8] = await q(
+    `SELECT ap.id FROM addon_packages ap JOIN members m ON m.tenant_id = ap.tenant_id
+     WHERE m.id = $1 AND ap.name = 'PT 8 Sessions'`,
+    [memberId],
+  );
+  const addonRes = await postAction(`/members/${memberId}/addon`, addonForm, {
+    addonPackageId: pt8.id,
+    trainerId: '',
+    amount: '2000',
+    method: 'cash',
+  });
+  check(
+    'PT package sold',
+    redirectTarget(addonRes).includes('msg=addon'),
+    redirectTarget(addonRes),
+  );
+  const [addonRow] = await q(
+    `SELECT name_snapshot, sessions_total, price_snapshot::bigint AS price, state
+     FROM member_addons WHERE member_id = $1`,
+    [memberId],
+  );
+  check(
+    'PT 8 sessions active with snapshot price',
+    addonRow?.name_snapshot === 'PT 8 Sessions' &&
+      addonRow.sessions_total === 8 &&
+      Number(addonRow.price) === 200000 &&
+      addonRow.state === 'active',
+    JSON.stringify(addonRow),
+  );
+  const receiptsNow = await q(
+    `SELECT count(*)::int AS n FROM receipts r JOIN payments p ON p.id = r.payment_id
+     WHERE p.member_id = $1`,
+    [memberId],
+  );
+  check(
+    'second receipt issued for the PT payment',
+    receiptsNow[0].n === 2,
+    String(receiptsNow[0].n),
+  );
+  const notifs = await q(
+    `SELECT count(*)::int AS n FROM notification_deliveries
+     WHERE member_id = $1 AND channel = 'in_app' AND event = 'payment_received'`,
+    [memberId],
+  );
+  check('in-app payment notification queued', notifs[0].n >= 1, String(notifs[0].n));
+
+  // ---- member app activation ----------------------------------------------
+  console.log('\n[member app access]');
+  const detailForApp = await (await getFollow(`/members/${memberId}`)).text();
+  const appForm = extractForm(detailForApp, 'memberId'); // first form = check-in; find enable form
+  // The enable-app form is the one whose surrounding markup mentions it; both
+  // only carry memberId, so post the second matching form explicitly:
+  const appForms = detailForApp
+    .split('<form')
+    .slice(1)
+    .filter((f) => f.includes('name="memberId"'));
+  const enableFormHtml = appForms.find((f) => f.includes('Enable member app access'));
+  check('enable-app form rendered', Boolean(enableFormHtml));
+  const enableActionId = enableFormHtml?.match(/\$ACTION_ID_([a-f0-9]+)/)?.[1];
+  const enableRes = await postAction(
+    `/members/${memberId}`,
+    { actionId: enableActionId, hidden: { memberId } },
+    {},
+  );
+  const enableTarget = redirectTarget(enableRes);
+  check(
+    'member app enabled with one-time password',
+    /msg=app.*pw=/.test(enableTarget),
+    enableTarget,
+  );
+  const appPw = decodeURIComponent(enableTarget.match(/pw=([^&]+)/)?.[1] ?? '');
+  const [memberRowDb] = await q(`SELECT mobile, user_id FROM members WHERE id = $1`, [memberId]);
+  check('member linked to a login user', Boolean(memberRowDb.user_id));
+
+  // Member API login with the freshly issued credentials
+  const apiLogin = await fetch(`${BASE}/api/member/v1/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      gymCode: 'apfitness',
+      mobile: memberRowDb.mobile.replace('+91', ''),
+      password: appPw,
+    }),
+  });
+  check('member can sign in to the app', apiLogin.status === 200, String(apiLogin.status));
+  const tokens = apiLogin.status === 200 ? await apiLogin.json() : null;
+  if (tokens) {
+    const meRes = await fetch(`${BASE}/api/member/v1/me`, {
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+    });
+    const me = await meRes.json();
+    check(
+      'member app /me shows the sold membership',
+      me?.membership?.planName === '3 Month',
+      JSON.stringify(me?.membership ?? null),
+    );
+    const notifRes = await fetch(`${BASE}/api/member/v1/notifications`, {
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+    });
+    const notifBody = await notifRes.json();
+    check(
+      'member sees payment notifications in-app',
+      Array.isArray(notifBody.notifications) && notifBody.notifications.length >= 1,
+      JSON.stringify(notifBody).slice(0, 120),
+    );
+  }
+  void appForm;
+
   console.log('\n[scenario 2 — renewal]');
   const renewHtml = await (await get(`/members/${memberId}/renew`)).text();
   const renewForm = extractForm(renewHtml, 'previousMembershipId');
@@ -301,11 +413,19 @@ async function main() {
   );
   check('the running membership is frozen (renewal stays pending)', !!frozen);
 
-  // Backdate the freeze start 15 days so unfreeze today yields a 15-day extension.
+  // Backdate the freeze start 15 days so unfreeze today yields a 15-day
+  // extension. Anchor on the app's IST calendar date, not Postgres
+  // CURRENT_DATE (UTC) — they differ around IST midnight.
+  const istToday = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
   await db.query(
-    `UPDATE membership_freezes SET start_date = CURRENT_DATE - 15
+    `UPDATE membership_freezes SET start_date = $2::date - 15
      WHERE membership_id = $1 AND actual_end_date IS NULL`,
-    [frozen.id],
+    [frozen.id, istToday],
   );
 
   const detail2 = await (await getFollow(`/members/${memberId}`)).text();
