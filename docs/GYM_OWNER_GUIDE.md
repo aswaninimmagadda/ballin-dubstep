@@ -58,26 +58,22 @@ publish it.
 
 ---
 
-## Appendix: platform operator runbook (creating a new gym)
+## Appendix: platform operator — creating a new gym
 
-Until the platform-admin UI ships, a new tenant is created by the platform
-operator (not gym staff) with the seed pattern — no code changes:
+A new tenant is provisioned in one command by the platform operator (never
+gym staff), with zero source-code changes:
 
-```sql
--- as the DB owner
-INSERT INTO tenants (slug, name, status) VALUES ('newgym', 'New Gym', 'active');
-INSERT INTO brands (tenant_id, name) SELECT id, 'New Gym' FROM tenants WHERE slug='newgym';
-INSERT INTO branches (tenant_id, brand_id, name, code)
-  SELECT t.id, b.id, 'Main', 'MAIN' FROM tenants t JOIN brands b ON b.tenant_id = t.id
-  WHERE t.slug='newgym';
-INSERT INTO gym_settings (tenant_id, receipt_prefix)
-  SELECT id, 'NGM' FROM tenants WHERE slug='newgym';
--- roles: copy the block from packages/database/scripts/seed.ts (SYSTEM_ROLE_PERMISSIONS)
--- first owner: INSERT INTO users(kind:'staff', …) + app.auth_set_password via a one-off script
+```bash
+DATABASE_URL=<owner-url> pnpm --filter @gymflow/database create-tenant -- \
+  --slug harshafit --name "Harsha Fitness" \
+  --owner-email owner@harshafit.in --receipt-prefix HFT \
+  --branch "Main/MAIN"
 ```
 
-`packages/database/scripts/seed.ts` is the executable reference for the
-full sequence (roles + permissions + owner). After this, everything —
-branches, plans, staff, promotions, templates — is configured by the gym
-owner in the UI. That satisfies the "new gym without source changes"
-acceptance criterion; the SQL itself becomes a UI in Phase 2.
+It creates the tenant, brand, branch, settings, all system roles with
+permissions, and the owner account, then prints the owner's one-time
+password once. From there the owner configures everything in the UI: staff
+accounts (Staff page), plans and PT packages (Plans), trainers, promotions,
+templates and settings. This exact flow — including a second gym's complete
+isolation from the first — is exercised automatically by
+`scripts/e2e-acceptance.mjs`.

@@ -5,51 +5,62 @@ has a workaround or a Phase-2 slot (see ROADMAP.md).
 
 ## Product
 
-1. **No platform-admin UI.** Creating a tenant/branches/first owner is a
-   documented SQL/script runbook executed by the operator. Isolation and
-   roles are fully enforced; only the convenience UI is missing.
-2. **No self-serve password reset.** Staff resets go through the owner
-   (`app.auth_set_password` + revoke-all-sessions); member resets happen at
-   reception. Email/SMS reset needs a provider (Phase 2).
+1. **Platform-admin tenant creation is a CLI, not a web console.** A new gym
+   is provisioned in one command (`pnpm --filter @gymflow/database
+create-tenant -- --slug … --name … --owner-email …`) with zero source
+   changes — proven by the automated acceptance test — but a browser UI for
+   platform operators is Phase 2.
+2. **No self-serve password reset.** Staff resets happen on the Staff page
+   (owner clicks "Reset password", gets a one-time password, sessions are
+   revoked); member resets happen at reception via "Enable member app
+   access" (re-issues credentials). Email/SMS self-service needs a provider
+   (Phase 2). One-time passwords surface once in the redirected page URL —
+   an accepted trade-off for a desk workflow, mitigated by immediate
+   first-login change guidance; move to a POST/response pattern with the
+   Phase-2 messaging provider.
 3. **No online payments** — manual cash/UPI-reference recording only. The
    provider abstraction and webhook-idempotency pattern are designed but not
    wired.
-4. **Notifications are pull + WhatsApp deep links.** The engine tables and
-   dedupe design exist; no background senders yet (expiry reminders are the
-   dashboard queue + one-tap WhatsApp).
-5. **CSV import has schema + validation but no upload UI.** Migration from
-   notebooks is operator-assisted this cut.
-6. **Member app has no in-app renewal/booking** — it is read-only by design
-   for the MVP (renewals happen at the desk).
-7. **PT scheduling is minimal:** packages, sessions, double-booking guard —
-   no calendar UI, recurrence or class capacity yet.
-8. **Reports are the operational core set** (collections, plan mix,
+4. **Notification channels are in-app + WhatsApp deep links only.**
+   Payment/renewal events now write real in-app notifications (deduped,
+   visible in the member app); push/SMS/WhatsApp-API senders over the same
+   tables are Phase 2. Expiry reminders remain the dashboard queue + one-tap
+   WhatsApp.
+5. **Member app is read-only by design** — no in-app renewal/booking in the
+   MVP (renewals happen at the desk).
+6. **PT scheduling is minimal:** packages, session records, double-booking
+   guard — no calendar UI, recurrence or class capacity yet. Session
+   completion/no-show marking is data-model-ready but has no dedicated UI.
+7. **Reports are the operational core set** (collections, plan mix,
    exports); owner analytics (churn/renewal-rate trends with defined
    denominators) are Phase 2 with definitions to be documented alongside.
-9. **Bulk operations** limited to CSV export + WhatsApp-per-member; no bulk
-   messaging/tagging UI yet.
-10. **Branch scoping is enforced but not surfaced** — staff_branch_access
-    works at the policy level; the admin UI doesn't yet manage it.
+8. **Bulk operations** are limited to CSV import/export + per-member
+   WhatsApp; no bulk messaging/tagging UI yet.
+9. **Branch scoping is enforced but not surfaced** — staff_branch_access
+   works at the policy level; the admin UI doesn't yet manage it.
+10. **CSV import targets the first active branch** and creates one
+    membership per row; multi-branch imports are done per-branch (or rows
+    edited afterwards). Trainer-name column is accepted but not yet linked.
 
 ## Technical
 
 11. **Login throttling is DB-backed per identifier/IP** — robust for the
     pilot; a busy multi-instance deployment should add an edge rate limiter.
-12. **Admin PWA is online-first.** The manifest enables installation; a
-    service worker with an offline shell/queue is Phase 2 hardening. No
-    silent data loss exists (server-authoritative writes fail visibly).
+12. **Admin PWA is online-first by design.** The service worker caches only
+    static assets and shows an offline fallback page + live offline banner;
+    business pages/data are never served stale, and no writes are queued
+    offline (server-authoritative, fails visibly).
 13. **Overlapping freeze+pending-renewal edge:** extending a frozen
     membership can push its end past a pre-sold renewal's start; the system
-    keeps both visible and staff resolve by adjusting the renewal start
-    (an `memberships.override` action). Rare in practice; a guided
-    resolution flow is a Phase-2 nicety.
+    keeps both visible and staff resolve by adjusting the renewal (an
+    `memberships.override` action). Rare in practice; a guided resolution
+    flow is a Phase-2 nicety.
 14. **Trainer deletion is deactivation.** FKs restrict hard deletes when
-    sessions exist — intended, but the UI only offers active/inactive.
-15. **E2E suite drives HTTP + DB, not a real browser.** Server-rendered
-    forms make this high-fidelity, but a Playwright layer would also catch
-    client-side regressions (Phase 2; Playwright is pre-installed in the
-    dev environment).
+    sessions exist — intended; the Trainers page offers activate/deactivate.
+15. **E2E suites drive HTTP + DB, not a pixel-level browser.** The
+    server-rendered forms make this high-fidelity; a Playwright layer would
+    additionally catch client-side regressions (Phase 2).
 16. **Supabase free-tier project pausing** would take the pilot down after
-    inactivity — see DEPLOYMENT.md for the mitigation before going live.
+    inactivity — see DEPLOYMENT.md for the mitigation before go-live.
 17. **Member-app API base URL is app.json config** — fine for one shared
     backend; per-tenant custom domains would need a config service.

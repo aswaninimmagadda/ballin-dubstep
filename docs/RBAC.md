@@ -31,7 +31,7 @@ custom roles without code changes).
 | promotions manage                  |   ✓   |    ✓    |     view     |    —    |     —      |
 | leads manage                       |   ✓   |    ✓    |      ✓       |    —    |     —      |
 | attendance check-in                |   ✓   |    ✓    |      ✓       |    ✓    |     —      |
-| trainers/PT manage                 |   ✓   |    ✓    |     view     |  PT ✓   |     —      |
+| trainers/PT manage                 |   ✓   |    ✓    |  PT sell ✓   |  PT ✓   |     —      |
 | reports view / financial           |  ✓/✓  |   ✓/—   |      —       |    —    |    ✓/✓     |
 | reports export                     |   ✓   |    ✓    |      —       |    —    |     ✓      |
 | staff manage                       |   ✓   |  view   |      —       |    —    |     —      |

@@ -71,6 +71,34 @@ freeze was set to extend). Everything is logged.
 Use WA/Call from the list; when they join, **Convert** carries their name
 and number straight into new-member onboarding.
 
+## PT and add-on packages
+
+Member page → **PT**. Pick the package (price shown), optionally the
+trainer, take the payment — the receipt is automatic and the member sees a
+confirmation in their app. Packages themselves (PT 8/12, locker, Zumba…)
+are created by the owner on the **Plans** page.
+
+## Member app access
+
+Member page → **Enable member app access** (in the Overview box). You get a
+gym code + one-time password to hand to the member — it is shown exactly
+once. The member signs into the GymFlow app with the gym code, their mobile
+number and that password. Use the same button again if they forget it.
+
+## Importing members from Excel/notebooks
+
+**Members → Import CSV** (owner/manager). Download the template, fill one
+row per member, upload → the system checks every row (bad mobiles, unknown
+plans, duplicates are flagged with the line number) — **nothing imports
+while any row has an error**. When the preview is clean, Confirm creates
+the members, their memberships and payment receipts in one go.
+
+## Cancelling a membership (manager/owner)
+
+Member page → **Cancel membership…** with a reason. Records are kept —
+payments and receipts never disappear; refunds (if promised) are recorded
+separately by the accountant.
+
 ## What the buttons you don't see mean
 
 If you can't see Refund, Settings, Audit or Freeze — your role doesn't

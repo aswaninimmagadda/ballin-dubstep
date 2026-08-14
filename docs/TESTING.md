@@ -32,16 +32,20 @@ actually-executed runs (CI re-runs them on every PR).
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 30 checks passing (`scripts/e2e-admin.mjs`)
+### 3. End-to-end — 79 checks passing (two HTTP suites)
 
-Drives the real HTTP surface (server actions via progressive-enhancement
-form posts) against a running server + seeded DB, then verifies database
-effects:
+`scripts/e2e-admin.mjs` (40 checks) drives the real HTTP surface (server
+actions via progressive-enhancement form posts) against a running server +
+seeded DB, then verifies database effects:
 
 - **Scenario 1 — new member:** login → duplicate check → onboarding →
   3-month sale with joining fee → cash payment → expiry `start+3m-1d` →
-  ₹3,000 total → receipt `SVF-YYYY-NNNNNN`.
+  ₹3,000 total → receipt `SVF-YYYY-NNNNNN` → **PT 8-sessions add-on with
+  its own payment/receipt** → in-app payment notification queued.
 - **Check-in:** success, duplicate-tap guard, exactly one attendance row.
+- **Member app activation:** reception enables app access (one-time
+  password), member logs into the API, `/me` shows the sold membership,
+  notifications visible.
 - **Scenario 2 — renewal:** 6-month renewal with `NEWYEAR26` → 10% discount
   applied and redemption recorded → starts day after current expiry → UPI
   payment → replayed form (same idempotency key) does **not** create a third
@@ -50,11 +54,25 @@ effects:
   renewal stays pending → unfreeze after 15 days → expiry extended by 15.
 - **Authorization:** anonymous page/API access rejected; receptionist
   blocked from audit.
-- **Scenario 4 — tenant isolation** is covered by the integration suite
-  (two-tenant fixture, attacks from both sides) on every CI run.
+
+`scripts/e2e-acceptance.mjs` (39 checks) executes the brief's **final
+acceptance test (§82)** end to end: a second gym is provisioned purely via
+platform tooling (`create-tenant` CLI — zero source changes), its owner
+configures settings/plan/PT package/trainer/staff/promotion over HTTP, a
+Gym-B receptionist onboards → sells with a 20% promotion → adds PT → takes
+payments (receipts under Gym B's own `HFT-` prefix, sequence starting at 000001) → checks in; the member app logs in with Gym B's code and sees Gym
+B branding + correct expiry; the WhatsApp link renders Gym B's customized
+template; renew/freeze/unfreeze/cancel all succeed; CSV import blocks on
+invalid rows then imports clean rows with receipts; reports/exports are
+tenant-pure. Isolation is then proven from both directions over HTTP
+(cross-tenant member page 404s, exports contain zero foreign rows, plans
+and receipt prefixes differ, member credentials are tenant-scoped).
+**Scenario 4 — tenant isolation** is additionally covered at the database
+layer by the integration suite (two-tenant fixture, attacks from both
+sides) on every CI run.
 
 Run locally: seed + `pnpm --filter @gymflow/admin start` + `node
-scripts/e2e-admin.mjs`.
+scripts/e2e-admin.mjs` + `node scripts/e2e-acceptance.mjs`.
 
 ### 4. Manual smoke script
 
