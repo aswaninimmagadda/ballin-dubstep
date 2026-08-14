@@ -24,13 +24,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
        WHERE m.id = $1`,
       [auth.memberId],
     );
+    // Prefer the running membership over a pre-sold pending renewal; a
+    // pending row whose start date arrived beats a lapsed running row.
     const membership = await tx.query(
       `SELECT id, plan_name_snapshot, start_date::text AS start_date,
               end_date::text AS end_date, state, grace_period_days
        FROM memberships
        WHERE member_id = $1 AND state IN ('pending','active','frozen')
-       ORDER BY end_date DESC LIMIT 1`,
-      [auth.memberId],
+       ORDER BY CASE
+         WHEN state IN ('active','frozen') AND end_date >= $2::date THEN 0
+         WHEN state = 'pending' AND start_date <= $2::date THEN 1
+         WHEN state IN ('active','frozen') THEN 2
+         ELSE 3
+       END, end_date DESC LIMIT 1`,
+      [auth.memberId, today],
     );
     return {
       member: member.rows[0] as Record<string, unknown> | undefined,

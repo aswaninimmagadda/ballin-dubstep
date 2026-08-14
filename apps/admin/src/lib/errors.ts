@@ -16,7 +16,7 @@ export function toUserMessage(err: unknown): string {
   if (/duplicate key.*idem/i.test(message)) {
     return 'This action was already recorded. Refresh to see the result.';
   }
-  if (/memberships_one_live_per_member/.test(message)) {
+  if (/memberships_one_running_per_member|memberships_one_pending_per_member/.test(message)) {
     return 'This member already has an active membership. Renew or cancel it instead.';
   }
   if (/members_tenant_mobile_unique/.test(message)) {

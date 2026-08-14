@@ -123,3 +123,56 @@ export async function renewalWhatsappLink(
     return whatsappLink(row.mobile!, message);
   });
 }
+
+export interface BrandRow {
+  id: string;
+  name: string;
+  primary_color: string | null;
+  support_phone: string | null;
+  support_whatsapp: string | null;
+  terms_url: string | null;
+  privacy_url: string | null;
+}
+
+export async function getBrand(user: SessionUser): Promise<BrandRow | null> {
+  return asPrincipal(user.claims, async (tx) => {
+    const r = await tx.query(
+      `SELECT id, name, primary_color, support_phone, support_whatsapp, terms_url, privacy_url
+       FROM brands WHERE tenant_id = $1 ORDER BY created_at LIMIT 1`,
+      [user.tenantId],
+    );
+    return (r.rows[0] as BrandRow) ?? null;
+  });
+}
+
+export async function updateBrand(
+  user: SessionUser,
+  patch: Partial<Omit<BrandRow, 'id'>>,
+): Promise<void> {
+  return asPrincipal(user.claims, async (tx) => {
+    await tx.query(
+      `UPDATE brands SET
+         name = coalesce($2, name),
+         primary_color = coalesce($3, primary_color),
+         support_phone = coalesce($4, support_phone),
+         support_whatsapp = coalesce($5, support_whatsapp),
+         terms_url = coalesce($6, terms_url),
+         privacy_url = coalesce($7, privacy_url)
+       WHERE tenant_id = $1`,
+      [
+        user.tenantId,
+        patch.name ?? null,
+        patch.primary_color ?? null,
+        patch.support_phone ?? null,
+        patch.support_whatsapp ?? null,
+        patch.terms_url ?? null,
+        patch.privacy_url ?? null,
+      ],
+    );
+    await writeAudit(tx, user, {
+      action: 'brand.update',
+      entityType: 'brand',
+      after: patch as Record<string, unknown>,
+    });
+  });
+}

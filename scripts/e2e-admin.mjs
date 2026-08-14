@@ -266,28 +266,22 @@ async function main() {
   // ---- member app activation ----------------------------------------------
   console.log('\n[member app access]');
   const detailForApp = await (await getFollow(`/members/${memberId}`)).text();
-  const appForm = extractForm(detailForApp, 'memberId'); // first form = check-in; find enable form
-  // The enable-app form is the one whose surrounding markup mentions it; both
-  // only carry memberId, so post the second matching form explicitly:
-  const appForms = detailForApp
-    .split('<form')
-    .slice(1)
-    .filter((f) => f.includes('name="memberId"'));
-  const enableFormHtml = appForms.find((f) => f.includes('Enable member app access'));
-  check('enable-app form rendered', Boolean(enableFormHtml));
-  const enableActionId = enableFormHtml?.match(/\$ACTION_ID_([a-f0-9]+)/)?.[1];
-  const enableRes = await postAction(
-    `/members/${memberId}`,
-    { actionId: enableActionId, hidden: { memberId } },
-    {},
-  );
-  const enableTarget = redirectTarget(enableRes);
+  check('enable-app form rendered', detailForApp.includes('name="kind" value="member_app"'));
+  const credFd = new FormData();
+  credFd.set('kind', 'member_app');
+  credFd.set('memberId', memberId);
+  const enableRes = await fetch(`${BASE}/credentials`, {
+    method: 'POST',
+    headers: { cookie },
+    body: credFd,
+  });
+  const enableHtml = await enableRes.text();
+  const appPw = enableHtml.match(/<code>([^<]+)<\/code>/)?.[1] ?? '';
   check(
-    'member app enabled with one-time password',
-    /msg=app.*pw=/.test(enableTarget),
-    enableTarget,
+    'member app enabled with one-time password (not in any URL)',
+    enableRes.status === 200 && appPw.length >= 8,
+    `${enableRes.status} pw:${appPw.length}`,
   );
-  const appPw = decodeURIComponent(enableTarget.match(/pw=([^&]+)/)?.[1] ?? '');
   const [memberRowDb] = await q(`SELECT mobile, user_id FROM members WHERE id = $1`, [memberId]);
   check('member linked to a login user', Boolean(memberRowDb.user_id));
 
@@ -323,7 +317,6 @@ async function main() {
       JSON.stringify(notifBody).slice(0, 120),
     );
   }
-  void appForm;
 
   console.log('\n[scenario 2 — renewal]');
   const renewHtml = await (await get(`/members/${memberId}/renew`)).text();
@@ -386,6 +379,17 @@ async function main() {
     'double-click renewal does not create a third membership',
     count[0].n === 2,
     `${count[0].n} memberships, replay → ${replayTarget}`,
+  );
+
+  // Early renewal must not block entry: the RUNNING membership governs the
+  // check-in gate, not the future-dated pending renewal.
+  await q(`DELETE FROM attendance WHERE member_id = $1`, [memberId]);
+  const gateForm = extractForm(await (await getFollow(`/members/${memberId}`)).text(), 'memberId');
+  const gateRes = await postAction(`/members/${memberId}`, gateForm, {});
+  check(
+    'check-in still allowed after early renewal (running membership governs)',
+    redirectTarget(gateRes).includes('msg=checkedin'),
+    redirectTarget(gateRes),
   );
 
   // ---- scenario 3: freeze 15 days → unfreeze → expiry extended ------------

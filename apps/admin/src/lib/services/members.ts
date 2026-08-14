@@ -3,7 +3,7 @@ import { asPrincipal } from '../db';
 import { writeAudit } from '../audit';
 import type { SessionUser } from '../session';
 import type { CreateMemberInput } from '@gymflow/validation';
-import { maskPhone } from '@gymflow/utils';
+import { maskPhone, todayInTz } from '@gymflow/utils';
 
 export interface MemberListRow {
   id: string;
@@ -39,6 +39,8 @@ export async function searchMembers(
       where += ` AND m.status = $${params.length}`;
     }
     const total = await tx.query(`SELECT count(*)::int AS n FROM members m ${where}`, params);
+    params.push(todayInTz());
+    const pToday = `$${params.length}`;
     params.push(limit, offset);
     const rows = await tx.query(
       `SELECT m.id, m.membership_number, m.first_name, m.last_name, m.mobile, m.status,
@@ -48,7 +50,12 @@ export async function searchMembers(
        LEFT JOIN LATERAL (
          SELECT plan_name_snapshot, end_date FROM memberships
          WHERE member_id = m.id AND state IN ('pending','active','frozen')
-         ORDER BY end_date DESC LIMIT 1
+         ORDER BY CASE
+           WHEN state IN ('active','frozen') AND end_date >= ${pToday}::date THEN 0
+           WHEN state = 'pending' AND start_date <= ${pToday}::date THEN 1
+           WHEN state IN ('active','frozen') THEN 2
+           ELSE 3
+         END, end_date DESC LIMIT 1
        ) ms ON true
        ${where}
        ORDER BY m.created_at DESC
@@ -240,4 +247,169 @@ export async function enableMemberApp(
     return (t.rows[0] as { slug: string }).slug;
   });
   return { password, gymCode };
+}
+
+/**
+ * Archive a member (soft delete — §85 forbids destroying history). Only
+ * possible once nothing is live; frees the mobile number for re-use
+ * (the tenant+mobile unique index is partial on archived_at IS NULL) and
+ * ends any member-app sessions.
+ */
+export async function archiveMember(user: SessionUser, memberId: string): Promise<void> {
+  const { UserFacingError } = await import('../errors');
+  return asPrincipal(user.claims, async (tx) => {
+    const mR = await tx.query(
+      `SELECT id, status, user_id, first_name FROM members WHERE id = $1 AND archived_at IS NULL`,
+      [memberId],
+    );
+    const m = mR.rows[0] as
+      { id: string; status: string; user_id: string | null; first_name: string } | undefined;
+    if (!m) throw new UserFacingError('Member not found (or already archived).');
+    const live = await tx.query(
+      `SELECT 1 FROM memberships WHERE member_id = $1 AND state IN ('active','frozen','pending') LIMIT 1`,
+      [memberId],
+    );
+    if (live.rows.length > 0) {
+      throw new UserFacingError(
+        'This member still has a live membership. Cancel it before archiving.',
+      );
+    }
+    await tx.query(`UPDATE members SET archived_at = now(), status = 'archived' WHERE id = $1`, [
+      memberId,
+    ]);
+    await tx.query(
+      `INSERT INTO member_status_history (tenant_id, member_id, from_status, to_status, changed_by)
+       VALUES ($1, $2, $3, 'archived', $4)`,
+      [user.tenantId, memberId, m.status, user.userId],
+    );
+    if (m.user_id) {
+      await tx.query(`SELECT app.sessions_revoke_all($1)`, [m.user_id]);
+    }
+    await writeAudit(tx, user, {
+      action: 'member.archive',
+      entityType: 'member',
+      entityId: memberId,
+      before: { status: m.status },
+      after: { status: 'archived' },
+    });
+  });
+}
+
+export interface UpdateMemberPatch {
+  branchId?: string;
+  firstName?: string;
+  lastName?: string | null;
+  preferredName?: string | null;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  mobile?: string;
+  altMobile?: string | null;
+  email?: string | null;
+  addressLine1?: string | null;
+  village?: string | null;
+  district?: string | null;
+  state?: string | null;
+  pinCode?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactRelation?: string | null;
+  emergencyContactPhone?: string | null;
+  assignedTrainerId?: string | null;
+  notes?: string | null;
+  tags?: string[];
+}
+
+/**
+ * Edit a member profile (incl. branch transfer). Fields not present in the
+ * patch are left unchanged; the audit row records redacted before/after.
+ */
+export async function updateMember(
+  user: SessionUser,
+  memberId: string,
+  patch: UpdateMemberPatch,
+): Promise<void> {
+  return asPrincipal(user.claims, async (tx) => {
+    const beforeR = await tx.query(
+      `SELECT branch_id, first_name, last_name, mobile, village, district, assigned_trainer_id
+       FROM members WHERE id = $1`,
+      [memberId],
+    );
+    const before = beforeR.rows[0] as Record<string, unknown> | undefined;
+    if (!before) {
+      const { UserFacingError } = await import('../errors');
+      throw new UserFacingError('Member not found.');
+    }
+    const r = await tx.query(
+      `UPDATE members SET
+         branch_id = coalesce($2, branch_id),
+         first_name = coalesce($3, first_name),
+         last_name = coalesce($4, last_name),
+         preferred_name = coalesce($5, preferred_name),
+         gender = coalesce($6, gender),
+         date_of_birth = coalesce($7::date, date_of_birth),
+         mobile = coalesce($8, mobile),
+         alt_mobile = coalesce($9, alt_mobile),
+         email = coalesce($10, email),
+         address_line1 = coalesce($11, address_line1),
+         village = coalesce($12, village),
+         district = coalesce($13, district),
+         state = coalesce($14, state),
+         pin_code = coalesce($15, pin_code),
+         emergency_contact_name = coalesce($16, emergency_contact_name),
+         emergency_contact_relation = coalesce($17, emergency_contact_relation),
+         emergency_contact_phone = coalesce($18, emergency_contact_phone),
+         assigned_trainer_id = CASE WHEN $19 = 'clear' THEN NULL
+                                    WHEN $20::uuid IS NOT NULL THEN $20::uuid
+                                    ELSE assigned_trainer_id END,
+         notes = coalesce($21, notes),
+         tags = coalesce($22, tags)
+       WHERE id = $1`,
+      [
+        memberId,
+        patch.branchId ?? null,
+        patch.firstName ?? null,
+        patch.lastName ?? null,
+        patch.preferredName ?? null,
+        patch.gender ?? null,
+        patch.dateOfBirth ?? null,
+        patch.mobile ?? null,
+        patch.altMobile ?? null,
+        patch.email ?? null,
+        patch.addressLine1 ?? null,
+        patch.village ?? null,
+        patch.district ?? null,
+        patch.state ?? null,
+        patch.pinCode ?? null,
+        patch.emergencyContactName ?? null,
+        patch.emergencyContactRelation ?? null,
+        patch.emergencyContactPhone ?? null,
+        patch.assignedTrainerId === null ? 'clear' : 'keep',
+        patch.assignedTrainerId ?? null,
+        patch.notes ?? null,
+        patch.tags ?? null,
+      ],
+    );
+    if (r.rowCount === 0) {
+      const { UserFacingError } = await import('../errors');
+      throw new UserFacingError('You do not have permission to edit this member.');
+    }
+    if (patch.mobile && patch.mobile !== before.mobile) {
+      // Member-app logins are keyed by phone; keep the login in step so the
+      // member isn't locked out (and the old number can't log in).
+      await tx.query(`SELECT app.member_sync_login_phone($1)`, [memberId]);
+    }
+    await writeAudit(tx, user, {
+      action: 'member.edit',
+      entityType: 'member',
+      entityId: memberId,
+      before: {
+        branchId: before.branch_id,
+        name: `${before.first_name} ${before.last_name ?? ''}`.trim(),
+        mobile: maskPhone(String(before.mobile)),
+      },
+      after: {
+        branchId: patch.branchId ?? before.branch_id,
+        edited: Object.keys(patch).filter((k) => patch[k as keyof UpdateMemberPatch] !== undefined),
+      },
+    });
+  });
 }

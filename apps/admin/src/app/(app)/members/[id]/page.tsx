@@ -9,7 +9,16 @@ import { checkinMember } from '@/lib/services/attendance';
 import { renewalWhatsappLink } from '@/lib/services/settings';
 import { unfreezeMembership } from '@/lib/services/memberships';
 import { t } from '@/lib/i18n';
-import { Badge, Button, Card, PageHeader, SuccessBanner, Table, statusTone } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorBanner,
+  PageHeader,
+  SuccessBanner,
+  Table,
+  statusTone,
+} from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +27,9 @@ async function quickCheckinAction(formData: FormData): Promise<void> {
   const user = await requirePermission('attendance.checkin');
   const memberId = String(formData.get('memberId'));
   const result = await checkinMember(user, { memberId, method: 'reception' });
-  redirect(`/members/${memberId}?msg=${result.ok ? 'checkedin' : 'duplicate'}`);
+  redirect(
+    `/members/${memberId}?msg=${result.ok ? 'checkedin' : 'blocked' in result && result.blocked ? 'blocked' : 'duplicate'}`,
+  );
 }
 
 async function unfreezeAction(formData: FormData): Promise<void> {
@@ -30,15 +41,32 @@ async function unfreezeAction(formData: FormData): Promise<void> {
   redirect(`/members/${memberId}?msg=unfrozen`);
 }
 
-async function enableAppAction(formData: FormData): Promise<void> {
+async function archiveAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('members.edit');
   const memberId = String(formData.get('memberId'));
-  const { enableMemberApp } = await import('@/lib/services/members');
-  const result = await enableMemberApp(user, memberId);
-  redirect(
-    `/members/${memberId}?msg=app&gymcode=${encodeURIComponent(result.gymCode)}&pw=${encodeURIComponent(result.password)}`,
-  );
+  const { archiveMember } = await import('@/lib/services/members');
+  try {
+    await archiveMember(user, memberId);
+  } catch (err) {
+    const { toUserMessage } = await import('@/lib/errors');
+    redirect(`/members/${memberId}?msg=archerror&detail=${encodeURIComponent(toUserMessage(err))}`);
+  }
+  redirect(`/members/${memberId}?msg=archived`);
+}
+
+async function logPtAction(formData: FormData): Promise<void> {
+  'use server';
+  const user = await requirePermission('pt.manage');
+  const memberId = String(formData.get('memberId'));
+  const { logPtSession } = await import('@/lib/services/addons');
+  try {
+    await logPtSession(user, { memberAddonId: String(formData.get('memberAddonId')) });
+  } catch (err) {
+    const { toUserMessage } = await import('@/lib/errors');
+    redirect(`/members/${memberId}?msg=pterror&detail=${encodeURIComponent(toUserMessage(err))}`);
+  }
+  redirect(`/members/${memberId}?msg=ptlogged`);
 }
 
 export default async function MemberDetailPage({
@@ -46,11 +74,11 @@ export default async function MemberDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ msg?: string; gymcode?: string; pw?: string }>;
+  searchParams: Promise<{ msg?: string; detail?: string }>;
 }) {
   const user = await requirePermission('members.view');
   const { id } = await params;
-  const { msg, gymcode, pw } = await searchParams;
+  const { msg, detail: errorDetail } = await searchParams;
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail) notFound();
   const { member, currentMembership, memberships, payments, attendance, addons, openFreeze } =
@@ -76,22 +104,28 @@ export default async function MemberDetailPage({
   const messages: Record<string, string> = {
     checkedin: `${tr.attendance.checkIn} ✓`,
     duplicate: tr.attendance.alreadyCheckedIn,
+    blocked: tr.attendance.memberExpired,
+    ptlogged: 'PT session logged.',
+    pterror: errorDetail ?? tr.common.error,
     sold: 'Membership recorded.',
     renewed: 'Renewal recorded.',
     frozen: 'Membership frozen.',
     unfrozen: 'Membership resumed.',
     paid: 'Payment recorded.',
     addon: 'Add-on recorded.',
+    edited: 'Member updated.',
     cancelled: 'Membership cancelled.',
-    app:
-      gymcode && pw
-        ? `Member app enabled. Gym code: ${gymcode} · Mobile: their number · One-time password (share now, shown once): ${pw}`
-        : 'Member app enabled.',
+    archived: 'Member archived. Their history is kept; the mobile number is free to re-use.',
+    archerror: errorDetail ?? tr.common.error,
   };
 
   return (
     <>
-      <SuccessBanner message={msg ? messages[msg] : null} />
+      {msg === 'blocked' || msg === 'pterror' || msg === 'archerror' ? (
+        <ErrorBanner message={messages[msg]} />
+      ) : (
+        <SuccessBanner message={msg ? messages[msg] : null} />
+      )}
       <PageHeader
         title={`${member.first_name} ${member.last_name ?? ''}`}
         subtitle={`${tr.members.memberNumber} ${member.membership_number} · ${maskPhone(String(member.mobile))} · ${String(member.branch_name)}`}
@@ -107,6 +141,9 @@ export default async function MemberDetailPage({
             </Button>
             <Button href={`/members/${id}/addon`} variant="secondary">
               PT
+            </Button>
+            <Button href={`/members/${id}/edit`} variant="secondary">
+              Edit
             </Button>
             {wa ? (
               <a
@@ -209,9 +246,15 @@ export default async function MemberDetailPage({
               </dd>
             </div>
           </dl>
+          {member.notes ? (
+            <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              {tr.members.notes}: {String(member.notes)}
+            </p>
+          ) : null}
           <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3">
             {!member.user_id ? (
-              <form action={enableAppAction}>
+              <form action="/credentials" method="post">
+                <input type="hidden" name="kind" value="member_app" />
                 <input type="hidden" name="memberId" value={id} />
                 <button className="text-sm font-semibold text-primary hover:underline">
                   Enable member app access
@@ -227,6 +270,22 @@ export default async function MemberDetailPage({
               >
                 Cancel membership…
               </a>
+            ) : null}
+            {user.permissions.has('members.edit') && !member.archived_at && !currentMembership ? (
+              <details>
+                <summary className="cursor-pointer text-sm font-semibold text-red-600">
+                  Archive member…
+                </summary>
+                <form action={archiveAction} className="mt-2">
+                  <input type="hidden" name="archive" value="1" />
+                  <input type="hidden" name="memberId" value={id} />
+                  <p className="mb-2 text-xs text-slate-500">
+                    Keeps all history (nothing is deleted), ends member-app access and frees the
+                    mobile number for a new member.
+                  </p>
+                  <Button variant="danger">Archive this member</Button>
+                </form>
+              </details>
             ) : null}
           </div>
         </Card>
@@ -317,6 +376,17 @@ export default async function MemberDetailPage({
                 </td>
                 <td className="px-4 py-3">
                   <Badge tone={statusTone(String(a.state))}>{String(a.state)}</Badge>
+                </td>
+                <td className="px-4 py-3">
+                  {a.state === 'active' && a.sessions_total != null ? (
+                    <form action={logPtAction}>
+                      <input type="hidden" name="memberId" value={id} />
+                      <input type="hidden" name="memberAddonId" value={String(a.id)} />
+                      <button className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-dark">
+                        Log session
+                      </button>
+                    </form>
+                  ) : null}
                 </td>
               </tr>
             ))}

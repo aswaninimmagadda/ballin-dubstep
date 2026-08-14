@@ -7,6 +7,7 @@ import { listAddonPackages, sellAddon } from '@/lib/services/addons';
 import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
+import { requireFeature } from '@/lib/flags';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -44,6 +45,7 @@ export default async function AddonPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const user = await requirePermission('pt.manage');
+  await requireFeature(user, 'pt');
   const { id } = await params;
   const { error } = await searchParams;
   const [detail, packages, tr] = await Promise.all([

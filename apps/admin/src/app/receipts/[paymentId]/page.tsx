@@ -1,17 +1,48 @@
 import { notFound } from 'next/navigation';
 import { formatDisplayDate, formatMoney } from '@gymflow/utils';
+import { redirect } from 'next/navigation';
+import { randomUUID } from 'node:crypto';
+import { hasPermission } from '@gymflow/core';
+import { parseMoney } from '@gymflow/utils';
 import { requirePermission } from '@/lib/session';
-import { getReceipt } from '@/lib/services/payments';
+import { getReceipt, refundPayment } from '@/lib/services/payments';
+import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
 import { Button } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ReceiptPage({ params }: { params: Promise<{ paymentId: string }> }) {
+async function refundAction(formData: FormData): Promise<void> {
+  'use server';
+  const user = await requirePermission('payments.refund');
+  const paymentId = String(formData.get('paymentId'));
+  try {
+    await refundPayment(user, {
+      paymentId,
+      amount: parseMoney(String(formData.get('amount') ?? '')),
+      reason: String(formData.get('reason') ?? '').trim(),
+      idempotencyKey: String(formData.get('idempotencyKey') ?? '') || undefined,
+    });
+  } catch (err) {
+    redirect(`/receipts/${paymentId}?error=${encodeURIComponent(toUserMessage(err))}`);
+  }
+  redirect(`/receipts/${paymentId}?msg=refunded`);
+}
+
+export default async function ReceiptPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ paymentId: string }>;
+  searchParams: Promise<{ error?: string; msg?: string }>;
+}) {
   const user = await requirePermission('payments.view');
   const { paymentId } = await params;
+  const { error, msg } = await searchParams;
   const [receipt, tr] = await Promise.all([getReceipt(user, paymentId), t()]);
   if (!receipt) notFound();
+  const canRefund =
+    hasPermission(user.permissions, 'payments.refund') || user.kind === 'platform_admin';
 
   return (
     <main className="mx-auto max-w-md p-6">
@@ -82,6 +113,55 @@ export default async function ReceiptPage({ params }: { params: Promise<{ paymen
           Receipt generated digitally — no signature required.
         </p>
       </div>
+
+      {error ? (
+        <p
+          role="alert"
+          className="no-print mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {error}
+        </p>
+      ) : null}
+      {msg === 'refunded' ? (
+        <p
+          role="status"
+          className="no-print mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+        >
+          Refund recorded. The original payment stays on record.
+        </p>
+      ) : null}
+
+      {canRefund ? (
+        <details className="no-print mt-6 rounded-xl border border-slate-200 bg-white p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+            {tr.payments.refund}…
+          </summary>
+          <form action={refundAction} className="mt-3 space-y-3">
+            <input type="hidden" name="paymentId" value={paymentId} />
+            <input type="hidden" name="idempotencyKey" value={randomUUID()} />
+            <label className="block text-sm font-medium text-slate-700">
+              {tr.payments.amount} (₹)
+              <input
+                name="amount"
+                inputMode="decimal"
+                required
+                className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              {tr.payments.refundReason}
+              <input
+                name="reason"
+                required
+                minLength={3}
+                maxLength={500}
+                className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <Button variant="danger">{tr.payments.refund}</Button>
+          </form>
+        </details>
+      ) : null}
     </main>
   );
 }

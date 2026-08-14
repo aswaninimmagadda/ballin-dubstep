@@ -7,6 +7,16 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const auth = memberAuth(req);
   if (isErrorResponse(auth)) return auth;
+  const flagR = await asPrincipal(auth.claims, async (tx) => {
+    const r = await tx.query(
+      `SELECT enabled FROM feature_flags WHERE tenant_id = $1 AND key = 'pt'`,
+      [auth.claims.tenant_id],
+    );
+    return r.rows[0] as { enabled: boolean } | undefined;
+  });
+  if (flagR && !flagR.enabled) {
+    return NextResponse.json({ addons: [], sessions: [], disabled: true });
+  }
   const data = await asPrincipal(auth.claims, async (tx) => {
     const addons = await tx.query(
       `SELECT ma.id, ma.name_snapshot, ma.sessions_total, ma.sessions_used,

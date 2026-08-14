@@ -20,6 +20,20 @@ export interface CheckinPreview {
   warning: string | null;
 }
 
+/**
+ * Pick the membership that governs entry today. A member can hold a running
+ * (active/frozen) row AND a pending early renewal at once — prefer the row
+ * that is current as of today, then a renewal whose start date has arrived,
+ * then a lapsed running row (grace), and only last a future pending row.
+ */
+const RELEVANT_MEMBERSHIP_ORDER = (todayParam: string) => `
+  CASE
+    WHEN state IN ('active','frozen') AND end_date >= ${todayParam}::date THEN 0
+    WHEN state = 'pending' AND start_date <= ${todayParam}::date THEN 1
+    WHEN state IN ('active','frozen') THEN 2
+    ELSE 3
+  END, end_date DESC`;
+
 export async function previewCheckin(user: SessionUser, memberId: string): Promise<CheckinPreview> {
   const today = todayInTz();
   return asPrincipal(user.claims, async (tx) => {
@@ -31,10 +45,10 @@ export async function previewCheckin(user: SessionUser, memberId: string): Promi
        FROM members m
        LEFT JOIN LATERAL (
          SELECT * FROM memberships WHERE member_id = m.id AND state IN ('pending','active','frozen')
-         ORDER BY end_date DESC LIMIT 1
+         ORDER BY ${RELEVANT_MEMBERSHIP_ORDER('$2')} LIMIT 1
        ) ms ON true
        WHERE m.id = $1`,
-      [memberId],
+      [memberId, today],
     );
     const row = r.rows[0] as Record<string, unknown> | undefined;
     if (!row) throw new UserFacingError('Member not found.');
@@ -86,11 +100,38 @@ export async function previewCheckin(user: SessionUser, memberId: string): Promi
 export async function checkinMember(
   user: SessionUser,
   opts: { memberId: string; method: 'reception' | 'qr' | 'manual'; override?: boolean },
-): Promise<{ ok: true } | { ok: false; duplicate: true }> {
+): Promise<{ ok: true } | { ok: false; duplicate?: true; blocked?: true }> {
+  const today = todayInTz();
   return asPrincipal(user.claims, async (tx) => {
     const mR = await tx.query(`SELECT id, branch_id FROM members WHERE id = $1`, [opts.memberId]);
     const m = mR.rows[0] as { id: string; branch_id: string } | undefined;
     if (!m) throw new UserFacingError('Member not found.');
+
+    // Server-side gate: the client's allowed/blocked preview is advisory only.
+    const msR = await tx.query(
+      `SELECT state, start_date::text AS start_date, end_date::text AS end_date, grace_period_days
+       FROM memberships WHERE member_id = $1 AND state IN ('pending','active','frozen')
+       ORDER BY ${RELEVANT_MEMBERSHIP_ORDER('$2')} LIMIT 1`,
+      [m.id, today],
+    );
+    const ms = msR.rows[0] as
+      | { state: string; start_date: string; end_date: string; grace_period_days: number }
+      | undefined;
+    const derived = ms
+      ? deriveMembershipStatus(
+          {
+            state: ms.state as never,
+            startDate: ms.start_date,
+            endDate: ms.end_date,
+            gracePeriodDays: ms.grace_period_days,
+          },
+          today,
+        )
+      : null;
+    const allowed = derived != null && allowsCheckin(derived);
+    if (!allowed && !opts.override) {
+      return { ok: false as const, blocked: true as const };
+    }
 
     // Duplicate-tap guard: skip if checked in within the window.
     const dup = await tx.query(
@@ -105,12 +146,14 @@ export async function checkinMember(
        VALUES ($1,$2,$3,$4,$5)`,
       [user.tenantId, m.branch_id, m.id, opts.method, user.userId],
     );
-    if (opts.override) {
+    // The override audit is written whenever entry was granted despite an
+    // inactive membership — decided server-side, not by the form flag.
+    if (!allowed) {
       await writeAudit(tx, user, {
         action: 'attendance.override',
         entityType: 'member',
         entityId: m.id,
-        after: { note: 'check-in allowed despite inactive membership' },
+        after: { derivedStatus: derived ?? 'no_membership' },
       });
     }
     return { ok: true as const };
@@ -139,13 +182,18 @@ export async function todayCheckins(
 ): Promise<
   { id: string; name: string; membership_number: string; checked_in_at: string; method: string }[]
 > {
+  const today = todayInTz();
   return asPrincipal(user.claims, async (tx) => {
+    // "Today" is the tenant's calendar day, not the server's (UTC) day.
     const r = await tx.query(
       `SELECT a.id, m.first_name || coalesce(' ' || m.last_name,'') AS name,
               m.membership_number, a.checked_in_at::text AS checked_in_at, a.method
-       FROM attendance a JOIN members m ON m.id = a.member_id
-       WHERE a.checked_in_at::date = CURRENT_DATE
+       FROM attendance a
+       JOIN members m ON m.id = a.member_id
+       JOIN tenants t ON t.id = a.tenant_id
+       WHERE (a.checked_in_at AT TIME ZONE t.default_timezone)::date = $1::date
        ORDER BY a.checked_in_at DESC LIMIT 100`,
+      [today],
     );
     return r.rows as never;
   });

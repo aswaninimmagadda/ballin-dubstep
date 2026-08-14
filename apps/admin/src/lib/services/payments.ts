@@ -88,11 +88,13 @@ export async function recordPayment(
 
 export async function refundPayment(
   user: SessionUser,
-  input: { paymentId: string; amount: number; reason: string },
+  input: { paymentId: string; amount: number; reason: string; idempotencyKey?: string },
 ): Promise<void> {
   return asPrincipal(user.claims, async (tx) => {
+    // Row lock serializes concurrent refunds against the same payment; the
+    // refunds_no_over_refund trigger enforces the bound as defense in depth.
     const pR = await tx.query(
-      `SELECT id, amount::bigint AS amount, status FROM payments WHERE id = $1`,
+      `SELECT id, amount::bigint AS amount, status FROM payments WHERE id = $1 FOR UPDATE`,
       [input.paymentId],
     );
     const p = pR.rows[0] as { id: string; amount: string; status: string } | undefined;
@@ -107,9 +109,16 @@ export async function refundPayment(
       throw new UserFacingError('Refund exceeds the remaining refundable amount.');
     }
     await tx.query(
-      `INSERT INTO refunds (tenant_id, payment_id, amount, reason, approved_by, processed_by)
-       VALUES ($1,$2,$3,$4,$5,$5)`,
-      [user.tenantId, input.paymentId, input.amount, input.reason, user.userId],
+      `INSERT INTO refunds (tenant_id, payment_id, amount, reason, approved_by, processed_by, idempotency_key)
+       VALUES ($1,$2,$3,$4,$5,$5,$6)`,
+      [
+        user.tenantId,
+        input.paymentId,
+        input.amount,
+        input.reason,
+        user.userId,
+        input.idempotencyKey ?? null,
+      ],
     );
     const newStatus = input.amount + alreadyRefunded === paid ? 'refunded' : 'partially_refunded';
     await tx.query(`UPDATE payments SET status = $2 WHERE id = $1`, [input.paymentId, newStatus]);

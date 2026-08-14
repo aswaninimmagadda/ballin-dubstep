@@ -13,6 +13,7 @@
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
     "reset": "tsx scripts/reset.ts",
+    "sweep": "tsx scripts/sweep-memberships.ts",
     "test": "vitest run --pool=forks --poolOptions.forks.singleFork"
   },
   "dependencies": {

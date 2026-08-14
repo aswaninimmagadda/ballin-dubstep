@@ -14,10 +14,11 @@ create-tenant -- --slug … --name … --owner-email …`) with zero source
    (owner clicks "Reset password", gets a one-time password, sessions are
    revoked); member resets happen at reception via "Enable member app
    access" (re-issues credentials). Email/SMS self-service needs a provider
-   (Phase 2). One-time passwords surface once in the redirected page URL —
-   an accepted trade-off for a desk workflow, mitigated by immediate
-   first-login change guidance; move to a POST/response pattern with the
-   Phase-2 messaging provider.
+   (Phase 2). One-time passwords render once in the POST response
+   (`/credentials`, no-store) — they never appear in URLs or logs.
+   The `create-tenant` CLI's optional `--owner-password` flag does put a
+   password in shell history; omit it and let the CLI generate one (the
+   default), as the runbook instructs.
 3. **No online payments** — manual cash/UPI-reference recording only. The
    provider abstraction and webhook-idempotency pattern are designed but not
    wired.
@@ -28,9 +29,11 @@ create-tenant -- --slug … --name … --owner-email …`) with zero source
    WhatsApp.
 5. **Member app is read-only by design** — no in-app renewal/booking in the
    MVP (renewals happen at the desk).
-6. **PT scheduling is minimal:** packages, session records, double-booking
-   guard — no calendar UI, recurrence or class capacity yet. Session
-   completion/no-show marking is data-model-ready but has no dedicated UI.
+6. **PT scheduling is minimal:** packages, one-tap session logging from the
+   member page (auto-completes the package on the last session), and a
+   double-booking guard — no calendar UI, recurrence or class capacity yet.
+   No-show marking is supported by the service layer but has no dedicated
+   button.
 7. **Reports are the operational core set** (collections, plan mix,
    exports); owner analytics (churn/renewal-rate trends with defined
    denominators) are Phase 2 with definitions to be documented alongside.
@@ -64,3 +67,11 @@ create-tenant -- --slug … --name … --owner-email …`) with zero source
     inactivity — see DEPLOYMENT.md for the mitigation before go-live.
 17. **Member-app API base URL is app.json config** — fine for one shared
     backend; per-tenant custom domains would need a config service.
+18. **Stored membership states are trued up by a daily sweep** (`pnpm
+--filter @gymflow/database sweep`, cron — see DEPLOYMENT.md). Every
+    read path derives live status from dates (so screens, the check-in
+    gate and the member app are correct between sweeps); the sweep keeps
+    the _stored_ `state`/`status` columns — used by list filters and
+    reports — in step: pending→active on the start date, active→expired
+    after the grace window. If the cron is missed, nothing breaks; stored
+    states lag until the next run.

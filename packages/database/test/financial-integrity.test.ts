@@ -79,3 +79,37 @@ describe('payments immutability', () => {
     ).rejects.toThrow(/(append-only|denied|permission)/i);
   });
 });
+
+describe('over-refund protection (migration 0008)', () => {
+  it('a refund exceeding the payment amount is rejected by the trigger', async () => {
+    await expect(
+      withClaims(appPool(), staffClaims(fx.a, 'accountant'), (tx) =>
+        tx.query(
+          `INSERT INTO refunds (tenant_id, payment_id, amount, reason, approved_by, processed_by)
+           VALUES ($1, $2, 999999999, 'too much', $3, $3)`,
+          [fx.a.tenantId, fx.a.paymentId, fx.a.accountantUserId],
+        ),
+      ),
+    ).rejects.toThrow(/exceed payment amount/);
+  });
+
+  it('cumulative refunds cannot exceed the payment', async () => {
+    // fixture payment is 300000; an earlier test already refunded 1000.
+    await withClaims(appPool(), staffClaims(fx.a, 'accountant'), (tx) =>
+      tx.query(
+        `INSERT INTO refunds (tenant_id, payment_id, amount, reason, approved_by, processed_by)
+         VALUES ($1, $2, 200000, 'partial one', $3, $3)`,
+        [fx.a.tenantId, fx.a.paymentId, fx.a.accountantUserId],
+      ),
+    );
+    await expect(
+      withClaims(appPool(), staffClaims(fx.a, 'accountant'), (tx) =>
+        tx.query(
+          `INSERT INTO refunds (tenant_id, payment_id, amount, reason, approved_by, processed_by)
+           VALUES ($1, $2, 150000, 'partial two over', $3, $3)`,
+          [fx.a.tenantId, fx.a.paymentId, fx.a.accountantUserId],
+        ),
+      ),
+    ).rejects.toThrow(/exceed payment amount/);
+  });
+});

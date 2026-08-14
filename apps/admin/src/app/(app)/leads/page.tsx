@@ -6,6 +6,7 @@ import { createLead, listLeads, updateLeadStatus } from '@/lib/services/leads';
 import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
+import { requireFeature } from '@/lib/flags';
 import {
   Badge,
   Button,
@@ -55,6 +56,7 @@ export default async function LeadsPage({
   searchParams: Promise<{ error?: string; all?: string }>;
 }) {
   const user = await requirePermission('leads.view');
+  await requireFeature(user, 'leads');
   const { error } = await searchParams;
   const tr = await t();
   const leads = await listLeads(user);

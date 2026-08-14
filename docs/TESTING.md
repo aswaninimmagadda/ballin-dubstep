@@ -14,27 +14,30 @@ actually-executed runs (CI re-runs them on every PR).
 | @gymflow/validation | 10    | Member/sale/payment/import/login schemas, E.164 transforms, idempotency-key requirement, float rejection                                                                                                                                                                                                                                                                                                                                                        |
 | @gymflow/i18n       | 5     | Telugu/English key parity (fails the build if a key is missed), template rendering                                                                                                                                                                                                                                                                                                                                                                              |
 
-### 2. Integration tests — 39 passing (vitest + real Postgres, as the runtime role)
+### 2. Integration tests — 48 passing (vitest + real Postgres, as the runtime role)
 
 `packages/database/test/`:
 
 - **tenant-isolation** (15) — the release-blocking suite; see MULTI_TENANCY.md.
 - **permissions** (7) — receptionist vs accountant vs owner write gates,
-  instant deactivation.
-- **financial-integrity** (5) — append-only payments/receipts/audit, legal
-  status transitions.
+  refund authorization, instant deactivation.
+- **financial-integrity** (7) — append-only payments/receipts/audit, legal
+  status transitions, DB-level over-refund guard (incl. concurrent refunds).
 - **concurrency** (5) — 20 parallel receipt allocations unique+sequential,
   per-tenant sequences, idempotent payment double-click, one-running-
   membership invariant, membership-number allocation under concurrency.
-- **auth-functions** (7) — sealed credential tables, session lifecycle,
-  refresh rotation + replay family revocation, throttling counters.
+- **auth-functions** (10) — sealed credential tables, session lifecycle,
+  refresh rotation + replay family revocation, throttling counters,
+  password-set scoping (members.edit cannot touch staff logins).
+- **branch-scoping** (4) — staff restricted via `staff_branch_access` see
+  only their branch's members/payments; unrestricted staff see all.
 
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 79 checks passing (two HTTP suites)
+### 3. End-to-end — 91 checks passing (two HTTP suites)
 
-`scripts/e2e-admin.mjs` (40 checks) drives the real HTTP surface (server
+`scripts/e2e-admin.mjs` (41 checks) drives the real HTTP surface (server
 actions via progressive-enhancement form posts) against a running server +
 seeded DB, then verifies database effects:
 
@@ -49,21 +52,27 @@ seeded DB, then verifies database effects:
 - **Scenario 2 — renewal:** 6-month renewal with `NEWYEAR26` → 10% discount
   applied and redemption recorded → starts day after current expiry → UPI
   payment → replayed form (same idempotency key) does **not** create a third
-  membership.
+  membership → check-in still allowed (the running membership governs the
+  gate, not the pending renewal).
 - **Scenario 3 — freeze:** receptionist blocked (RBAC) → manager freezes →
   renewal stays pending → unfreeze after 15 days → expiry extended by 15.
 - **Authorization:** anonymous page/API access rejected; receptionist
   blocked from audit.
 
-`scripts/e2e-acceptance.mjs` (39 checks) executes the brief's **final
+`scripts/e2e-acceptance.mjs` (50 checks) executes the brief's **final
 acceptance test (§82)** end to end: a second gym is provisioned purely via
 platform tooling (`create-tenant` CLI — zero source changes), its owner
 configures settings/plan/PT package/trainer/staff/promotion over HTTP, a
 Gym-B receptionist onboards → sells with a 20% promotion → adds PT → takes
-payments (receipts under Gym B's own `HFT-` prefix, sequence starting at 000001) → checks in; the member app logs in with Gym B's code and sees Gym
-B branding + correct expiry; the WhatsApp link renders Gym B's customized
-template; renew/freeze/unfreeze/cancel all succeed; CSV import blocks on
-invalid rows then imports clean rows with receipts; reports/exports are
+payments (receipts under Gym B's own `HFT-` prefix, sequence starting at 000001) → checks in; the member is edited + branch-transferred; the member
+app logs in with Gym B's code and sees Gym B branding + correct expiry; the
+WhatsApp link renders Gym B's customized template; renew/freeze/unfreeze
+succeed; the cancel page offers a picker while a running membership and a
+pre-sold pending renewal coexist, cancelling only the pending one keeps the
+member active, cancelling the last live one marks them cancelled, and the
+member is then archived (soft delete — history kept, mobile freed); CSV
+import blocks on invalid rows then imports clean rows with receipts; the
+daily sweep activates a due pre-sold membership; reports/exports are
 tenant-pure. Isolation is then proven from both directions over HTTP
 (cross-tenant member page 404s, exports contain zero foreign rows, plans
 and receipt prefixes differ, member credentials are tenant-scoped).
@@ -87,9 +96,12 @@ promotion, discount > amount, payment > balance, repeated payment
 submission, double-click renewal, concurrent receipts, leap-year and
 end-of-month dates, frozen-membership check-in warning, deactivated staff,
 unauthorized API access, stale/forged claims, refresh-token replay.
+Also automated: branch transfer (acceptance suite edits a member onto a
+second branch), pending-renewal cancellation, member archive, the daily
+state sweep, refund over-payment guard (DB trigger, concurrent case).
 Covered by design + manual test: deactivated plan (latest-version lookup
-refuses inactive plans with a friendly error), branch transfer (edit member
-branch), offline member app (stale banner), slow API (server-rendered admin
-degrades gracefully). Not yet automated: partial payments (flag off by
-default), trainer deletion with open sessions (restrict-by-FK — deactivate
-instead). Tracked in KNOWN_LIMITATIONS.md.
+refuses inactive plans with a friendly error), offline member app (stale
+banner), slow API (server-rendered admin degrades gracefully). Not yet
+automated: partial payments (flag off by default), trainer deletion with
+open sessions (restrict-by-FK — deactivate instead). Tracked in
+KNOWN_LIMITATIONS.md.

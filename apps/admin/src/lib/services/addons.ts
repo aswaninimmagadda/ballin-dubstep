@@ -106,8 +106,8 @@ export async function sellAddon(
     const aR = await tx.query(
       `INSERT INTO member_addons
         (tenant_id, member_id, addon_package_id, name_snapshot, price_snapshot, trainer_id,
-         sessions_total, start_date, end_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+         sessions_total, start_date, end_date, idempotency_key)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
       [
         user.tenantId,
         m.id,
@@ -118,6 +118,7 @@ export async function sellAddon(
         pkg.session_count,
         start,
         addDays(start, pkg.validity_days),
+        input.idempotencyKey,
       ],
     );
     const memberAddonId = (aR.rows[0] as { id: string }).id;
@@ -186,5 +187,94 @@ export async function sellAddon(
       after: { package: pkg.name, price, receiptNumber },
     });
     return { memberAddonId, receiptNumber };
+  });
+}
+
+/**
+ * Log a completed PT session against an add-on: one trainer_sessions row +
+ * sessions_used increment in the same transaction. Marks the add-on
+ * completed when the last session is used.
+ */
+export async function logPtSession(
+  user: SessionUser,
+  input: { memberAddonId: string; status?: 'completed' | 'member_no_show' },
+): Promise<{ sessionsUsed: number; sessionsTotal: number | null }> {
+  return asPrincipal(user.claims, async (tx) => {
+    const aR = await tx.query(
+      `SELECT ma.id, ma.member_id, ma.trainer_id, ma.sessions_total, ma.sessions_used, ma.state,
+              m.branch_id, t.default_timezone
+       FROM member_addons ma
+       JOIN members m ON m.id = ma.member_id
+       JOIN tenants t ON t.id = ma.tenant_id
+       WHERE ma.id = $1 FOR UPDATE OF ma`,
+      [input.memberAddonId],
+    );
+    const a = aR.rows[0] as
+      | {
+          id: string;
+          member_id: string;
+          trainer_id: string | null;
+          sessions_total: number | null;
+          sessions_used: number;
+          state: string;
+          branch_id: string;
+          default_timezone: string;
+        }
+      | undefined;
+    if (!a) throw new UserFacingError('Package not found.');
+    if (a.state !== 'active') throw new UserFacingError('This package is not active.');
+    if (a.sessions_total != null && a.sessions_used >= a.sessions_total) {
+      throw new UserFacingError('All sessions in this package are already used.');
+    }
+    if (!a.trainer_id) {
+      throw new UserFacingError('Assign a trainer to this package before logging sessions.');
+    }
+
+    // Log at the gym's wall-clock time. end_time must stay > start_time and
+    // inside the same day, so a 23:59 log is recorded as 23:58–23:59.
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: a.default_timezone,
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+    }).formatToParts(new Date());
+    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+    // Intl may render midnight as "24"; normalize to minutes-since-midnight.
+    let startMin = (get('hour') % 24) * 60 + get('minute');
+    if (startMin >= 23 * 60 + 59) startMin = 23 * 60 + 58;
+    const asTime = (min: number) =>
+      `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+    await tx.query(
+      `INSERT INTO trainer_sessions
+        (tenant_id, branch_id, trainer_id, member_id, member_addon_id, session_date,
+         start_time, end_time, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        user.tenantId,
+        a.branch_id,
+        a.trainer_id,
+        a.member_id,
+        a.id,
+        todayInTz(a.default_timezone),
+        asTime(startMin),
+        asTime(startMin + 1),
+        input.status ?? 'completed',
+      ],
+    );
+    const consumed = (input.status ?? 'completed') === 'completed';
+    const newUsed = a.sessions_used + (consumed ? 1 : 0);
+    const done = a.sessions_total != null && newUsed >= a.sessions_total;
+    await tx.query(`UPDATE member_addons SET sessions_used = $2, state = $3 WHERE id = $1`, [
+      a.id,
+      newUsed,
+      done ? 'completed' : 'active',
+    ]);
+    await writeAudit(tx, user, {
+      action: 'pt.session_log',
+      entityType: 'member_addon',
+      entityId: a.id,
+      after: { status: input.status ?? 'completed', sessionsUsed: newUsed },
+    });
+    return { sessionsUsed: newUsed, sessionsTotal: a.sessions_total };
   });
 }

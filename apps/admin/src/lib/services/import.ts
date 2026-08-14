@@ -37,6 +37,9 @@ export interface ImportPreview {
 
 /** Minimal CSV parser (quoted fields, commas, CRLF). */
 export function parseCsv(text: string): Record<string, string>[] {
+  // Excel saves "CSV UTF-8" with a byte-order mark; without stripping it the
+  // first header would be "﻿member_name" and every row would fail.
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
   const rows: string[][] = [];
   let field = '';
   let row: string[] = [];
@@ -71,6 +74,39 @@ export function parseCsv(text: string): Record<string, string>[] {
   return data.map((cells) =>
     Object.fromEntries(keys.map((k, idx) => [k, (cells[idx] ?? '').trim()])),
   );
+}
+
+/**
+ * Park a pasted/uploaded CSV server-side between the preview POST and the
+ * confirm POST — member PII must never round-trip through a URL query
+ * string. Stashes are single-use working data; day-old ones are swept.
+ */
+export async function stashCsv(user: SessionUser, csv: string): Promise<string> {
+  return asPrincipal(user.claims, async (tx) => {
+    await tx.query(`DELETE FROM csv_import_stash WHERE created_at < now() - interval '1 day'`);
+    const r = await tx.query(
+      `INSERT INTO csv_import_stash (tenant_id, created_by, csv) VALUES ($1,$2,$3) RETURNING id`,
+      [user.tenantId, user.userId, csv],
+    );
+    return (r.rows[0] as { id: string }).id;
+  });
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function loadStashedCsv(user: SessionUser, stashId: string): Promise<string | null> {
+  if (!UUID_RE.test(stashId)) return null;
+  return asPrincipal(user.claims, async (tx) => {
+    const r = await tx.query(`SELECT csv FROM csv_import_stash WHERE id = $1`, [stashId]);
+    return (r.rows[0] as { csv: string } | undefined)?.csv ?? null;
+  });
+}
+
+export async function deleteStashedCsv(user: SessionUser, stashId: string): Promise<void> {
+  if (!UUID_RE.test(stashId)) return;
+  return asPrincipal(user.claims, async (tx) => {
+    await tx.query(`DELETE FROM csv_import_stash WHERE id = $1`, [stashId]);
+  });
 }
 
 export function importTemplateCsv(): string {

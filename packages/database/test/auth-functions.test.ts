@@ -5,7 +5,14 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createHash, randomBytes } from 'node:crypto';
-import { setupOnce, appPool, withoutClaims, type Fixtures } from './helpers';
+import {
+  setupOnce,
+  appPool,
+  withClaims,
+  withoutClaims,
+  staffClaims,
+  type Fixtures,
+} from './helpers';
 
 let fx: Fixtures;
 beforeAll(async () => {
@@ -141,5 +148,39 @@ describe('login throttling', () => {
       return Number(r.rows[0].n);
     });
     expect(failures).toBe(3);
+  });
+});
+
+describe('password function scoping (migration 0008)', () => {
+  const FAKE_HASH =
+    'scrypt$32768$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+
+  it('receptionist (members.edit) can set a MEMBER password', async () => {
+    await expect(
+      withClaims(appPool(), staffClaims(fx.a, 'receptionist'), (tx) =>
+        tx.query(`SELECT app.auth_set_password($1, $2)`, [fx.a.memberUserId, FAKE_HASH]),
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it('receptionist can NOT overwrite a staff password (no takeover of the owner)', async () => {
+    await expect(
+      withClaims(appPool(), staffClaims(fx.a, 'receptionist'), (tx) =>
+        tx.query(`SELECT app.auth_set_password($1, $2)`, [fx.a.ownerUserId, FAKE_HASH]),
+      ),
+    ).rejects.toThrow(/not authorized/);
+  });
+
+  it('owner (staff.manage) can reset staff passwords within the tenant only', async () => {
+    await expect(
+      withClaims(appPool(), staffClaims(fx.a, 'owner'), (tx) =>
+        tx.query(`SELECT app.auth_set_password($1, $2)`, [fx.a.receptionistUserId, FAKE_HASH]),
+      ),
+    ).resolves.toBeDefined();
+    await expect(
+      withClaims(appPool(), staffClaims(fx.a, 'owner'), (tx) =>
+        tx.query(`SELECT app.auth_set_password($1, $2)`, [fx.b.ownerUserId, FAKE_HASH]),
+      ),
+    ).rejects.toThrow(/not authorized/);
   });
 });

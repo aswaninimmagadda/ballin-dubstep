@@ -86,6 +86,10 @@ CI runs all of the above on every pull request (`.github/workflows/ci.yml`).
 
 ## Documentation
 
+The engagement's summary — what was built, executed test results, security
+posture, credential locations, costs, release state — is
+[`docs/COMPLETION_REPORT.md`](docs/COMPLETION_REPORT.md).
+
 Start with [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md) and
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Operations:
 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md),

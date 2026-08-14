@@ -5,6 +5,7 @@ import { PRODUCT } from '@gymflow/config';
 import { requireUser, logout } from '@/lib/session';
 import { t, LANG_COOKIE, currentLanguage } from '@/lib/i18n';
 import { PwaSetup } from '@/components/pwa';
+import { tenantFlags } from '@/lib/flags';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,13 +27,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await requireUser();
   const tr = await t();
   const lang = await currentLanguage();
+  const flags = await tenantFlags(user);
 
   const nav = [
     { href: '/', label: tr.nav.dashboard },
     { href: '/members', label: tr.nav.members },
-    { href: '/attendance', label: tr.nav.attendance },
+    ...(flags.attendance ? [{ href: '/attendance', label: tr.nav.attendance }] : []),
     { href: '/payments', label: tr.nav.payments },
-    { href: '/leads', label: tr.nav.leads },
+    ...(flags.leads ? [{ href: '/leads', label: tr.nav.leads }] : []),
     { href: '/plans', label: tr.nav.plans },
     { href: '/promotions', label: tr.nav.promotions },
     { href: '/trainers', label: tr.nav.trainers },

@@ -32,7 +32,7 @@ describe('permission gates', () => {
           [fx.a.tenantId, fx.a.paymentId, fx.a.receptionistUserId],
         ),
       ),
-    ).rejects.toThrow(/row-level security/);
+    ).rejects.toThrow(/(row-level security|not authorized for refund)/);
   });
 
   it('accountant CAN record refunds (payments.refund granted)', async () => {

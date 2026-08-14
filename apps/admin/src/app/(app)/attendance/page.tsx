@@ -10,6 +10,7 @@ import {
 } from '@/lib/services/attendance';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
+import { requireFeature } from '@/lib/flags';
 import {
   Badge,
   Button,
@@ -30,7 +31,9 @@ async function checkinAction(formData: FormData): Promise<void> {
   const override = formData.get('override') === '1';
   try {
     const result = await checkinMember(user, { memberId, method: 'reception', override });
-    redirect(`/attendance?msg=${result.ok ? 'ok' : 'duplicate'}`);
+    redirect(
+      `/attendance?msg=${result.ok ? 'ok' : 'blocked' in result && result.blocked ? 'blocked' : 'duplicate'}`,
+    );
   } catch (err) {
     if ((err as { digest?: string }).digest?.startsWith('NEXT_REDIRECT')) throw err;
     redirect(`/attendance?error=${encodeURIComponent(toUserMessage(err))}`);
@@ -56,6 +59,7 @@ export default async function AttendancePage({
   searchParams: Promise<{ q?: string; preview?: string; msg?: string; error?: string }>;
 }) {
   const user = await requirePermission('attendance.checkin');
+  await requireFeature(user, 'attendance');
   const { q = '', preview, msg, error } = await searchParams;
   const tr = await t();
 
@@ -68,7 +72,13 @@ export default async function AttendancePage({
       <PageHeader title={tr.attendance.title} />
       <SuccessBanner message={msg === 'ok' ? '✓ ' + tr.attendance.checkIn : null} />
       <ErrorBanner
-        message={msg === 'duplicate' ? tr.attendance.alreadyCheckedIn : (error ?? null)}
+        message={
+          msg === 'duplicate'
+            ? tr.attendance.alreadyCheckedIn
+            : msg === 'blocked'
+              ? tr.attendance.memberExpired
+              : (error ?? null)
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-2">

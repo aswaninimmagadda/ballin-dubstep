@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { cookies } from 'next/headers';
 import { PRODUCT } from '@gymflow/config';
 import './globals.css';
 
@@ -15,9 +16,10 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const lang = (await cookies()).get('gymflow_lang')?.value;
   return (
-    <html lang="en">
+    <html lang={lang === 'te' ? 'te' : 'en'}>
       <body>{children}</body>
     </html>
   );

@@ -174,9 +174,12 @@ async function main() {
   });
   check('trainer created', !target(tRes).includes('error'), target(tRes));
 
-  // Staff: receptionist for Gym B (one-time password captured)
-  const staffHtml = await (await get('/staff')).text();
-  const staffForm = extractForm(staffHtml, 'displayName');
+  // Staff: receptionist for Gym B (POST-rendered credential page — no URLs)
+  const staffPage = await (await get('/staff')).text();
+  check(
+    'staff page offers the create form',
+    staffPage.includes('name="kind" value="staff_create"'),
+  );
   const recepRoleId = (
     await q(
       `SELECT r.id FROM roles r JOIN tenants t ON t.id = r.tenant_id
@@ -184,14 +187,22 @@ async function main() {
       [SLUG],
     )
   )[0].id;
-  const stRes = await postAction('/staff', staffForm, {
-    displayName: 'Front Desk B',
-    email: `reception@${SLUG}.test`,
-    roleId: recepRoleId,
+  const staffFd = new FormData();
+  staffFd.set('kind', 'staff_create');
+  staffFd.set('displayName', 'Front Desk B');
+  staffFd.set('email', `reception@${SLUG}.test`);
+  staffFd.set('roleId', recepRoleId);
+  const stRes = await fetch(`${BASE}/credentials`, {
+    method: 'POST',
+    headers: { cookie },
+    body: staffFd,
   });
-  const stTarget = target(stRes);
-  const recepPw = decodeURIComponent(stTarget.match(/pw=([^&]+)/)?.[1] ?? '');
-  check('receptionist account created with one-time password', Boolean(recepPw), stTarget);
+  const recepPw = (await stRes.text()).match(/<code>([^<]+)<\/code>/)?.[1] ?? '';
+  check(
+    'receptionist account created with one-time password',
+    recepPw.length >= 8,
+    String(stRes.status),
+  );
 
   // Promotion
   const promoHtml = await (await get('/promotions')).text();
@@ -291,19 +302,49 @@ async function main() {
   const ckRes = await postAction(`/members/${memberId}`, checkinForm, {});
   check('member checked in', target(ckRes).includes('msg=checkedin'), target(ckRes));
 
+  // Member edit incl. branch transfer (§55 edge case)
+  await q(
+    `INSERT INTO branches (tenant_id, brand_id, name, code)
+     SELECT t.id, b.id, 'Annex', 'ANX' FROM tenants t JOIN brands b ON b.tenant_id = t.id
+     WHERE t.slug = $1 ON CONFLICT DO NOTHING`,
+    [SLUG],
+  );
+  const [annex] = await q(
+    `SELECT br.id FROM branches br JOIN tenants t ON t.id = br.tenant_id
+     WHERE t.slug = $1 AND br.code = 'ANX'`,
+    [SLUG],
+  );
+  const editForm = extractForm(await (await get(`/members/${memberId}/edit`)).text(), 'firstName');
+  const edRes = await postAction(`/members/${memberId}/edit`, editForm, {
+    firstName: 'Bhavya',
+    lastName: 'Edited',
+    mobile,
+    branchId: annex.id,
+    notes: 'transferred to annex',
+  });
+  check('member edited + branch transferred', target(edRes).includes('msg=edited'), target(edRes));
+  const [afterEdit] = await q(`SELECT last_name, branch_id, notes FROM members WHERE id = $1`, [
+    memberId,
+  ]);
+  check(
+    'edit persisted (name, branch, notes)',
+    afterEdit.last_name === 'Edited' &&
+      afterEdit.branch_id === annex.id &&
+      afterEdit.notes === 'transferred to annex',
+    JSON.stringify(afterEdit),
+  );
+
   // ---- 11-12. Member app sees Gym B ---------------------------------------
   console.log('\n[Gym B member app]');
-  const forms = detailHtml
-    .split('<form')
-    .slice(1)
-    .filter((f) => f.includes('name="memberId"'));
-  const enableHtml = forms.find((f) => f.includes('Enable member app access'));
-  const enableRes = await postAction(
-    `/members/${memberId}`,
-    { actionId: enableHtml.match(/\$ACTION_ID_([a-f0-9]+)/)[1], hidden: { memberId } },
-    {},
-  );
-  const appPw = decodeURIComponent(target(enableRes).match(/pw=([^&]+)/)?.[1] ?? '');
+  const appFd = new FormData();
+  appFd.set('kind', 'member_app');
+  appFd.set('memberId', memberId);
+  const enableRes = await fetch(`${BASE}/credentials`, {
+    method: 'POST',
+    headers: { cookie },
+    body: appFd,
+  });
+  const appPw = (await enableRes.text()).match(/<code>([^<]+)<\/code>/)?.[1] ?? '';
   const login = await fetch(`${BASE}/api/member/v1/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -362,26 +403,62 @@ async function main() {
   const ufRes = await postAction(`/members/${memberId}`, unfreezeForm, {});
   check('membership unfrozen', target(ufRes).includes('msg=unfrozen'), target(ufRes));
 
-  // Cancel the pending renewal
+  // Cancel the pending (pre-sold) renewal through the UI — the cancel page
+  // offers a membership picker when a running row and a pending row coexist.
   const [pendingRow] = await q(
     `SELECT id FROM memberships WHERE member_id = $1 AND state = 'pending'`,
     [memberId],
   );
-  if (pendingRow) {
-    await q(
-      `UPDATE memberships SET state='cancelled', cancelled_at=now(), cancel_reason='n/a' WHERE id=$1`,
-      [pendingRow.id],
-    );
-  }
+  const pickerHtml = await (await get(`/members/${memberId}/cancel`)).text();
+  check(
+    'cancel page offers a picker while running + pending coexist',
+    pickerHtml.includes('name="membershipId"') && pickerHtml.includes('<select'),
+    '',
+  );
+  const pendingCancelForm = extractForm(pickerHtml, 'reason');
+  const pcRes = await postAction(`/members/${memberId}/cancel`, pendingCancelForm, {
+    membershipId: pendingRow.id,
+    reason: 'Pre-sold renewal returned',
+  });
+  check('pending renewal cancelled via UI', target(pcRes).includes('msg=cancelled'), target(pcRes));
+  const [afterPendingCancel] = await q(`SELECT status FROM members WHERE id = $1`, [memberId]);
+  check(
+    'member still active after cancelling only the pending renewal',
+    afterPendingCancel.status === 'active',
+    afterPendingCancel.status,
+  );
   const cancelForm = extractForm(await (await get(`/members/${memberId}/cancel`)).text(), 'reason');
   const cnRes = await postAction(`/members/${memberId}/cancel`, cancelForm, {
     reason: 'Acceptance cancellation',
   });
   check('membership cancelled with reason', target(cnRes).includes('msg=cancelled'), target(cnRes));
+  const [afterFullCancel] = await q(`SELECT status FROM members WHERE id = $1`, [memberId]);
+  check(
+    'member cancelled once nothing is live',
+    afterFullCancel.status === 'cancelled',
+    afterFullCancel.status,
+  );
   const [afterCancel] = await q(`SELECT count(*)::int AS n FROM payments WHERE member_id = $1`, [
     memberId,
   ]);
   check('payment history intact after cancellation', afterCancel.n === 2, String(afterCancel.n));
+
+  // Archive (soft delete): only possible now that nothing is live.
+  const archiveForm = extractForm(
+    await (await getFollow(`/members/${memberId}`)).text(),
+    'archive',
+  );
+  const arRes = await postAction(`/members/${memberId}`, archiveForm, {});
+  check('member archived via UI', target(arRes).includes('msg=archived'), target(arRes));
+  const [archived] = await q(
+    `SELECT status, archived_at IS NOT NULL AS archived FROM members WHERE id = $1`,
+    [memberId],
+  );
+  check(
+    'archive keeps the row (soft delete) with status=archived',
+    archived.archived === true && archived.status === 'archived',
+    JSON.stringify(archived),
+  );
 
   // ---- CSV import (dry run then confirm) ----------------------------------
   console.log('\n[Gym B CSV import]');
@@ -423,11 +500,53 @@ async function main() {
     JSON.stringify(imported),
   );
 
+  // ---- Daily sweep: a pre-sold renewal whose start date arrived activates --
+  const [impMember] = await q(
+    `SELECT m.id, ms.id AS membership_id FROM members m
+     JOIN tenants t ON t.id = m.tenant_id
+     JOIN memberships ms ON ms.member_id = m.id
+     WHERE t.slug = $1 AND m.mobile = '+919222200002'`,
+    [SLUG],
+  );
+  await q(
+    `INSERT INTO memberships (tenant_id, branch_id, member_id, plan_id, plan_version_id,
+       plan_name_snapshot, start_date, base_end_date, end_date, grace_period_days, state,
+       total_amount, discount_amount, sold_by)
+     SELECT tenant_id, branch_id, member_id, plan_id, plan_version_id, plan_name_snapshot,
+            CURRENT_DATE - 1, CURRENT_DATE + 30, CURRENT_DATE + 30, grace_period_days,
+            'pending', total_amount, 0, sold_by
+     FROM memberships WHERE id = $1`,
+    [impMember.membership_id],
+  );
+  execFileSync('npx', ['tsx', 'scripts/sweep-memberships.ts'], {
+    cwd: 'packages/database',
+    env: { ...process.env, DATABASE_URL: DB },
+    stdio: 'pipe',
+  });
+  const [swept] = await q(
+    `SELECT ms.state, m.status FROM memberships ms JOIN members m ON m.id = ms.member_id
+     WHERE ms.member_id = $1 AND ms.start_date = CURRENT_DATE - 1`,
+    [impMember.id],
+  );
+  check(
+    'sweep activates due pre-sold membership + member status',
+    swept.state === 'active' && swept.status === 'active',
+    JSON.stringify(swept),
+  );
+
   // ---- 16. Reports --------------------------------------------------------
   const reportsRes = await get('/reports');
   check('reports page renders for Gym B', reportsRes.status === 200, String(reportsRes.status));
   const exportCsvText = await (await get('/api/export/members')).text();
-  check('Gym B export contains its member', exportCsvText.includes('+91' + mobile));
+  check(
+    'Gym B export contains its (non-archived) members',
+    exportCsvText.includes('+919222200001'),
+  );
+  check(
+    'archived member excluded from export',
+    !exportCsvText.includes('+91' + mobile),
+    'archived member should not be exported',
+  );
   check('Gym B export has no demo-gym members', !exportCsvText.includes('+919876543210'));
 
   // ---- ISOLATION: Gym A vs Gym B ------------------------------------------

@@ -10,7 +10,10 @@ describe('member QR pass tokens', () => {
     expect(verifyMemberPassToken(SECRET, t)).toEqual({ valid: true, memberId: MEMBER });
   });
   it('accepts previous window (just rotated)', () => {
-    const now = Date.now();
+    // Fixed instant 40s into its 60s window: now-61s is always exactly one
+    // window back. (With Date.now(), a run in the first second of a window
+    // would land two windows back and flake.)
+    const now = 1_750_000_000_000;
     const t = generateMemberPassToken(SECRET, MEMBER, now - 61_000);
     expect(verifyMemberPassToken(SECRET, t, now).valid).toBe(true);
   });

@@ -1,13 +1,6 @@
 import { redirect } from 'next/navigation';
-import { z } from 'zod';
 import { requirePermission } from '@/lib/session';
-import {
-  createStaff,
-  listAssignableRoles,
-  listStaff,
-  resetStaffPassword,
-  setStaffActive,
-} from '@/lib/services/staff';
+import { listAssignableRoles, listStaff, setStaffActive } from '@/lib/services/staff';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
 import {
@@ -17,38 +10,11 @@ import {
   ErrorBanner,
   Field,
   PageHeader,
-  SuccessBanner,
   Table,
   inputCls,
 } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
-
-const createSchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(254),
-  displayName: z.string().trim().min(1).max(200),
-  roleId: z.string().uuid(),
-});
-
-async function createStaffAction(formData: FormData): Promise<void> {
-  'use server';
-  const user = await requirePermission('staff.manage');
-  const parsed = createSchema.safeParse({
-    email: formData.get('email'),
-    displayName: formData.get('displayName'),
-    roleId: formData.get('roleId'),
-  });
-  if (!parsed.success) redirect(`/staff?error=${encodeURIComponent('Check the staff details.')}`);
-  try {
-    const result = await createStaff(user, parsed.data);
-    redirect(
-      `/staff?created=${encodeURIComponent(parsed.data.email)}&pw=${encodeURIComponent(result.initialPassword)}`,
-    );
-  } catch (err) {
-    if ((err as { digest?: string }).digest?.startsWith('NEXT_REDIRECT')) throw err;
-    redirect(`/staff?error=${encodeURIComponent(toUserMessage(err))}`);
-  }
-}
 
 async function toggleActiveAction(formData: FormData): Promise<void> {
   'use server';
@@ -61,26 +27,13 @@ async function toggleActiveAction(formData: FormData): Promise<void> {
   redirect('/staff');
 }
 
-async function resetPasswordAction(formData: FormData): Promise<void> {
-  'use server';
-  const user = await requirePermission('staff.manage');
-  const userId = String(formData.get('userId'));
-  try {
-    const pw = await resetStaffPassword(user, userId);
-    redirect(`/staff?reset=${userId}&pw=${encodeURIComponent(pw)}`);
-  } catch (err) {
-    if ((err as { digest?: string }).digest?.startsWith('NEXT_REDIRECT')) throw err;
-    redirect(`/staff?error=${encodeURIComponent(toUserMessage(err))}`);
-  }
-}
-
 export default async function StaffPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; created?: string; reset?: string; pw?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const user = await requirePermission('staff.manage');
-  const { error, created, pw } = await searchParams;
+  const { error } = await searchParams;
   const tr = await t();
   const [staff, roles] = await Promise.all([listStaff(user), listAssignableRoles(user)]);
 
@@ -91,11 +44,6 @@ export default async function StaffPage({
         subtitle="Accounts, roles and access. Deactivation cuts access instantly."
       />
       <ErrorBanner message={error ?? null} />
-      {pw ? (
-        <SuccessBanner
-          message={`${created ? `Account ${created} created.` : 'Password reset.'} One-time password (share it now — it is not shown again): ${pw}`}
-        />
-      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -120,7 +68,8 @@ export default async function StaffPage({
                           {s.is_active ? 'Deactivate' : 'Reactivate'}
                         </button>
                       </form>
-                      <form action={resetPasswordAction}>
+                      <form action="/credentials" method="post">
+                        <input type="hidden" name="kind" value="staff_reset" />
                         <input type="hidden" name="userId" value={s.id} />
                         <button className="text-xs font-semibold text-slate-500 hover:text-slate-700">
                           Reset password
@@ -138,7 +87,8 @@ export default async function StaffPage({
 
         <Card>
           <h2 className="mb-3 text-sm font-semibold text-slate-700">New staff account</h2>
-          <form action={createStaffAction} className="space-y-3">
+          <form action="/credentials" method="post" className="space-y-3">
+            <input type="hidden" name="kind" value="staff_create" />
             <Field label={tr.members.name} required>
               <input name="displayName" required className={inputCls} />
             </Field>

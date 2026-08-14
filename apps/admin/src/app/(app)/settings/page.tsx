@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { hasPermission } from '@gymflow/core';
 import { requirePermission } from '@/lib/session';
-import { getSettings, updateSettings } from '@/lib/services/settings';
+import { getBrand, getSettings, updateBrand, updateSettings } from '@/lib/services/settings';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
 import {
@@ -36,6 +36,29 @@ async function saveSettingsAction(formData: FormData): Promise<void> {
   redirect('/settings?msg=saved');
 }
 
+async function saveBrandAction(formData: FormData): Promise<void> {
+  'use server';
+  const user = await requirePermission('settings.manage');
+  const str = (n: string) => String(formData.get(n) ?? '').trim() || undefined;
+  const color = str('primaryColor');
+  if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+    redirect(`/settings?error=${encodeURIComponent('Brand color must look like #16a34a')}`);
+  }
+  try {
+    await updateBrand(user, {
+      name: str('brandName'),
+      primary_color: color,
+      support_phone: str('supportPhone'),
+      support_whatsapp: str('supportWhatsapp'),
+      terms_url: str('termsUrl'),
+      privacy_url: str('privacyUrl'),
+    });
+  } catch (err) {
+    redirect(`/settings?error=${encodeURIComponent(toUserMessage(err))}`);
+  }
+  redirect('/settings?msg=saved');
+}
+
 export default async function SettingsPage({
   searchParams,
 }: {
@@ -44,7 +67,7 @@ export default async function SettingsPage({
   const user = await requirePermission('settings.view');
   const { error, msg } = await searchParams;
   const tr = await t();
-  const settings = await getSettings(user);
+  const [settings, brand] = await Promise.all([getSettings(user), getBrand(user)]);
   const canManage =
     hasPermission(user.permissions, 'settings.manage') || user.kind === 'platform_admin';
   if (!settings) {
@@ -139,6 +162,61 @@ export default async function SettingsPage({
           </fieldset>
         </form>
       </Card>
+
+      {brand ? (
+        <Card className="mt-6 max-w-2xl">
+          <h2 className="mb-3 text-sm font-semibold text-slate-700">Brand & member app identity</h2>
+          <form action={saveBrandAction} className="space-y-4">
+            <fieldset disabled={!canManage} className="grid gap-4 sm:grid-cols-2">
+              <Field label="Brand name" hint="Shown in the member app">
+                <input name="brandName" defaultValue={brand.name} className={inputCls} />
+              </Field>
+              <Field label="Primary color" hint="#16a34a">
+                <input
+                  name="primaryColor"
+                  defaultValue={brand.primary_color ?? ''}
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Support phone">
+                <input
+                  name="supportPhone"
+                  defaultValue={brand.support_phone ?? ''}
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Support WhatsApp">
+                <input
+                  name="supportWhatsapp"
+                  defaultValue={brand.support_whatsapp ?? ''}
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Terms URL">
+                <input
+                  name="termsUrl"
+                  type="url"
+                  defaultValue={brand.terms_url ?? ''}
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Privacy URL">
+                <input
+                  name="privacyUrl"
+                  type="url"
+                  defaultValue={brand.privacy_url ?? ''}
+                  className={inputCls}
+                />
+              </Field>
+              {canManage ? (
+                <div className="sm:col-span-2">
+                  <Button>{tr.common.save}</Button>
+                </div>
+              ) : null}
+            </fieldset>
+          </form>
+        </Card>
+      ) : null}
     </>
   );
 }

@@ -70,14 +70,17 @@ of operation → reliability → maintainability → performance → polish.
     instead of expo-router: five screens, zero extra native deps, smaller
     binary, fewer version constraints. Revisit when screen count grows.
 
-14. **Platform-admin operations (create tenant, suspend, flags) are a SQL
-    runbook** in the MVP (see GYM_OWNER_GUIDE.md appendix) — the role,
-    policies and data model are done; the UI is Phase 2. No impersonation
+14. **Platform-admin operations are a CLI, not a web console.** A new gym
+    is provisioned in one command with zero source changes
+    (`pnpm --filter @gymflow/database create-tenant -- …`, see
+    GYM_OWNER_GUIDE.md appendix) — proven by the automated acceptance test.
+    A browser console for platform operators is Phase 2. No impersonation
     feature, per the brief.
 
-15. **CSV import (notebook migration)** ships as a validated template +
-    documented dry-run flow using the seed tooling rather than an upload
-    UI in this cut — see KNOWN_LIMITATIONS.md.
+15. **CSV import (notebook migration)** ships in the admin app: paste or
+    upload → server-side validation → dry-run preview with per-row errors →
+    confirm only at zero errors (digest-checked, PII never in URLs). Rows
+    target the first active branch; see KNOWN_LIMITATIONS.md item 10.
 
 16. **Working name "GymFlow"** lives only in `packages/config` and tenant
     branding tables; renaming is a one-file change plus store metadata.

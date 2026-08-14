@@ -1,6 +1,13 @@
 import { redirect } from 'next/navigation';
 import { requirePermission } from '@/lib/session';
-import { executeImport, previewImport, type ImportPreview } from '@/lib/services/import';
+import {
+  deleteStashedCsv,
+  executeImport,
+  loadStashedCsv,
+  previewImport,
+  stashCsv,
+  type ImportPreview,
+} from '@/lib/services/import';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
 import {
@@ -18,29 +25,37 @@ export const dynamic = 'force-dynamic';
 
 /**
  * CSV import: paste/upload → server-side validation → dry-run preview with
- * per-row errors → confirm (blocked while any row has errors). The CSV
- * travels with the confirm post and is digest-checked so what you previewed
- * is exactly what imports.
+ * per-row errors → confirm (blocked while any row has errors). The CSV is
+ * parked server-side (never in a URL — it is member PII) and digest-checked
+ * so what you previewed is exactly what imports.
  */
 
 async function previewAction(formData: FormData): Promise<void> {
   'use server';
-  await requirePermission('import.run');
+  const user = await requirePermission('import.run');
   const file = formData.get('file');
   let csv = String(formData.get('csv') ?? '');
   if (file instanceof File && file.size > 0) csv = await file.text();
   if (!csv.trim())
     redirect(`/members/import?error=${encodeURIComponent('Paste CSV rows or choose a file.')}`);
-  redirect(`/members/import?csv=${encodeURIComponent(csv)}`);
+  const stashId = await stashCsv(user, csv);
+  redirect(`/members/import?stash=${stashId}`);
 }
 
 async function confirmAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('import.run');
-  const csv = String(formData.get('csv') ?? '');
+  const stashId = String(formData.get('stash') ?? '');
   const digest = String(formData.get('digest') ?? '');
+  const csv = await loadStashedCsv(user, stashId);
+  if (csv == null) {
+    redirect(
+      `/members/import?error=${encodeURIComponent('The preview has expired. Upload the file again.')}`,
+    );
+  }
   try {
     const result = await executeImport(user, csv, digest);
+    await deleteStashedCsv(user, stashId);
     redirect(`/members/import?done=${result.imported}&receipts=${result.receipts}`);
   } catch (err) {
     if ((err as { digest?: string }).digest?.startsWith('NEXT_REDIRECT')) throw err;
@@ -51,19 +66,24 @@ async function confirmAction(formData: FormData): Promise<void> {
 export default async function ImportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; csv?: string; done?: string; receipts?: string }>;
+  searchParams: Promise<{ error?: string; stash?: string; done?: string; receipts?: string }>;
 }) {
   const user = await requirePermission('import.run');
-  const { error, csv, done, receipts } = await searchParams;
+  const { error, stash, done, receipts } = await searchParams;
   const tr = await t();
 
   let preview: ImportPreview | null = null;
   let previewError: string | null = null;
-  if (csv) {
-    try {
-      preview = await previewImport(user, csv);
-    } catch (err) {
-      previewError = toUserMessage(err);
+  if (stash) {
+    const csv = await loadStashedCsv(user, stash);
+    if (csv == null) {
+      previewError = 'The preview has expired. Upload the file again.';
+    } else {
+      try {
+        preview = await previewImport(user, csv);
+      } catch (err) {
+        previewError = toUserMessage(err);
+      }
     }
   }
 
@@ -117,7 +137,7 @@ export default async function ImportPage({
             </Badge>
             {preview.errorCount === 0 ? (
               <form action={confirmAction}>
-                <input type="hidden" name="csv" value={csv} />
+                <input type="hidden" name="stash" value={stash} />
                 <input type="hidden" name="digest" value={preview.digest} />
                 <Button>Confirm import ({preview.validCount} members)</Button>
               </form>

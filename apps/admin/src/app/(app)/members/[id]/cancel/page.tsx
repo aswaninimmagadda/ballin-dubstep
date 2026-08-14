@@ -39,6 +39,11 @@ export default async function CancelPage({
   const { error } = await searchParams;
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail?.currentMembership) notFound();
+  // A member can hold a running membership AND a pre-sold pending renewal;
+  // both must be individually cancellable.
+  const cancellable = detail.memberships.filter((m) =>
+    ['active', 'frozen', 'pending'].includes(String(m.state)),
+  );
 
   return (
     <>
@@ -54,7 +59,20 @@ export default async function CancelPage({
         </p>
         <form action={cancelAction} className="space-y-4">
           <input type="hidden" name="memberId" value={id} />
-          <input type="hidden" name="membershipId" value={String(detail.currentMembership.id)} />
+          {cancellable.length > 1 ? (
+            <Field label="Which membership" required>
+              <select name="membershipId" className={inputCls} required>
+                {cancellable.map((m) => (
+                  <option key={String(m.id)} value={String(m.id)}>
+                    {String(m.plan_name_snapshot)} · {String(m.start_date)} → {String(m.end_date)} ·{' '}
+                    {String(m.state)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <input type="hidden" name="membershipId" value={String(detail.currentMembership.id)} />
+          )}
           <Field label="Reason" required>
             <input
               name="reason"

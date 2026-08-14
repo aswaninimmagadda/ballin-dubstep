@@ -50,10 +50,29 @@ Checklist per environment:
 - [ ] `pnpm db:migrate` run against the environment's DB from CI/operator
 - [ ] Seed only on staging/demo — **never** the production seed
 - [ ] Smoke: login, dashboard, member API login (see scripts/e2e-admin.mjs)
+- [ ] Daily sweep scheduled (below)
+
+### Scheduled jobs
+
+Two cron entries on the operator box (or any scheduler that can reach the
+DB with the **owner** URL — these are maintenance jobs, not app traffic):
+
+```cron
+# 01:00 IST daily — true up stored membership/member states
+# (pending→active on start date, active→expired after grace; see
+# KNOWN_LIMITATIONS.md #18 — reads stay correct even if a run is missed)
+0 1 * * * cd /srv/gymflow && DATABASE_URL=$OWNER_DB_URL pnpm --filter @gymflow/database sweep
+
+# 02:00 IST daily — off-provider backup (see DISASTER_RECOVERY.md)
+0 2 * * * /srv/gymflow/ops/backup.sh
+```
 
 ## Member app distribution
 
 See `GOOGLE_PLAY_RELEASE.md` and `APPLE_APP_STORE_RELEASE.md` for stores.
+To be explicit: there is **no member web/PWA build** in this cut — the
+member experience is the Expo (React Native) Android app; iOS is prepared
+but deferred (see the App Store doc). Only the _staff_ admin app is a PWA.
 
 ### Zero-store-cost pilot options
 

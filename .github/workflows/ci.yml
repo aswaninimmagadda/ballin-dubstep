@@ -74,6 +74,23 @@ jobs:
           SESSION_SECRET: ci-build-secret-0123456789abcdef0123456789abcdef
           MEMBER_TOKEN_SECRET: ci-build-secret-0123456789abcdef0123456789abcdef
 
+      - name: End-to-end suites (HTTP, against the production build)
+        run: |
+          pnpm --filter @gymflow/database reset
+          pnpm --filter @gymflow/database seed
+          (pnpm --filter @gymflow/admin start &)
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:3000/login && break
+            sleep 1
+          done
+          node scripts/e2e-admin.mjs
+          node scripts/e2e-acceptance.mjs
+        env:
+          DATABASE_URL: postgres://gymflow:gymflow_dev_pw@localhost:5432/gymflow_test
+          DATABASE_APP_URL: postgres://gymflow_app:gymflow_app_dev_pw@localhost:5432/gymflow_test
+          SESSION_SECRET: ci-build-secret-0123456789abcdef0123456789abcdef
+          MEMBER_TOKEN_SECRET: ci-build-secret-0123456789abcdef0123456789abcdef
+
       - name: Bundle member app (Metro export)
         run: npx expo export --platform android --output-dir /tmp/expo-export
         working-directory: apps/member

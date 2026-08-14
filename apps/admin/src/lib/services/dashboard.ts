@@ -4,6 +4,9 @@ import { asPrincipal } from '../db';
 import type { SessionUser } from '../session';
 
 export interface DashboardData {
+  gymName: string;
+  waTemplateEn: string;
+  waTemplateTe: string;
   activeMembers: number;
   expiring7Days: number;
   expiredRecent: number;
@@ -52,7 +55,8 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
         (SELECT coalesce(sum(amount),0) FROM payments WHERE payment_date = $1 AND status <> 'failed')::bigint AS today_collections,
         (SELECT coalesce(sum(amount),0) FROM payments WHERE payment_date >= $5 AND status <> 'failed')::bigint AS month_collections,
         (SELECT count(*) FROM members WHERE join_date >= $5 AND status NOT IN ('lead','archived'))::int AS new_members_month,
-        (SELECT count(*) FROM attendance WHERE checked_in_at::date = $1::date)::int AS today_attendance,
+        (SELECT count(*) FROM attendance a JOIN tenants t ON t.id = a.tenant_id
+          WHERE (a.checked_in_at AT TIME ZONE t.default_timezone)::date = $1::date)::int AS today_attendance,
         (SELECT count(*) FROM leads WHERE status NOT IN ('won','lost') AND (follow_up_date IS NULL OR follow_up_date <= $1))::int AS leads_follow_up
       `,
       [today, in7, back7, addDays(today, -1), monthStart],
@@ -80,7 +84,24 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
        ORDER BY p.created_at DESC LIMIT 10`,
     );
 
+    const meta = await tx.query(
+      `SELECT t.name AS gym_name, gs.whatsapp_renewal_template_en, gs.whatsapp_renewal_template_te
+       FROM tenants t LEFT JOIN gym_settings gs ON gs.tenant_id = t.id
+       WHERE t.id = $1`,
+      [user.tenantId],
+    );
+    const metaRow = meta.rows[0] as
+      | {
+          gym_name: string;
+          whatsapp_renewal_template_en: string;
+          whatsapp_renewal_template_te: string;
+        }
+      | undefined;
+
     return {
+      gymName: metaRow?.gym_name ?? '',
+      waTemplateEn: metaRow?.whatsapp_renewal_template_en ?? '',
+      waTemplateTe: metaRow?.whatsapp_renewal_template_te ?? '',
       activeMembers: Number(c.active_members),
       expiring7Days: Number(c.expiring_7),
       expiredRecent: Number(c.expired_recent),

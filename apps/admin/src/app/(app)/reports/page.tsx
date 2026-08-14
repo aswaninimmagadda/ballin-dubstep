@@ -2,6 +2,7 @@ import { addDays, formatDisplayDate, formatMoney, todayInTz } from '@gymflow/uti
 import { hasPermission } from '@gymflow/core';
 import { requirePermission } from '@/lib/session';
 import { collectionsReport, planMixReport } from '@/lib/services/reports';
+import { asPrincipal } from '@/lib/db';
 import { t } from '@/lib/i18n';
 import { Button, Card, PageHeader, Table, inputCls } from '@/components/ui';
 
@@ -10,15 +11,19 @@ export const dynamic = 'force-dynamic';
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; branch?: string; method?: string }>;
 }) {
   const user = await requirePermission('reports.view');
   const today = todayInTz();
-  const { from = addDays(today, -30), to = today } = await searchParams;
+  const { from = addDays(today, -30), to = today, branch, method } = await searchParams;
   const tr = await t();
-  const [collections, planMix] = await Promise.all([
-    collectionsReport(user, { from, to }),
+  const [collections, planMix, branches] = await Promise.all([
+    collectionsReport(user, { from, to, branchId: branch, method }),
     planMixReport(user),
+    asPrincipal(user.claims, async (tx) => {
+      const r = await tx.query(`SELECT id, name FROM branches WHERE is_active ORDER BY name`);
+      return r.rows as { id: string; name: string }[];
+    }),
   ]);
   const canExport =
     hasPermission(user.permissions, 'reports.export') || user.kind === 'platform_admin';
@@ -55,6 +60,28 @@ export default async function ReportsPage({
         <label className="text-sm">
           <span className="mb-1 block text-slate-600">To</span>
           <input type="date" name="to" defaultValue={to} className={inputCls} />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-slate-600">Branch</span>
+          <select name="branch" defaultValue={branch ?? ''} className={inputCls}>
+            <option value="">All</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-slate-600">{tr.payments.method}</span>
+          <select name="method" defaultValue={method ?? ''} className={inputCls}>
+            <option value="">All</option>
+            {Object.entries(tr.payments.methods).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
         </label>
         <Button variant="secondary">Apply</Button>
       </form>

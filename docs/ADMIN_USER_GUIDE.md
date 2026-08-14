@@ -95,9 +95,18 @@ the members, their memberships and payment receipts in one go.
 
 ## Cancelling a membership (manager/owner)
 
-Member page → **Cancel membership…** with a reason. Records are kept —
-payments and receipts never disappear; refunds (if promised) are recorded
-separately by the accountant.
+Member page → **Cancel membership…** with a reason. If the member also has
+a pre-sold renewal waiting, the page asks **which one** to cancel — you can
+return just the future renewal and leave the current membership running.
+Records are kept — payments and receipts never disappear; refunds (if
+promised) are recorded separately by the accountant.
+
+## Archiving a member
+
+Once a member has nothing live (cancelled/expired), the member page offers
+**Archive member…**. Archiving is a tidy-up, not a delete: all history
+stays, their app login stops working, and their mobile number becomes free
+for a new member. Use it for members who have left for good.
 
 ## What the buttons you don't see mean
 

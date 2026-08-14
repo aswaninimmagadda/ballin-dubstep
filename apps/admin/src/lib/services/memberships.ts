@@ -132,6 +132,34 @@ async function resolvePromotion(
   };
 }
 
+/**
+ * Manual discounts above the tenant's approval threshold require the
+ * discounts.approve permission. Promotion discounts are exempt — a
+ * promotion's value was already authorized when it was configured.
+ */
+async function assertManualDiscountAuthorized(
+  tx: Queryable,
+  user: SessionUser,
+  manualDiscount: number | undefined,
+  subtotal: number,
+): Promise<void> {
+  if (!manualDiscount || manualDiscount <= 0 || subtotal <= 0) return;
+  const sR = await tx.query(
+    `SELECT discount_approval_threshold_bps FROM gym_settings WHERE tenant_id = $1`,
+    [user.tenantId],
+  );
+  const threshold = Number(
+    (sR.rows[0] as { discount_approval_threshold_bps: number } | undefined)
+      ?.discount_approval_threshold_bps ?? 0,
+  );
+  const bps = Math.floor((Math.min(manualDiscount, subtotal) * 10000) / subtotal);
+  if (bps > threshold && !user.permissions.has('discounts.approve')) {
+    throw new UserFacingError(
+      'This discount is above the approval limit. A manager must apply it.',
+    );
+  }
+}
+
 async function recordPaymentWithReceipt(
   tx: Queryable,
   user: SessionUser,
@@ -250,6 +278,7 @@ export async function sellMembership(
         : null,
       manualDiscount: input.manualDiscount,
     });
+    await assertManualDiscountAuthorized(tx, user, input.manualDiscount, quote.subtotal);
 
     const endDate = computeEndDate({
       startDate: input.startDate,
@@ -301,10 +330,17 @@ export async function sellMembership(
         [user.tenantId, promo.id, m.id, membershipId, quote.discount],
       );
     }
-    await tx.query(`UPDATE members SET status = $2 WHERE id = $1`, [
-      m.id,
-      state === 'pending' ? 'pending_activation' : 'active',
-    ]);
+    if (state === 'active') {
+      await tx.query(`UPDATE members SET status = 'active' WHERE id = $1`, [m.id]);
+    } else {
+      // Future-dated sale: don't downgrade a member whose current membership
+      // is still running (early add-on sale alongside an active one).
+      await tx.query(
+        `UPDATE members SET status = 'pending_activation'
+         WHERE id = $1 AND status NOT IN ('active','frozen')`,
+        [m.id],
+      );
+    }
 
     let receiptNumber: string | null = null;
     if (input.payment) {
@@ -414,6 +450,7 @@ export async function renewMembership(
         : null,
       manualDiscount: input.manualDiscount,
     });
+    await assertManualDiscountAuthorized(tx, user, input.manualDiscount, quote.subtotal);
 
     const state = proposal.startDate > today ? 'pending' : 'active';
     const msR = await tx.query(
@@ -469,6 +506,17 @@ export async function renewMembership(
       if (input.payment.amount > quote.total) {
         throw new UserFacingError('Payment is more than the amount due.');
       }
+      if (input.payment.amount < quote.total) {
+        const sR = await tx.query(
+          `SELECT allow_partial_payments FROM gym_settings WHERE tenant_id = $1`,
+          [user.tenantId],
+        );
+        const allowPartial = (sR.rows[0] as { allow_partial_payments: boolean } | undefined)
+          ?.allow_partial_payments;
+        if (!allowPartial) {
+          throw new UserFacingError('Partial payments are not enabled for this gym.');
+        }
+      }
       const rec = await recordPaymentWithReceipt(tx, user, {
         branchId: prev.branch_id,
         memberId: prev.member_id,
@@ -503,6 +551,7 @@ export async function cancelMembership(
   user: SessionUser,
   input: { membershipId: string; reason: string },
 ): Promise<void> {
+  const today = todayInTz();
   return asPrincipal(user.claims, async (tx) => {
     const msR = await tx.query(`SELECT id, member_id, state FROM memberships WHERE id = $1`, [
       input.membershipId,
@@ -517,16 +566,32 @@ export async function cancelMembership(
        WHERE id = $1`,
       [ms.id, input.reason],
     );
-    // Close any open freeze so history stays consistent.
+    // Close any open freeze so history stays consistent (tenant calendar day,
+    // not the server's UTC day).
     await tx.query(
-      `UPDATE membership_freezes SET actual_end_date = CURRENT_DATE,
-              days = GREATEST((CURRENT_DATE - start_date)::int, 1)
+      `UPDATE membership_freezes SET actual_end_date = GREATEST($2::date, start_date),
+              days = GREATEST(($2::date - start_date)::int, 1)
        WHERE membership_id = $1 AND actual_end_date IS NULL`,
-      [ms.id],
+      [ms.id, today],
     );
+    // The member is only 'cancelled' when nothing else is live — cancelling a
+    // running membership must not orphan a paid pending renewal (or vice versa).
+    const liveR = await tx.query(
+      `SELECT state FROM memberships
+       WHERE member_id = $1 AND id <> $2 AND state IN ('active','frozen','pending')`,
+      [ms.member_id, ms.id],
+    );
+    const liveStates = new Set(liveR.rows.map((r) => (r as { state: string }).state));
+    const newStatus = liveStates.has('active')
+      ? 'active'
+      : liveStates.has('frozen')
+        ? 'frozen'
+        : liveStates.has('pending')
+          ? 'pending_activation'
+          : 'cancelled';
     await tx.query(
-      `UPDATE members SET status = 'cancelled' WHERE id = $1 AND status IN ('active','frozen','pending_activation')`,
-      [ms.member_id],
+      `UPDATE members SET status = $2 WHERE id = $1 AND status IN ('active','frozen','pending_activation')`,
+      [ms.member_id, newStatus],
     );
     await tx.query(
       `INSERT INTO membership_events (tenant_id, membership_id, type, data, actor_id)
@@ -561,6 +626,46 @@ export async function freezeMembership(
     if (!ms) throw new UserFacingError('Membership not found.');
     if (ms.state !== 'active')
       throw new UserFacingError('Only an active membership can be frozen.');
+
+    // Enforce the tenant's freeze rules over the trailing 12 months.
+    const limitsR = await tx.query(
+      `SELECT gs.max_freezes_per_year, gs.max_freeze_days_per_year,
+              count(f.id)::int AS used_freezes,
+              coalesce(sum(coalesce(f.days,
+                GREATEST((coalesce(f.actual_end_date, f.planned_end_date, f.start_date) - f.start_date), 1)
+              )), 0)::int AS used_days
+       FROM gym_settings gs
+       LEFT JOIN membership_freezes f
+         ON f.tenant_id = gs.tenant_id
+        AND f.start_date > CURRENT_DATE - 365
+        AND f.membership_id IN (SELECT id FROM memberships WHERE member_id = $2)
+       WHERE gs.tenant_id = $1
+       GROUP BY gs.max_freezes_per_year, gs.max_freeze_days_per_year`,
+      [user.tenantId, ms.member_id],
+    );
+    const limits = limitsR.rows[0] as
+      | {
+          max_freezes_per_year: number;
+          max_freeze_days_per_year: number;
+          used_freezes: number;
+          used_days: number;
+        }
+      | undefined;
+    if (limits) {
+      if (limits.used_freezes >= limits.max_freezes_per_year) {
+        throw new UserFacingError(
+          `This member already used ${limits.used_freezes} of ${limits.max_freezes_per_year} freezes this year (Settings → freeze rules).`,
+        );
+      }
+      const plannedDays = input.plannedEndDate
+        ? freezeExtensionDays(input.startDate, input.plannedEndDate)
+        : 0;
+      if (limits.used_days + plannedDays > limits.max_freeze_days_per_year) {
+        throw new UserFacingError(
+          `This freeze would exceed the yearly limit of ${limits.max_freeze_days_per_year} frozen days (${limits.used_days} already used).`,
+        );
+      }
+    }
 
     await tx.query(
       `INSERT INTO membership_freezes

@@ -3,22 +3,32 @@ import { formatDisplayDate, formatMoney } from '@gymflow/utils';
 import { requirePermission } from '@/lib/session';
 import { asPrincipal } from '@/lib/db';
 import { t } from '@/lib/i18n';
-import { Badge, PageHeader, Table, EmptyState } from '@/components/ui';
+import { Badge, Button, PageHeader, Table, EmptyState, inputCls } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string }>;
 }) {
   const user = await requirePermission('payments.view');
-  const { page = '1' } = await searchParams;
+  const { page = '1', q = '' } = await searchParams;
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const pageSize = 50;
   const tr = await t();
 
   const rows = await asPrincipal(user.claims, async (tx) => {
+    const params: unknown[] = [];
+    let where = '';
+    if (q.trim()) {
+      params.push(`%${q.trim()}%`);
+      // §31: lookup by receipt number, transaction reference or member.
+      where = `WHERE r.receipt_number ILIKE $1 OR p.external_reference ILIKE $1
+               OR m.first_name || ' ' || coalesce(m.last_name,'') ILIKE $1
+               OR m.membership_number ILIKE $1`;
+    }
+    params.push(pageSize, (pageNum - 1) * pageSize);
     const r = await tx.query(
       `SELECT p.id, p.amount::bigint::text AS amount, p.method, p.status,
               p.payment_date::text AS payment_date, p.external_reference,
@@ -27,9 +37,10 @@ export default async function PaymentsPage({
        FROM payments p
        JOIN members m ON m.id = p.member_id
        LEFT JOIN receipts r ON r.payment_id = p.id
+       ${where}
        ORDER BY p.created_at DESC
-       LIMIT $1 OFFSET $2`,
-      [pageSize, (pageNum - 1) * pageSize],
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
     );
     return r.rows as Record<string, string>[];
   });
@@ -37,6 +48,16 @@ export default async function PaymentsPage({
   return (
     <>
       <PageHeader title={tr.payments.title} />
+      <form className="mb-4 flex gap-2" action="/payments" method="get">
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder={`${tr.payments.receiptNumber} / ${tr.payments.reference} / ${tr.members.name}`}
+          className={`${inputCls} max-w-md`}
+        />
+        <Button variant="secondary">{tr.common.search}</Button>
+      </form>
       {rows.length === 0 ? (
         <EmptyState title="No payments recorded yet." />
       ) : (

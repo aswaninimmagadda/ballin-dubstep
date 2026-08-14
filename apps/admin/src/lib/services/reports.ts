@@ -10,25 +10,35 @@ export interface CollectionsSummary {
 
 export async function collectionsReport(
   user: SessionUser,
-  opts: { from: string; to: string },
+  opts: { from: string; to: string; branchId?: string; method?: string },
 ): Promise<CollectionsSummary> {
   return asPrincipal(user.claims, async (tx) => {
+    const params: unknown[] = [opts.from, opts.to];
+    let where = `payment_date BETWEEN $1 AND $2 AND status <> 'failed'`;
+    if (opts.branchId) {
+      params.push(opts.branchId);
+      where += ` AND branch_id = $${params.length}`;
+    }
+    if (opts.method) {
+      params.push(opts.method);
+      where += ` AND method = $${params.length}`;
+    }
     const byMethod = await tx.query(
       `SELECT method, sum(amount)::bigint::text AS total, count(*)::int AS count
-       FROM payments WHERE payment_date BETWEEN $1 AND $2 AND status <> 'failed'
+       FROM payments WHERE ${where}
        GROUP BY method ORDER BY sum(amount) DESC`,
-      [opts.from, opts.to],
+      params,
     );
     const byDay = await tx.query(
       `SELECT payment_date::text AS day, sum(amount)::bigint::text AS total
-       FROM payments WHERE payment_date BETWEEN $1 AND $2 AND status <> 'failed'
+       FROM payments WHERE ${where}
        GROUP BY payment_date ORDER BY payment_date`,
-      [opts.from, opts.to],
+      params,
     );
     const total = await tx.query(
       `SELECT coalesce(sum(amount),0)::bigint::text AS total
-       FROM payments WHERE payment_date BETWEEN $1 AND $2 AND status <> 'failed'`,
-      [opts.from, opts.to],
+       FROM payments WHERE ${where}`,
+      params,
     );
     return {
       byMethod: byMethod.rows as never,
@@ -88,7 +98,9 @@ export async function exportCsv(
     if (rows.length === 0) return '';
     const headers = Object.keys(rows[0]!);
     const escape = (v: unknown) => {
-      const s = v == null ? '' : String(v);
+      let s = v == null ? '' : String(v);
+      // Spreadsheet formula-injection guard: neutralize leading =,+,-,@
+      if (/^[=+\-@]/.test(s)) s = `'${s}`;
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     return [
