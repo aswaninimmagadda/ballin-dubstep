@@ -39,6 +39,12 @@ create-tenant -- --slug … --name … --owner-email …`) with zero source
    denominators) are Phase 2 with definitions to be documented alongside.
 8. **Bulk operations** are limited to CSV import/export + per-member
    WhatsApp; no bulk messaging/tagging UI yet.
+8a. **Promotion usage limits are engine-enforced but not form-settable.**
+   The eligibility engine honours total and per-member redemption limits,
+   and the schema stores them, but the promotions form doesn't expose the
+   two fields yet — promotions created in the UI are unlimited until a
+   limit is set directly in the database (or the form gains the fields,
+   a small Phase-2 item).
 9. **Branch scoping is enforced but not surfaced** — staff_branch_access
    works at the policy level; the admin UI doesn't yet manage it.
 10. **CSV import targets the first active branch** and creates one

@@ -33,6 +33,7 @@ export const te: TranslationTree = {
     leads: 'ఎంక్వైరీలు',
     promotions: 'ఆఫర్లు',
     trainers: 'ట్రైనర్లు',
+    staff: 'సిబ్బంది',
     reports: 'నివేదికలు',
     settings: 'సెట్టింగ్‌లు',
     audit: 'కార్యకలాపాల లాగ్',

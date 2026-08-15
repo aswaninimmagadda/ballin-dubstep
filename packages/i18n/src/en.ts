@@ -34,6 +34,7 @@ export const en = {
     leads: 'Leads',
     promotions: 'Promotions',
     trainers: 'Trainers',
+    staff: 'Staff',
     reports: 'Reports',
     settings: 'Settings',
     audit: 'Activity log',
