@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
-    "test:unit": "pnpm --filter @gymflow/core --filter @gymflow/utils --filter @gymflow/validation test",
+    "test:unit": "pnpm --filter @gymflow/core --filter @gymflow/utils --filter @gymflow/validation --filter @gymflow/i18n test",
     "test:integration": "pnpm --filter @gymflow/database test",
     "build": "pnpm -r --if-present build",
     "db:migrate": "pnpm --filter @gymflow/database migrate",
