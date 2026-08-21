@@ -466,6 +466,51 @@ async function main() {
     `${recepAudit.status} ${redirectTarget(recepAudit)}`,
   );
 
+  // ---- refunds must come back off the money that was collected ------------
+  // A mis-keyed amount can only be corrected by refunding, so a refund that
+  // never reduces reported collections would leave the drawer unreconcilable.
+  console.log('\n[refunds net out of collections]');
+  check('owner login for refund', await loginAs('owner@demo.gymflow.local'));
+  const [payRow] = await q(
+    `SELECT p.id, p.amount::bigint AS amount FROM payments p
+     WHERE p.member_id = $1 ORDER BY p.created_at DESC LIMIT 1`,
+    [memberId],
+  );
+  const receiptHtml = await (await getFollow(`/receipts/${payRow.id}`)).text();
+  const refundForm = extractForm(receiptHtml, 'paymentId');
+  const refundRes = await postAction(`/receipts/${payRow.id}`, refundForm, {
+    amount: '500',
+    reason: 'E2E over-charge correction',
+  });
+  check(
+    'refund recorded',
+    !redirectTarget(refundRes).includes('error='),
+    redirectTarget(refundRes),
+  );
+
+  const payCsv = await (await get('/api/export/payments')).text();
+  const csvRow = payCsv.split('\n').find((l) => l.includes(String(payRow.amount)));
+  check(
+    'payments export shows the refund and the net',
+    Boolean(csvRow) &&
+      csvRow.split(',').includes('50000') &&
+      csvRow.split(',').includes(String(Number(payRow.amount) - 50000)),
+    csvRow ?? 'payment row missing from export',
+  );
+
+  const reportsHtml = await (await getFollow('/reports')).text();
+  check('reports surface the refunded amount', reportsHtml.includes('refunded'), '');
+
+  const [collected] = await q(
+    `SELECT (SELECT coalesce(sum(amount),0) FROM payments WHERE status <> 'failed')::bigint AS gross,
+            (SELECT coalesce(sum(amount),0) FROM refunds)::bigint AS refunded`,
+  );
+  check(
+    'a refund exists to net out',
+    Number(collected.refunded) >= 50000 && Number(collected.gross) > Number(collected.refunded),
+    JSON.stringify(collected),
+  );
+
   // ---- cleanup test member -------------------------------------------------
   await db.query(`DELETE FROM attendance WHERE member_id = $1`, [memberId]);
 

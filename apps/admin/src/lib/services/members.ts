@@ -4,6 +4,7 @@ import { writeAudit } from '../audit';
 import type { SessionUser } from '../session';
 import type { CreateMemberInput } from '@gymflow/validation';
 import { maskPhone, todayInTz } from '@gymflow/utils';
+import { DUE_ON_MEMBERSHIP, LIVE_MEMBERSHIP_STATES, PAID_AGAINST_MEMBERSHIP } from './money-sql';
 
 export interface MemberListRow {
   id: string;
@@ -15,11 +16,12 @@ export interface MemberListRow {
   branch_name: string;
   plan_name: string | null;
   end_date: string | null;
+  due_amount: string | null;
 }
 
 export async function searchMembers(
   user: SessionUser,
-  opts: { q?: string; status?: string; limit?: number; offset?: number },
+  opts: { q?: string; status?: string; duesOnly?: boolean; limit?: number; offset?: number },
 ): Promise<{ rows: MemberListRow[]; total: number }> {
   const q = (opts.q ?? '').trim();
   const limit = Math.min(opts.limit ?? 25, 100);
@@ -38,24 +40,32 @@ export async function searchMembers(
       params.push(opts.status);
       where += ` AND m.status = $${params.length}`;
     }
+    if (opts.duesOnly) {
+      where += ` AND EXISTS (
+        SELECT 1 FROM memberships ms
+        WHERE ms.member_id = m.id AND ms.state IN ${LIVE_MEMBERSHIP_STATES}
+          AND ${DUE_ON_MEMBERSHIP} > 0)`;
+    }
     const total = await tx.query(`SELECT count(*)::int AS n FROM members m ${where}`, params);
     params.push(todayInTz());
     const pToday = `$${params.length}`;
     params.push(limit, offset);
     const rows = await tx.query(
       `SELECT m.id, m.membership_number, m.first_name, m.last_name, m.mobile, m.status,
-              b.name AS branch_name, ms.plan_name_snapshot AS plan_name, ms.end_date::text AS end_date
+              b.name AS branch_name, ms.plan_name_snapshot AS plan_name, ms.end_date::text AS end_date,
+              ms.due_amount
        FROM members m
        JOIN branches b ON b.id = m.branch_id
        LEFT JOIN LATERAL (
-         SELECT plan_name_snapshot, end_date FROM memberships
-         WHERE member_id = m.id AND state IN ('pending','active','frozen')
+         SELECT ms.plan_name_snapshot, ms.end_date, ${DUE_ON_MEMBERSHIP}::bigint::text AS due_amount
+         FROM memberships ms
+         WHERE ms.member_id = m.id AND ms.state IN ('pending','active','frozen')
          ORDER BY CASE
-           WHEN state IN ('active','frozen') AND end_date >= ${pToday}::date THEN 0
-           WHEN state = 'pending' AND start_date <= ${pToday}::date THEN 1
-           WHEN state IN ('active','frozen') THEN 2
+           WHEN ms.state IN ('active','frozen') AND ms.end_date >= ${pToday}::date THEN 0
+           WHEN ms.state = 'pending' AND ms.start_date <= ${pToday}::date THEN 1
+           WHEN ms.state IN ('active','frozen') THEN 2
            ELSE 3
-         END, end_date DESC LIMIT 1
+         END, ms.end_date DESC LIMIT 1
        ) ms ON true
        ${where}
        ORDER BY m.created_at DESC
@@ -175,7 +185,9 @@ export async function getMemberDetail(user: SessionUser, id: string): Promise<Me
     if (!m.rows[0]) return null;
     const memberships = await tx.query(
       `SELECT ms.*, ms.start_date::text AS start_date, ms.end_date::text AS end_date,
-              ms.base_end_date::text AS base_end_date
+              ms.base_end_date::text AS base_end_date,
+              ${PAID_AGAINST_MEMBERSHIP}::bigint::text AS paid_amount,
+              ${DUE_ON_MEMBERSHIP}::bigint::text AS due_amount
        FROM memberships ms WHERE member_id = $1 ORDER BY ms.start_date DESC`,
       [id],
     );

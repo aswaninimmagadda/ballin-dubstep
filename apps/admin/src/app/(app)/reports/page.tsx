@@ -44,6 +44,9 @@ export default async function ReportsPage({
               <Button href="/api/export/memberships" variant="secondary">
                 Memberships CSV
               </Button>
+              <Button href="/api/export/dues" variant="secondary">
+                Dues CSV
+              </Button>
               <Button href="/api/export/attendance" variant="secondary">
                 Attendance CSV
               </Button>
@@ -91,7 +94,18 @@ export default async function ReportsPage({
           <h2 className="mb-1 text-sm font-semibold text-slate-700">
             Collections {formatDisplayDate(from)} – {formatDisplayDate(to)}
           </h2>
-          <p className="mb-4 text-3xl font-bold">{formatMoney(Number(collections.total))}</p>
+          <p className="text-3xl font-bold">{formatMoney(Number(collections.total))}</p>
+          {Number(collections.refunds) > 0 ? (
+            <p className="mb-4 mt-1 text-sm text-slate-500">
+              net · {formatMoney(Number(collections.gross))} received less{' '}
+              <span className="font-medium text-amber-700">
+                {formatMoney(Number(collections.refunds))}
+              </span>{' '}
+              refunded
+            </p>
+          ) : (
+            <p className="mb-4 mt-1 text-sm text-slate-400">no refunds in this period</p>
+          )}
           <Table headers={[tr.payments.method, 'Count', tr.payments.amount]}>
             {collections.byMethod.map((m) => (
               <tr key={m.method}>

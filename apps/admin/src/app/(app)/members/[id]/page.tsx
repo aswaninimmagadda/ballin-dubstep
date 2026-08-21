@@ -187,6 +187,15 @@ export default async function MemberDetailPage({
                     {tr.members.trainer}: {String(member.trainer_name)}
                   </p>
                 ) : null}
+                {Number(currentMembership.due_amount ?? 0) > 0 ? (
+                  <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                    {tr.members.due}: {formatMoney(Number(currentMembership.due_amount))}
+                    <span className="ml-1 font-normal text-amber-700">
+                      ({tr.members.paid} {formatMoney(Number(currentMembership.paid_amount ?? 0))} /{' '}
+                      {formatMoney(Number(currentMembership.total_amount))})
+                    </span>
+                  </p>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 {currentMembership.state === 'frozen' && openFreeze ? (
@@ -300,6 +309,7 @@ export default async function MemberDetailPage({
               tr.membership.startDate,
               tr.membership.endDate,
               tr.membership.total,
+              tr.members.due,
               tr.members.status,
             ]}
           >
@@ -309,6 +319,15 @@ export default async function MemberDetailPage({
                 <td className="px-4 py-3">{formatDisplayDate(String(m.start_date))}</td>
                 <td className="px-4 py-3">{formatDisplayDate(String(m.end_date))}</td>
                 <td className="px-4 py-3">{formatMoney(Number(m.total_amount))}</td>
+                <td className="px-4 py-3">
+                  {Number(m.due_amount ?? 0) > 0 ? (
+                    <span className="font-semibold text-amber-700">
+                      {formatMoney(Number(m.due_amount))}
+                    </span>
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <Badge tone={statusTone(String(m.state))}>{String(m.state)}</Badge>
                 </td>

@@ -382,14 +382,75 @@ async function main() {
     await (await get(`/members/${memberId}/renew`)).text(),
     'previousMembershipId',
   );
-  const rnRes = await postAction(`/members/${memberId}/renew`, renewForm, {
+  // Taking no money is a 100% part payment: refused while the gym has part
+  // payments switched off, so nobody can quietly create an unpaid membership.
+  const unpaidRes = await postAction(`/members/${memberId}/renew`, renewForm, {
     planId: qPlan.id,
     amount: '',
     method: 'cash',
   });
-  check('renewal recorded', target(rnRes).includes('msg=renewed'), target(rnRes));
+  check(
+    'unpaid renewal refused while part payments are off',
+    decodeURIComponent(target(unpaidRes)).includes('Partial payments are not enabled'),
+    target(unpaidRes),
+  );
 
   check('owner relogin', await loginAs(`owner@${SLUG}.test`, ownerPw));
+
+  // Owner turns part payments on, then takes a deposit — the balance must be
+  // visible to staff afterwards, not silently forgotten.
+  const setForm2 = extractForm(await (await get('/settings')).text(), 'receiptPrefix');
+  const setRes2 = await postAction('/settings', setForm2, {
+    receiptPrefix: 'HFT',
+    gracePeriodDays: '5',
+    maxFreezes: '2',
+    maxFreezeDays: '30',
+    allowPartial: 'on',
+    waTemplateEn: `Hello {{member_first_name}}! Your ${GYM_B_NAME} plan ends {{expiry_date}}. Renew with us!`,
+    waTemplateTe: 'నమస్తే {{member_first_name}}!',
+  });
+  check('part payments enabled', target(setRes2).includes('msg=saved'), target(setRes2));
+
+  const renewForm2 = extractForm(
+    await (await get(`/members/${memberId}/renew`)).text(),
+    'previousMembershipId',
+  );
+  const rnRes = await postAction(`/members/${memberId}/renew`, renewForm2, {
+    planId: qPlan.id,
+    amount: '1000',
+    method: 'cash',
+  });
+  check(
+    'renewal recorded with a part payment',
+    target(rnRes).includes('msg=renewed'),
+    target(rnRes),
+  );
+
+  const [renewalDue] = await q(
+    `SELECT ms.total_amount::bigint AS total,
+            coalesce((SELECT sum(GREATEST(pa.amount - coalesce((
+                        SELECT sum(rf.amount) FROM refunds rf WHERE rf.payment_id = pa.payment_id), 0), 0))
+                      FROM payment_allocations pa WHERE pa.membership_id = ms.id), 0)::bigint AS paid
+     FROM memberships ms WHERE ms.member_id = $1 ORDER BY ms.created_at DESC LIMIT 1`,
+    [memberId],
+  );
+  const expectedDue = Number(renewalDue.total) - Number(renewalDue.paid);
+  check(
+    'part-paid renewal leaves a balance',
+    Number(renewalDue.paid) === 100000 && expectedDue > 0,
+    JSON.stringify(renewalDue),
+  );
+  // Rupee formatting is split across React text nodes, so assert on the
+  // server-side surfaces instead: the dues filter, the export and the tile.
+  const duesListHtml = await (await getFollow('/members?dues=1')).text();
+  check('members list can filter to members with dues', duesListHtml.includes(memberId));
+  const duesCsv = await (await get('/api/export/dues')).text();
+  const duesRow = duesCsv.split('\n').find((l) => l.includes('+91' + mobile));
+  check(
+    'dues CSV lists the outstanding balance',
+    Boolean(duesRow) && duesRow.split(',').includes(String(expectedDue)),
+    duesRow ?? 'member not in dues export',
+  );
   const freezeForm = extractForm(await (await get(`/members/${memberId}/freeze`)).text(), 'reason');
   const fzRes = await postAction(`/members/${memberId}/freeze`, freezeForm, {
     startDate: istToday,
@@ -441,7 +502,8 @@ async function main() {
   const [afterCancel] = await q(`SELECT count(*)::int AS n FROM payments WHERE member_id = $1`, [
     memberId,
   ]);
-  check('payment history intact after cancellation', afterCancel.n === 2, String(afterCancel.n));
+  // Membership + PT sale + the renewal deposit — all three survive the cancel.
+  check('payment history intact after cancellation', afterCancel.n === 3, String(afterCancel.n));
 
   // Archive (soft delete): only possible now that nothing is live.
   const archiveForm = extractForm(

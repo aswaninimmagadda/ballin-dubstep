@@ -7,7 +7,7 @@ import { writeAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
-const KINDS = ['members', 'memberships', 'payments', 'attendance'] as const;
+const KINDS = ['members', 'memberships', 'payments', 'attendance', 'dues'] as const;
 type Kind = (typeof KINDS)[number];
 
 /** Tenant-authorized CSV export. RLS guarantees only own-tenant rows. */

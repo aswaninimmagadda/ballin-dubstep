@@ -1,6 +1,7 @@
 import 'server-only';
 import { todayInTz, addDays } from '@gymflow/utils';
 import { asPrincipal } from '../db';
+import { DUE_ON_MEMBERSHIP, LIVE_MEMBERSHIP_STATES } from './money-sql';
 import type { SessionUser } from '../session';
 
 export interface DashboardData {
@@ -12,6 +13,7 @@ export interface DashboardData {
   expiredRecent: number;
   todayCollections: number;
   monthCollections: number;
+  duesOutstanding: number;
   newMembersThisMonth: number;
   todayAttendance: number;
   leadsToFollowUp: number;
@@ -52,8 +54,17 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
         (SELECT count(*) FROM memberships WHERE state = 'active' AND end_date >= $1)::int AS active_members,
         (SELECT count(*) FROM memberships WHERE state = 'active' AND end_date BETWEEN $1 AND $2)::int AS expiring_7,
         (SELECT count(*) FROM memberships WHERE state IN ('active','expired') AND end_date BETWEEN $3 AND $4)::int AS expired_recent,
-        (SELECT coalesce(sum(amount),0) FROM payments WHERE payment_date = $1 AND status <> 'failed')::bigint AS today_collections,
-        (SELECT coalesce(sum(amount),0) FROM payments WHERE payment_date >= $5 AND status <> 'failed')::bigint AS month_collections,
+        -- Collections are NET of refunds: a refund is counted on the day the
+        -- money left the drawer (tenant calendar day), so the figure staff
+        -- reconcile against actually balances.
+        ((SELECT coalesce(sum(amount),0) FROM payments WHERE payment_date = $1 AND status <> 'failed')
+         - (SELECT coalesce(sum(r.amount),0) FROM refunds r JOIN tenants t ON t.id = r.tenant_id
+            WHERE (r.created_at AT TIME ZONE t.default_timezone)::date = $1::date))::bigint AS today_collections,
+        ((SELECT coalesce(sum(amount),0) FROM payments WHERE payment_date >= $5 AND status <> 'failed')
+         - (SELECT coalesce(sum(r.amount),0) FROM refunds r JOIN tenants t ON t.id = r.tenant_id
+            WHERE (r.created_at AT TIME ZONE t.default_timezone)::date >= $5::date))::bigint AS month_collections,
+        (SELECT coalesce(sum(GREATEST(${DUE_ON_MEMBERSHIP}, 0)), 0)
+         FROM memberships ms WHERE ms.state IN ${LIVE_MEMBERSHIP_STATES})::bigint AS dues_outstanding,
         (SELECT count(*) FROM members WHERE join_date >= $5 AND status NOT IN ('lead','archived'))::int AS new_members_month,
         (SELECT count(*) FROM attendance a JOIN tenants t ON t.id = a.tenant_id
           WHERE (a.checked_in_at AT TIME ZONE t.default_timezone)::date = $1::date)::int AS today_attendance,
@@ -107,6 +118,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
       expiredRecent: Number(c.expired_recent),
       todayCollections: Number(c.today_collections),
       monthCollections: Number(c.month_collections),
+      duesOutstanding: Number(c.dues_outstanding),
       newMembersThisMonth: Number(c.new_members_month),
       todayAttendance: Number(c.today_attendance),
       leadsToFollowUp: Number(c.leads_follow_up),

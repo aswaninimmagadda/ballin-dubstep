@@ -160,6 +160,23 @@ async function assertManualDiscountAuthorized(
   }
 }
 
+/**
+ * A membership that isn't paid in full leaves the gym carrying a receivable,
+ * so it is only allowed where the tenant has turned part payments on.
+ */
+async function assertPartialPaymentAllowed(tx: Queryable, user: SessionUser): Promise<void> {
+  const r = await tx.query(`SELECT allow_partial_payments FROM gym_settings WHERE tenant_id = $1`, [
+    user.tenantId,
+  ]);
+  const allowed = (r.rows[0] as { allow_partial_payments: boolean } | undefined)
+    ?.allow_partial_payments;
+  if (!allowed) {
+    throw new UserFacingError(
+      'Partial payments are not enabled for this gym. Collect the full amount, or turn on part payments in Settings.',
+    );
+  }
+}
+
 async function recordPaymentWithReceipt(
   tx: Queryable,
   user: SessionUser,
@@ -343,19 +360,19 @@ export async function sellMembership(
     }
 
     let receiptNumber: string | null = null;
-    if (input.payment) {
-      if (input.payment.amount > quote.total) {
+    {
+      // Taking nothing is a 100% part payment — it leaves the gym owed the
+      // whole fee — so it goes through the same gate as an under-payment
+      // rather than slipping past it because no payment object was sent.
+      const paid = input.payment?.amount ?? 0;
+      if (paid > quote.total) {
         throw new UserFacingError('Payment is more than the amount due.');
       }
-      const settings = await tx.query(
-        `SELECT allow_partial_payments FROM gym_settings WHERE tenant_id = $1`,
-        [user.tenantId],
-      );
-      const allowPartial = (settings.rows[0] as { allow_partial_payments: boolean })
-        ?.allow_partial_payments;
-      if (input.payment.amount < quote.total && !allowPartial) {
-        throw new UserFacingError('Partial payments are not enabled for this gym.');
+      if (paid < quote.total) {
+        await assertPartialPaymentAllowed(tx, user);
       }
+    }
+    if (input.payment) {
       if (input.payment.amount > 0) {
         const rec = await recordPaymentWithReceipt(tx, user, {
           branchId: m.branch_id,
@@ -502,21 +519,18 @@ export async function renewMembership(
     );
 
     let receiptNumber: string | null = null;
-    if (input.payment && input.payment.amount > 0) {
-      if (input.payment.amount > quote.total) {
+    {
+      // Same rule as a new sale: anything short of the full fee — including
+      // taking nothing today — needs part payments to be enabled.
+      const paid = input.payment?.amount ?? 0;
+      if (paid > quote.total) {
         throw new UserFacingError('Payment is more than the amount due.');
       }
-      if (input.payment.amount < quote.total) {
-        const sR = await tx.query(
-          `SELECT allow_partial_payments FROM gym_settings WHERE tenant_id = $1`,
-          [user.tenantId],
-        );
-        const allowPartial = (sR.rows[0] as { allow_partial_payments: boolean } | undefined)
-          ?.allow_partial_payments;
-        if (!allowPartial) {
-          throw new UserFacingError('Partial payments are not enabled for this gym.');
-        }
+      if (paid < quote.total) {
+        await assertPartialPaymentAllowed(tx, user);
       }
+    }
+    if (input.payment && input.payment.amount > 0) {
       const rec = await recordPaymentWithReceipt(tx, user, {
         branchId: prev.branch_id,
         memberId: prev.member_id,

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatDisplayDate } from '@gymflow/utils';
+import { formatDisplayDate, formatMoney } from '@gymflow/utils';
 import { requirePermission } from '@/lib/session';
 import { searchMembers } from '@/lib/services/members';
 import { t } from '@/lib/i18n';
@@ -18,17 +18,31 @@ export const dynamic = 'force-dynamic';
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string; dues?: string }>;
 }) {
   const user = await requirePermission('members.view');
-  const { q = '', status, page = '1' } = await searchParams;
+  const { q = '', status, page = '1', dues } = await searchParams;
+  const duesOnly = dues === '1';
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const pageSize = 25;
   const [tr, { rows, total }] = await Promise.all([
     t(),
-    searchMembers(user, { q, status, limit: pageSize, offset: (pageNum - 1) * pageSize }),
+    searchMembers(user, {
+      q,
+      status,
+      duesOnly,
+      limit: pageSize,
+      offset: (pageNum - 1) * pageSize,
+    }),
   ]);
   const pages = Math.max(1, Math.ceil(total / pageSize));
+  const qs = (extra: Record<string, string | number>) =>
+    new URLSearchParams({
+      q,
+      status: status ?? '',
+      ...(duesOnly ? { dues: '1' } : {}),
+      ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [k, String(v)])),
+    }).toString();
 
   return (
     <>
@@ -60,6 +74,10 @@ export default async function MembersPage({
             </option>
           ))}
         </select>
+        <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-600">
+          <input type="checkbox" name="dues" value="1" defaultChecked={duesOnly} />
+          {tr.members.duesOnly}
+        </label>
         <Button variant="secondary">{tr.common.search}</Button>
       </form>
 
@@ -73,6 +91,7 @@ export default async function MembersPage({
             tr.members.mobile,
             tr.members.plan,
             tr.members.expiry,
+            tr.members.due,
             tr.members.status,
           ]}
         >
@@ -92,6 +111,15 @@ export default async function MembersPage({
               <td className="px-4 py-3">{m.plan_name ?? '—'}</td>
               <td className="px-4 py-3">{m.end_date ? formatDisplayDate(m.end_date) : '—'}</td>
               <td className="px-4 py-3">
+                {Number(m.due_amount ?? 0) > 0 ? (
+                  <span className="font-semibold text-amber-700">
+                    {formatMoney(Number(m.due_amount))}
+                  </span>
+                ) : (
+                  <span className="text-slate-300">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3">
                 <Badge tone={statusTone(m.status)}>
                   {tr.members.statuses[m.status as keyof typeof tr.members.statuses] ?? m.status}
                 </Badge>
@@ -106,7 +134,7 @@ export default async function MembersPage({
           {pageNum > 1 ? (
             <Link
               className="rounded-lg border px-3 py-1.5"
-              href={`/members?q=${encodeURIComponent(q)}&status=${status ?? ''}&page=${pageNum - 1}`}
+              href={`/members?${qs({ page: pageNum - 1 })}`}
             >
               ←
             </Link>
@@ -117,7 +145,7 @@ export default async function MembersPage({
           {pageNum < pages ? (
             <Link
               className="rounded-lg border px-3 py-1.5"
-              href={`/members?q=${encodeURIComponent(q)}&status=${status ?? ''}&page=${pageNum + 1}`}
+              href={`/members?${qs({ page: pageNum + 1 })}`}
             >
               →
             </Link>

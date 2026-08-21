@@ -57,6 +57,12 @@ export default async function DashboardPage() {
           value={formatMoney(data.monthCollections)}
         />
         <StatCard label={tr.dashboard.newMembersMonth} value={data.newMembersThisMonth} />
+        <StatCard
+          label={tr.dashboard.duesOutstanding}
+          value={formatMoney(data.duesOutstanding)}
+          tone={data.duesOutstanding > 0 ? 'warning' : 'default'}
+          href="/members?dues=1"
+        />
         <StatCard label={tr.dashboard.leadsFollowUp} value={data.leadsToFollowUp} href="/leads" />
       </div>
 
