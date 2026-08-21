@@ -31,7 +31,7 @@ A production-ready, multi-tenant gym management SaaS for the Indian market
   zero source changes — proven by the automated acceptance suite; daily
   `sweep` job trues up stored membership states.
 - **Database**: PostgreSQL with row-level security enforced from the first
-  migration; 10 migrations, 38 tables; append-only financial history;
+  migration; 12 migrations, 39 tables; append-only financial history;
   sealed authentication path (the app role cannot read credential tables).
 
 ## 2. Architecture (summary — full detail in ARCHITECTURE.md)
@@ -53,7 +53,7 @@ sequences. See MULTI_TENANCY.md, DATABASE_SCHEMA.md, SECURITY.md, RBAC.md.
 ## 3. Repository structure
 
 ```
-supabase/migrations/   10 SQL migrations (schema → RLS → auth → hardening)
+supabase/migrations/   12 SQL migrations (schema → RLS → auth → hardening)
 packages/              7 shared workspace packages (see above)
 apps/admin             staff PWA + member-facing HTTP API (/api/member/v1)
 apps/member            Expo Android app
@@ -75,9 +75,9 @@ Deployment targets and domain guidance: DEPLOYMENT.md.
 | Layer                      | Count                   | Command                                |
 | -------------------------- | ----------------------- | -------------------------------------- |
 | Unit (vitest)              | **108 passed**          | `pnpm test:unit`                       |
-| Integration (real PG, RLS) | **48 passed**           | `pnpm --filter @gymflow/database test` |
-| E2E admin HTTP suite       | **41 checks passed**    | `node scripts/e2e-admin.mjs`           |
-| E2E final acceptance (§82) | **50 checks passed**    | `node scripts/e2e-acceptance.mjs`      |
+| Integration (real PG, RLS) | **49 passed**           | `pnpm --filter @gymflow/database test` |
+| E2E admin HTTP suite       | **50 checks passed**    | `node scripts/e2e-admin.mjs`           |
+| E2E final acceptance (§82) | **55 checks passed**    | `node scripts/e2e-acceptance.mjs`      |
 | Typecheck / lint / format  | clean                   | `pnpm typecheck && pnpm lint`          |
 | Production builds          | admin ✓, member Metro ✓ | CI steps                               |
 
@@ -103,7 +103,12 @@ restored DB) — see DISASTER_RECOVERY.md. Details: TESTING.md.
 - Granular RBAC (permission keys, no role-name checks in UI), branch-level
   scoping enforced in RLS, discount-approval threshold, manager-gated
   overrides, append-only audit log with IP/user-agent.
-- One-time passwords render once in a POST response — never in URLs.
+- One-time passwords render once in a POST response — never in URLs, and
+  the holder can rotate them at `/account/password`.
+- Login throttling counts identifier and IP failures separately, so one
+  member's forgotten password cannot lock out a gym behind a shared address.
+- Collections are reported net of refunds; unpaid balances are visible on
+  the member page, the members list, a dashboard tile and a dues export.
 - QR pass: 60-second rotating HMAC, no PII; server-side verification.
 - No secrets in the repo (`.env.example` documents every variable).
 

@@ -14,7 +14,7 @@ actually-executed runs (CI re-runs them on every PR).
 | @gymflow/validation | 10    | Member/sale/payment/import/login schemas, E.164 transforms, idempotency-key requirement, float rejection                                                                                                                                                                                                                                                                                                                                                        |
 | @gymflow/i18n       | 5     | Telugu/English key parity (fails the build if a key is missed), template rendering                                                                                                                                                                                                                                                                                                                                                                              |
 
-### 2. Integration tests — 48 passing (vitest + real Postgres, as the runtime role)
+### 2. Integration tests — 49 passing (vitest + real Postgres, as the runtime role)
 
 `packages/database/test/`:
 
@@ -26,18 +26,20 @@ actually-executed runs (CI re-runs them on every PR).
 - **concurrency** (5) — 20 parallel receipt allocations unique+sequential,
   per-tenant sequences, idempotent payment double-click, one-running-
   membership invariant, membership-number allocation under concurrency.
-- **auth-functions** (10) — sealed credential tables, session lifecycle,
+- **auth-functions** (11) — sealed credential tables, session lifecycle,
   refresh rotation + replay family revocation, throttling counters,
-  password-set scoping (members.edit cannot touch staff logins).
+  password-set scoping (members.edit cannot touch staff logins), and
+  identifier-vs-IP failure counts staying separate so a shared gym address
+  cannot lock everyone out.
 - **branch-scoping** (4) — staff restricted via `staff_branch_access` see
   only their branch's members/payments; unrestricted staff see all.
 
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 91 checks passing (two HTTP suites)
+### 3. End-to-end — 105 checks passing (two HTTP suites)
 
-`scripts/e2e-admin.mjs` (41 checks) drives the real HTTP surface (server
+`scripts/e2e-admin.mjs` (50 checks) drives the real HTTP surface (server
 actions via progressive-enhancement form posts) against a running server +
 seeded DB, then verifies database effects:
 
@@ -58,8 +60,13 @@ seeded DB, then verifies database effects:
   renewal stays pending → unfreeze after 15 days → expiry extended by 15.
 - **Authorization:** anonymous page/API access rejected; receptionist
   blocked from audit.
+- **Refunds:** a refund is recorded, then the payments export shows the
+  refunded and net amounts and the reports page surfaces the refund — the
+  money that came back must leave the collections figure.
+- **Own password:** wrong current password refused; a successful change ends
+  every session, the old password stops working and the new one works.
 
-`scripts/e2e-acceptance.mjs` (50 checks) executes the brief's **final
+`scripts/e2e-acceptance.mjs` (55 checks) executes the brief's **final
 acceptance test (§82)** end to end: a second gym is provisioned purely via
 platform tooling (`create-tenant` CLI — zero source changes), its owner
 configures settings/plan/PT package/trainer/staff/promotion over HTTP, a
@@ -72,7 +79,9 @@ pre-sold pending renewal coexist, cancelling only the pending one keeps the
 member active, cancelling the last live one marks them cancelled, and the
 member is then archived (soft delete — history kept, mobile freed); CSV
 import blocks on invalid rows then imports clean rows with receipts; the
-daily sweep activates a due pre-sold membership; reports/exports are
+daily sweep activates a due pre-sold membership; an unpaid renewal is refused
+while part payments are off, then enabled so a deposit leaves a balance that
+shows in the dues filter and the dues export; reports/exports are
 tenant-pure. Isolation is then proven from both directions over HTTP
 (cross-tenant member page 404s, exports contain zero foreign rows, plans
 and receipt prefixes differ, member credentials are tenant-scoped).
