@@ -13,43 +13,47 @@ async function updateAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('members.edit');
   const memberId = String(formData.get('memberId'));
-  const str = (name: string) => {
+  // A field left blank means "clear this", not "ignore this" — every field on
+  // the form is submitted, so blank is a deliberate erasure by the person at
+  // the desk. Only `mobile` is mandatory (it is the member's login identity).
+  const str = (name: string): string | null => {
     const v = String(formData.get(name) ?? '').trim();
-    return v === '' ? undefined : v;
+    return v === '' ? null : v;
   };
+  const fail = (message: string): never =>
+    redirect(`/members/${memberId}/edit?error=${encodeURIComponent(message)}`);
+
   const mobileRaw = str('mobile');
-  if (mobileRaw && !isValidIndianMobile(mobileRaw)) {
-    redirect(
-      `/members/${memberId}/edit?error=${encodeURIComponent('Enter a valid 10-digit mobile number.')}`,
-    );
+  if (!mobileRaw || !isValidIndianMobile(mobileRaw)) {
+    fail('Enter a valid 10-digit mobile number.');
   }
   const altRaw = str('altMobile');
   if (altRaw && !isValidIndianMobile(altRaw)) {
-    redirect(
-      `/members/${memberId}/edit?error=${encodeURIComponent('Alternate mobile is not valid.')}`,
-    );
+    fail('Alternate mobile is not valid. Leave it blank to remove it.');
+  }
+  const firstName = str('firstName');
+  if (!firstName) fail('First name is required.');
+  // Emergency contacts are often a landline or another household's number, so
+  // accept any plausible phone — but say so when it is not, instead of
+  // dropping it silently.
+  const emergency = str('emergencyContactPhone');
+  if (emergency && !/^[+\d][\d\s-]{5,19}$/.test(emergency)) {
+    fail('Emergency contact number looks wrong. Use digits, spaces or dashes.');
   }
   try {
     await updateMember(user, memberId, {
-      branchId: str('branchId'),
-      firstName: str('firstName'),
-      lastName: str('lastName') ?? null,
-      mobile: mobileRaw ? normalizeIndianMobile(mobileRaw).e164 : undefined,
-      altMobile: altRaw ? normalizeIndianMobile(altRaw).e164 : undefined,
+      branchId: str('branchId') ?? undefined, // a member always has a branch
+      firstName: firstName ?? undefined,
+      lastName: str('lastName'),
+      mobile: normalizeIndianMobile(mobileRaw!).e164,
+      altMobile: altRaw ? normalizeIndianMobile(altRaw).e164 : null,
       email: str('email'),
       village: str('village'),
       district: str('district'),
       pinCode: str('pinCode'),
       emergencyContactName: str('emergencyContactName'),
-      emergencyContactPhone: (() => {
-        const v = str('emergencyContactPhone');
-        return v && isValidIndianMobile(v)
-          ? normalizeIndianMobile(v).e164
-          : v
-            ? undefined
-            : undefined;
-      })(),
-      assignedTrainerId: formData.get('assignedTrainerId') === '' ? null : str('assignedTrainerId'),
+      emergencyContactPhone: emergency,
+      assignedTrainerId: str('assignedTrainerId'),
       notes: str('notes'),
     });
   } catch (err) {

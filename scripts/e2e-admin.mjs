@@ -511,11 +511,68 @@ async function main() {
     JSON.stringify(collected),
   );
 
+  // ---- editing a member must actually save, including clearing a field ----
+  console.log('\n[member edit clears fields]');
+  check('receptionist relogin for edit', await loginAs(EMAIL));
+  const editForm = extractForm(
+    await (await getFollow(`/members/${memberId}/edit`)).text(),
+    'firstName',
+  );
+  const [beforeEdit] = await q(`SELECT mobile, branch_id FROM members WHERE id = $1`, [memberId]);
+  const setRes = await postAction(`/members/${memberId}/edit`, editForm, {
+    memberId,
+    branchId: beforeEdit.branch_id,
+    firstName: 'TestE2E',
+    lastName: 'Person',
+    mobile: beforeEdit.mobile.replace('+91', ''),
+    email: 'typo@example.com',
+    village: 'Madanapalle',
+    emergencyContactName: 'Relative',
+    emergencyContactPhone: '08571-234567', // a landline: must be accepted
+  });
+  check('edit saved', redirectTarget(setRes).includes('msg=edited'), redirectTarget(setRes));
+  const [afterSet] = await q(
+    `SELECT email, village, emergency_contact_phone FROM members WHERE id = $1`,
+    [memberId],
+  );
+  check(
+    'landline accepted as an emergency contact',
+    afterSet.emergency_contact_phone === '08571-234567',
+    JSON.stringify(afterSet),
+  );
+
+  const clearRes = await postAction(`/members/${memberId}/edit`, editForm, {
+    memberId,
+    branchId: beforeEdit.branch_id,
+    firstName: 'TestE2E',
+    lastName: 'Person',
+    mobile: beforeEdit.mobile.replace('+91', ''),
+    email: '', // blanked on purpose — must be erased, not ignored
+    village: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+  });
+  check('clearing edit saved', redirectTarget(clearRes).includes('msg=edited'));
+  const [afterClear] = await q(
+    `SELECT email, village, emergency_contact_phone FROM members WHERE id = $1`,
+    [memberId],
+  );
+  check(
+    'blanked fields are actually cleared',
+    afterClear.email === null &&
+      afterClear.village === null &&
+      afterClear.emergency_contact_phone === null,
+    JSON.stringify(afterClear),
+  );
+
   // ---- staff can rotate their own password --------------------------------
   // One-time passwords are handed over verbally at the desk; if the holder
   // can never change it, that credential is permanent.
   console.log('\n[self-service password change]');
   const NEW_PW = 'e2e-rotated-password-9';
+  // Rotate the OWNER's password specifically — the block above signed in as
+  // reception, and the assertions below are about the owner account.
+  check('owner login before rotating', await loginAs('owner@demo.gymflow.local'));
   const pwForm = extractForm(
     await (await getFollow('/account/password')).text(),
     'currentPassword',

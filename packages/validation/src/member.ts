@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  contactPhoneSchema,
   indianMobileSchema,
   isoDateSchema,
   mediumText,
@@ -25,7 +26,7 @@ export const createMemberSchema = z.object({
   pinCode: pinCodeSchema.optional().nullable(),
   emergencyContactName: z.string().trim().max(120).optional().nullable(),
   emergencyContactRelation: z.string().trim().max(60).optional().nullable(),
-  emergencyContactPhone: indianMobileSchema.optional().nullable(),
+  emergencyContactPhone: contactPhoneSchema.optional().nullable(),
   joinDate: isoDateSchema.optional(),
   referralSource: z.string().trim().max(120).optional().nullable(),
   referredByMemberId: uuidSchema.optional().nullable(),

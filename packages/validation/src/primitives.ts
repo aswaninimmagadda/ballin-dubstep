@@ -19,6 +19,19 @@ export const indianMobileSchema = z
   .refine(isValidIndianMobile, 'Enter a valid 10-digit Indian mobile number')
   .transform((v) => normalizeIndianMobile(v).e164);
 
+/**
+ * A contact number that is NOT a login identity — an emergency contact is
+ * often a landline or a relative's number in another format. Kept permissive
+ * on purpose: rejecting these at the desk blocks onboarding for no benefit,
+ * since nothing authenticates against this field.
+ */
+export const contactPhoneSchema = z
+  .string()
+  .trim()
+  .min(6, 'Enter a contact number')
+  .max(20)
+  .refine((v) => /^[+\d][\d\s-]{5,19}$/.test(v), 'Use digits, spaces or dashes only');
+
 /** Money entered in the UI as rupees; API carries integer minor units. */
 export const minorUnitsSchema = z.number().int().nonnegative().safe();
 

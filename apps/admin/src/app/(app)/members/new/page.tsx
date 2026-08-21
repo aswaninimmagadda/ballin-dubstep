@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { createMemberSchema } from '@gymflow/validation';
 import { normalizeIndianMobile, isValidIndianMobile } from '@gymflow/utils';
 import { requirePermission } from '@/lib/session';
@@ -30,15 +31,51 @@ async function checkMobileAction(formData: FormData): Promise<void> {
   redirect(`/members/new?mobile=${encodeURIComponent(mobile)}&step=2`);
 }
 
+/** Field labels for validation messages, so the error names what to fix. */
+const FIELD_LABELS: Record<string, string> = {
+  branchId: 'Branch',
+  firstName: 'First name',
+  lastName: 'Last name',
+  mobile: 'Mobile number',
+  altMobile: 'Alternate mobile',
+  email: 'Email',
+  dateOfBirth: 'Date of birth',
+  pinCode: 'PIN code',
+  emergencyContactPhone: 'Emergency contact number',
+  emergencyContactName: 'Emergency contact name',
+};
+
+/**
+ * Onboarding is a twelve-field form; losing it to a validation slip means
+ * typing everything again with a member waiting at the desk. The entry is
+ * parked in a short-lived, http-only cookie (never the URL — these are the
+ * member's personal details) and restored into the form.
+ */
+const DRAFT_COOKIE = 'gymflow_member_draft';
+
 async function createMemberAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('members.create');
   const raw = Object.fromEntries(
     [...formData.entries()].filter(([, v]) => typeof v === 'string' && v !== ''),
   ) as Record<string, string>;
+  const keepDraft = async () => {
+    const jar = await cookies();
+    jar.set(DRAFT_COOKIE, JSON.stringify(raw), {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/members/new',
+      maxAge: 600,
+    });
+  };
   const parsed = createMemberSchema.safeParse({ ...raw, tags: [] });
   if (!parsed.success) {
-    redirect(`/members/new?step=2&mobile=${encodeURIComponent(raw.mobile ?? '')}&error=validation`);
+    await keepDraft();
+    const issue = parsed.error.issues[0];
+    const label = FIELD_LABELS[String(issue?.path?.[0] ?? '')] ?? 'One of the fields';
+    redirect(
+      `/members/new?step=2&error=${encodeURIComponent(`${label}: ${issue?.message ?? 'please check this field'}`)}`,
+    );
   }
   let id: string;
   try {
@@ -47,10 +84,10 @@ async function createMemberAction(formData: FormData): Promise<void> {
     const leadId = raw.leadId;
     if (leadId) await markLeadConverted(user, leadId, id);
   } catch (err) {
-    redirect(
-      `/members/new?step=2&mobile=${encodeURIComponent(raw.mobile ?? '')}&error=${encodeURIComponent(toUserMessage(err))}`,
-    );
+    await keepDraft();
+    redirect(`/members/new?step=2&error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  (await cookies()).delete({ name: DRAFT_COOKIE, path: '/members/new' });
   redirect(`/members/${id!}/sell?new=1`);
 }
 
@@ -96,19 +133,29 @@ export default async function NewMemberPage({
     dupInfo = dups.find((d) => d.id === dup) ?? null;
   }
 
-  const showForm = step === '2' || dup || leadData;
-  const effectiveMobile = leadData?.mobile ?? mobile ?? '';
+  // Restore whatever was typed before a validation slip (see DRAFT_COOKIE).
+  let draft: Record<string, string> = {};
+  const draftRaw = (await cookies()).get(DRAFT_COOKIE)?.value;
+  if (draftRaw) {
+    try {
+      draft = JSON.parse(draftRaw) as Record<string, string>;
+    } catch {
+      draft = {};
+    }
+  }
+  const prev = (name: string) => draft[name] ?? undefined;
+
+  // A duplicate mobile cannot be created — the unique index refuses it — so
+  // don't invite the receptionist to fill the form and lose the entry.
+  const showForm = (step === '2' || leadData) && !dupInfo;
+  const effectiveMobile = draft.mobile ?? leadData?.mobile ?? mobile ?? '';
 
   return (
     <>
       <PageHeader title={tr.members.newMember} />
       <ErrorBanner
         message={
-          error === 'badmobile'
-            ? 'Enter a valid 10-digit Indian mobile number.'
-            : error === 'validation'
-              ? 'Please check the highlighted fields and try again.'
-              : error || null
+          error === 'badmobile' ? 'Enter a valid 10-digit Indian mobile number.' : error || null
         }
       />
 
@@ -118,9 +165,14 @@ export default async function NewMemberPage({
           <p className="mt-1 text-sm text-amber-900">
             {dupInfo.first_name} {dupInfo.last_name ?? ''} · {dupInfo.membership_number}
           </p>
+          <p className="mt-2 text-xs text-amber-800">
+            This number is already registered, so it cannot be used twice. Open the existing member,
+            or go back and enter a different number.
+          </p>
           <div className="mt-3 flex gap-2">
-            <Button href={`/members/${dupInfo.id}`} variant="secondary">
-              {tr.members.useExisting}
+            <Button href={`/members/${dupInfo.id}`}>{tr.members.useExisting}</Button>
+            <Button href="/members/new" variant="secondary">
+              Use a different number
             </Button>
           </div>
         </Card>
@@ -151,7 +203,7 @@ export default async function NewMemberPage({
               <input name="mobile" defaultValue={effectiveMobile} required className={inputCls} />
             </Field>
             <Field label="Branch" required>
-              <select name="branchId" required className={inputCls}>
+              <select name="branchId" required defaultValue={prev('branchId')} className={inputCls}>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -165,18 +217,20 @@ export default async function NewMemberPage({
                 required
                 autoFocus
                 className={inputCls}
-                defaultValue={leadData?.name?.split(' ')[0] ?? ''}
+                defaultValue={prev('firstName') ?? leadData?.name?.split(' ')[0] ?? ''}
               />
             </Field>
             <Field label={tr.members.lastName}>
               <input
                 name="lastName"
                 className={inputCls}
-                defaultValue={leadData?.name?.split(' ').slice(1).join(' ') ?? ''}
+                defaultValue={
+                  prev('lastName') ?? leadData?.name?.split(' ').slice(1).join(' ') ?? ''
+                }
               />
             </Field>
             <Field label="Gender">
-              <select name="gender" className={inputCls} defaultValue="">
+              <select name="gender" className={inputCls} defaultValue={prev('gender') ?? ''}>
                 <option value="">—</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
@@ -185,14 +239,20 @@ export default async function NewMemberPage({
               </select>
             </Field>
             <Field label="Date of birth">
-              <input name="dateOfBirth" type="date" className={inputCls} />
+              <input
+                name="dateOfBirth"
+                defaultValue={prev('dateOfBirth')}
+                type="date"
+                className={inputCls}
+              />
             </Field>
             <Field label={tr.members.village}>
-              <input name="village" className={inputCls} />
+              <input name="village" defaultValue={prev('village')} className={inputCls} />
             </Field>
             <Field label={tr.members.pinCode}>
               <input
                 name="pinCode"
+                defaultValue={prev('pinCode')}
                 inputMode="numeric"
                 pattern="[1-9][0-9]{5}"
                 className={inputCls}
@@ -209,7 +269,11 @@ export default async function NewMemberPage({
               </select>
             </Field>
             <Field label="Referral source">
-              <select name="referralSource" className={inputCls} defaultValue="walk_in">
+              <select
+                name="referralSource"
+                className={inputCls}
+                defaultValue={prev('referralSource') ?? 'walk_in'}
+              >
                 <option value="walk_in">Walk-in</option>
                 <option value="referral">Referral</option>
                 <option value="whatsapp">WhatsApp</option>
@@ -218,14 +282,24 @@ export default async function NewMemberPage({
               </select>
             </Field>
             <Field label={`${tr.members.emergencyContact} (${tr.common.optional})`}>
-              <input name="emergencyContactName" placeholder="Name" className={inputCls} />
+              <input
+                name="emergencyContactName"
+                defaultValue={prev('emergencyContactName')}
+                placeholder="Name"
+                className={inputCls}
+              />
             </Field>
             <Field label="Emergency phone">
-              <input name="emergencyContactPhone" type="tel" className={inputCls} />
+              <input
+                name="emergencyContactPhone"
+                defaultValue={prev('emergencyContactPhone')}
+                type="tel"
+                className={inputCls}
+              />
             </Field>
             <div className="sm:col-span-2">
               <Field label={tr.members.notes}>
-                <textarea name="notes" rows={2} className={inputCls} />
+                <textarea name="notes" rows={2} defaultValue={prev('notes')} className={inputCls} />
               </Field>
             </div>
             <div className="flex gap-2 sm:col-span-2">

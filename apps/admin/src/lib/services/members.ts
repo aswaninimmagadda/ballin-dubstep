@@ -334,8 +334,39 @@ export interface UpdateMemberPatch {
 }
 
 /**
- * Edit a member profile (incl. branch transfer). Fields not present in the
- * patch are left unchanged; the audit row records redacted before/after.
+ * Which column each patch field writes to, and how it must be cast. This is
+ * a fixed allowlist — nothing from the request reaches the SQL text.
+ */
+const MEMBER_COLUMNS: Record<keyof UpdateMemberPatch, { column: string; cast?: string }> = {
+  branchId: { column: 'branch_id', cast: 'uuid' },
+  firstName: { column: 'first_name' },
+  lastName: { column: 'last_name' },
+  preferredName: { column: 'preferred_name' },
+  gender: { column: 'gender' },
+  dateOfBirth: { column: 'date_of_birth', cast: 'date' },
+  mobile: { column: 'mobile' },
+  altMobile: { column: 'alt_mobile' },
+  email: { column: 'email' },
+  addressLine1: { column: 'address_line1' },
+  village: { column: 'village' },
+  district: { column: 'district' },
+  state: { column: 'state' },
+  pinCode: { column: 'pin_code' },
+  emergencyContactName: { column: 'emergency_contact_name' },
+  emergencyContactRelation: { column: 'emergency_contact_relation' },
+  emergencyContactPhone: { column: 'emergency_contact_phone' },
+  assignedTrainerId: { column: 'assigned_trainer_id', cast: 'uuid' },
+  notes: { column: 'notes' },
+  tags: { column: 'tags', cast: 'text[]' },
+};
+
+/**
+ * Edit a member profile (incl. branch transfer).
+ *
+ * A key absent from the patch is left alone; a key present with `null` is
+ * CLEARED. That distinction is the whole point: the form previously folded
+ * "blank" into "unchanged", so deleting a wrongly-typed email or emergency
+ * number did nothing while still reporting success.
  */
 export async function updateMember(
   user: SessionUser,
@@ -353,56 +384,18 @@ export async function updateMember(
       const { UserFacingError } = await import('../errors');
       throw new UserFacingError('Member not found.');
     }
-    const r = await tx.query(
-      `UPDATE members SET
-         branch_id = coalesce($2, branch_id),
-         first_name = coalesce($3, first_name),
-         last_name = coalesce($4, last_name),
-         preferred_name = coalesce($5, preferred_name),
-         gender = coalesce($6, gender),
-         date_of_birth = coalesce($7::date, date_of_birth),
-         mobile = coalesce($8, mobile),
-         alt_mobile = coalesce($9, alt_mobile),
-         email = coalesce($10, email),
-         address_line1 = coalesce($11, address_line1),
-         village = coalesce($12, village),
-         district = coalesce($13, district),
-         state = coalesce($14, state),
-         pin_code = coalesce($15, pin_code),
-         emergency_contact_name = coalesce($16, emergency_contact_name),
-         emergency_contact_relation = coalesce($17, emergency_contact_relation),
-         emergency_contact_phone = coalesce($18, emergency_contact_phone),
-         assigned_trainer_id = CASE WHEN $19 = 'clear' THEN NULL
-                                    WHEN $20::uuid IS NOT NULL THEN $20::uuid
-                                    ELSE assigned_trainer_id END,
-         notes = coalesce($21, notes),
-         tags = coalesce($22, tags)
-       WHERE id = $1`,
-      [
-        memberId,
-        patch.branchId ?? null,
-        patch.firstName ?? null,
-        patch.lastName ?? null,
-        patch.preferredName ?? null,
-        patch.gender ?? null,
-        patch.dateOfBirth ?? null,
-        patch.mobile ?? null,
-        patch.altMobile ?? null,
-        patch.email ?? null,
-        patch.addressLine1 ?? null,
-        patch.village ?? null,
-        patch.district ?? null,
-        patch.state ?? null,
-        patch.pinCode ?? null,
-        patch.emergencyContactName ?? null,
-        patch.emergencyContactRelation ?? null,
-        patch.emergencyContactPhone ?? null,
-        patch.assignedTrainerId === null ? 'clear' : 'keep',
-        patch.assignedTrainerId ?? null,
-        patch.notes ?? null,
-        patch.tags ?? null,
-      ],
-    );
+    const sets: string[] = [];
+    const params: unknown[] = [memberId];
+    for (const [key, spec] of Object.entries(MEMBER_COLUMNS)) {
+      const field = key as keyof UpdateMemberPatch;
+      if (!(field in patch)) continue; // untouched — leave the column alone
+      const value = patch[field];
+      if (value === undefined) continue;
+      params.push(value);
+      sets.push(`${spec.column} = $${params.length}${spec.cast ? `::${spec.cast}` : ''}`);
+    }
+    if (sets.length === 0) return; // nothing to do — don't claim an edit
+    const r = await tx.query(`UPDATE members SET ${sets.join(', ')} WHERE id = $1`, params);
     if (r.rowCount === 0) {
       const { UserFacingError } = await import('../errors');
       throw new UserFacingError('You do not have permission to edit this member.');

@@ -239,10 +239,17 @@ export default async function MemberDetailPage({
                 <dd>{String(member.village)}</dd>
               </div>
             ) : null}
-            {member.emergency_contact_name ? (
+            {member.emergency_contact_name || member.emergency_contact_phone ? (
               <div className="flex justify-between">
                 <dt className="text-slate-500">{tr.members.emergencyContact}</dt>
-                <dd>{String(member.emergency_contact_name)}</dd>
+                <dd className="text-right">
+                  {String(member.emergency_contact_name ?? '')}
+                  {member.emergency_contact_phone ? (
+                    <span className="block text-xs text-slate-500">
+                      {String(member.emergency_contact_phone)}
+                    </span>
+                  ) : null}
+                </dd>
               </div>
             ) : null}
             <div className="flex justify-between">

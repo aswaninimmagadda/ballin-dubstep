@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { api, getPass, type MeResponse } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -44,15 +44,34 @@ export function HomeScreen() {
     setPass(p?.token ?? null);
   }, []);
 
+  // Keep the displayed pass inside its validity window. The timer only runs
+  // while the app is awake, and Android freezes backgrounded processes — so
+  // the pass is also refetched whenever the member unlocks the phone, which
+  // is exactly what happens between the car park and the reception desk.
+  const refreshPass = useCallback(async () => {
+    const p = await getPass();
+    if (p) {
+      setPass(p.token);
+      rotateSeconds.current = p.rotatesInSeconds;
+    }
+  }, []);
+  const rotateSeconds = useRef(60);
+
   useEffect(() => {
     load();
-    // QR pass rotates every 60s; refresh a little early.
-    const timer = setInterval(async () => {
-      const p = await getPass();
-      if (p) setPass(p.token);
-    }, 50_000);
-    return () => clearInterval(timer);
-  }, [load]);
+    const timer = setInterval(
+      refreshPass,
+      // A little early, so the code on screen is never the expiring one.
+      Math.max(10, rotateSeconds.current - 10) * 1000,
+    );
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshPass();
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [load, refreshPass]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
