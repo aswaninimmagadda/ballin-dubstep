@@ -1,7 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
 import { randomUUID } from 'node:crypto';
 import { proposeRenewal } from '@gymflow/core';
-import { formatDisplayDate, formatMoney, parseMoney, todayInTz } from '@gymflow/utils';
+import { formatDisplayDate, formatMoney, todayInTz } from '@gymflow/utils';
+import { AMOUNT_ERROR, readAmount } from '@/lib/amount';
 import { renewMembershipSchema } from '@gymflow/validation';
 import { requirePermission } from '@/lib/session';
 import { getMemberDetail } from '@/lib/services/members';
@@ -17,7 +18,10 @@ async function renewAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.renew');
   const memberId = String(formData.get('memberId'));
-  const amountRaw = String(formData.get('amount') ?? '').trim();
+  const amount = readAmount(formData.get('amount'));
+  if (amount.kind === 'invalid') {
+    redirect(`/members/${memberId}/renew?error=${encodeURIComponent(AMOUNT_ERROR)}`);
+  }
   const payload = {
     memberId,
     previousMembershipId: String(formData.get('previousMembershipId') ?? ''),
@@ -25,13 +29,14 @@ async function renewAction(formData: FormData): Promise<void> {
     includeJoiningFee: false,
     promotionCode: String(formData.get('promotionCode') ?? '').trim() || null,
     idempotencyKey: String(formData.get('idempotencyKey') ?? ''),
-    payment: amountRaw
-      ? {
-          amount: parseMoney(amountRaw),
-          method: String(formData.get('method') ?? 'cash') as 'cash',
-          externalReference: String(formData.get('externalReference') ?? '').trim() || null,
-        }
-      : undefined,
+    payment:
+      amount.kind === 'ok'
+        ? {
+            amount: amount.paise,
+            method: String(formData.get('method') ?? 'cash') as 'cash',
+            externalReference: String(formData.get('externalReference') ?? '').trim() || null,
+          }
+        : undefined,
   };
   const parsed = renewMembershipSchema.safeParse(payload);
   if (!parsed.success) {

@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { randomUUID } from 'node:crypto';
-import { formatMoney, parseMoney, todayInTz } from '@gymflow/utils';
+import { formatMoney, todayInTz } from '@gymflow/utils';
+import { AMOUNT_ERROR, readAmount } from '@/lib/amount';
 import { sellMembershipSchema } from '@gymflow/validation';
 import { requirePermission } from '@/lib/session';
 import { getMemberDetail } from '@/lib/services/members';
@@ -16,7 +17,10 @@ async function sellAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.sell');
   const memberId = String(formData.get('memberId'));
-  const amountRaw = String(formData.get('amount') ?? '').trim();
+  const amount = readAmount(formData.get('amount'));
+  if (amount.kind === 'invalid') {
+    redirect(`/members/${memberId}/sell?error=${encodeURIComponent(AMOUNT_ERROR)}`);
+  }
   const payload = {
     memberId,
     planId: String(formData.get('planId') ?? ''),
@@ -24,13 +28,14 @@ async function sellAction(formData: FormData): Promise<void> {
     includeJoiningFee: formData.get('includeJoiningFee') === 'on',
     promotionCode: String(formData.get('promotionCode') ?? '').trim() || null,
     idempotencyKey: String(formData.get('idempotencyKey') ?? ''),
-    payment: amountRaw
-      ? {
-          amount: parseMoney(amountRaw),
-          method: String(formData.get('method') ?? 'cash') as 'cash',
-          externalReference: String(formData.get('externalReference') ?? '').trim() || null,
-        }
-      : undefined,
+    payment:
+      amount.kind === 'ok'
+        ? {
+            amount: amount.paise,
+            method: String(formData.get('method') ?? 'cash') as 'cash',
+            externalReference: String(formData.get('externalReference') ?? '').trim() || null,
+          }
+        : undefined,
   };
   const parsed = sellMembershipSchema.safeParse(payload);
   if (!parsed.success) {

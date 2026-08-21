@@ -10,7 +10,32 @@ import { asAnonymous, asPrincipal, type Claims } from './db';
 export const SESSION_COOKIE = 'gymflow_session';
 const SESSION_HOURS = 12;
 const MAX_FAILED_ATTEMPTS = 8;
+/**
+ * Per-address ceiling. A whole gym shares one public IP, so this must be far
+ * above the per-identifier limit: it is there to blunt bulk guessing, not to
+ * let one member's forgotten password lock the front desk out.
+ */
+const MAX_FAILED_PER_IP = 60;
 const THROTTLE_WINDOW = '15 minutes';
+
+/**
+ * True when this login should be refused without checking the password —
+ * either too many failures for this identifier, or an implausible number
+ * from this address.
+ */
+export async function isThrottled(identifier: string, ip: string | null): Promise<boolean> {
+  const counts = await asAnonymous(async (tx) => {
+    const r = await tx.query(
+      `SELECT by_identifier, by_ip FROM app.login_attempt_counts($1, $2, $3::interval)`,
+      [identifier, ip, THROTTLE_WINDOW],
+    );
+    return (r as { rows: { by_identifier: string; by_ip: string }[] }).rows[0];
+  });
+  return (
+    Number(counts?.by_identifier ?? 0) >= MAX_FAILED_ATTEMPTS ||
+    Number(counts?.by_ip ?? 0) >= MAX_FAILED_PER_IP
+  );
+}
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -29,15 +54,7 @@ export type LoginResult =
 
 export async function loginStaff(email: string, password: string): Promise<LoginResult> {
   const ip = await clientIp();
-  const failures = await asAnonymous(async (tx) => {
-    const r = await tx.query(`SELECT app.recent_failed_attempts($1, $2, $3::interval) AS n`, [
-      email,
-      ip,
-      THROTTLE_WINDOW,
-    ]);
-    return Number((r as { rows: { n: string }[] }).rows[0]?.n ?? 0);
-  });
-  if (failures >= MAX_FAILED_ATTEMPTS) return { ok: false, reason: 'locked' };
+  if (await isThrottled(email, ip)) return { ok: false, reason: 'locked' };
 
   const row = await asAnonymous(async (tx) => {
     const r = await tx.query(`SELECT * FROM app.auth_staff_lookup($1)`, [email]);

@@ -149,6 +149,42 @@ describe('login throttling', () => {
     });
     expect(failures).toBe(3);
   });
+
+  // A gym is behind one public IP and its staff share a LAN. Counting an
+  // address's failures against an individual would let one member's forgotten
+  // password lock out the whole front desk, so the two are counted apart.
+  it('keeps identifier and ip counts separate (migration 0011)', async () => {
+    const SHARED_IP = '203.0.113.77';
+    for (let i = 0; i < 9; i++) {
+      await withoutClaims(appPool(), (tx) =>
+        tx.query(`SELECT app.record_login_attempt($1, $2, false)`, [
+          `member${i}@shared.local`,
+          SHARED_IP,
+        ]),
+      );
+    }
+    const counts = await withoutClaims(appPool(), async (tx) => {
+      const r = await tx.query(
+        `SELECT by_identifier, by_ip
+         FROM app.login_attempt_counts($1, $2, interval '15 minutes')`,
+        ['reception@shared.local', SHARED_IP],
+      );
+      return r.rows[0] as { by_identifier: string; by_ip: string };
+    });
+    // Reception has never failed, even though nine others did from this IP.
+    expect(Number(counts.by_identifier)).toBe(0);
+    expect(Number(counts.by_ip)).toBe(9);
+
+    // The legacy helper must no longer fold the IP into the identifier count.
+    const legacy = await withoutClaims(appPool(), async (tx) => {
+      const r = await tx.query(
+        `SELECT app.recent_failed_attempts($1, $2, interval '15 minutes') AS n`,
+        ['reception@shared.local', SHARED_IP],
+      );
+      return Number(r.rows[0].n);
+    });
+    expect(legacy).toBe(0);
+  });
 });
 
 describe('password function scoping (migration 0008)', () => {

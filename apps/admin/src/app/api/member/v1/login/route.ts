@@ -3,10 +3,9 @@ import { verifyPassword } from '@gymflow/core';
 import { memberLoginSchema } from '@gymflow/validation';
 import { asAnonymous } from '@/lib/db';
 import { issueRefreshToken, signAccessToken } from '@/lib/member-api';
+import { isThrottled } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
-
-const MAX_FAILED = 8;
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let body: unknown;
@@ -23,14 +22,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const identifier = `${gymCode}:${mobile}`;
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
 
-  const failures = await asAnonymous(async (tx) => {
-    const r = await tx.query(
-      `SELECT app.recent_failed_attempts($1, $2, interval '15 minutes') AS n`,
-      [identifier, ip],
-    );
-    return Number((r as { rows: { n: string }[] }).rows[0]?.n ?? 0);
-  });
-  if (failures >= MAX_FAILED) {
+  // Per-identifier and per-IP limits are separate: a gym shares one address,
+  // so a member's forgotten password must not lock everyone else out.
+  if (await isThrottled(identifier, ip)) {
     return NextResponse.json({ error: 'locked' }, { status: 429 });
   }
 
