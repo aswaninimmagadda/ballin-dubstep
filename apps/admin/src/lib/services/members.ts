@@ -116,7 +116,7 @@ export async function createMember(
          emergency_contact_phone, join_date, referral_source, referred_by_member_id,
          assigned_trainer_id, notes, tags, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-               coalesce($20::date, CURRENT_DATE),$21,$22,$23,$24,$25,'pending_activation')
+               coalesce($20::date, $26::date),$21,$22,$23,$24,$25,'pending_activation')
        RETURNING id`,
       [
         user.tenantId,
@@ -144,6 +144,9 @@ export async function createMember(
         input.assignedTrainerId ?? null,
         input.notes ?? null,
         input.tags,
+        // The gym's calendar day — CURRENT_DATE is the server's UTC day, which
+        // is still "yesterday" during the IST evening.
+        todayInTz(),
       ],
     );
     const id = (r.rows[0] as { id: string }).id;
