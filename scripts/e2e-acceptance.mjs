@@ -94,11 +94,15 @@ async function main() {
 
   // ---- 0. Platform provisioning (no source changes) ------------------------
   console.log('\n[platform: create Gym B]');
+  // Deliberately the exact command the docs tell an operator to run, so the
+  // documented provisioning path is what gets tested (it once drifted).
   const cliOut = execFileSync(
-    'npx',
+    'pnpm',
     [
-      'tsx',
-      'scripts/create-tenant.mjs',
+      '--filter',
+      '@gymflow/database',
+      'create-tenant',
+      '--',
       '--slug',
       SLUG,
       '--name',
@@ -110,7 +114,7 @@ async function main() {
       '--branch',
       'Main/MAIN',
     ],
-    { env: { ...process.env, DATABASE_URL: DB }, encoding: 'utf8', cwd: 'packages/database' },
+    { env: { ...process.env, DATABASE_URL: DB }, encoding: 'utf8' },
   );
   const ownerPw = cliOut.match(/One-time owner password [^:]*: (\S+)/)?.[1];
   check('tenant provisioned by CLI with owner password', Boolean(ownerPw));

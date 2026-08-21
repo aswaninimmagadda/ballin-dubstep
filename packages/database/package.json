@@ -14,6 +14,7 @@
     "seed": "tsx scripts/seed.ts",
     "reset": "tsx scripts/reset.ts",
     "sweep": "tsx scripts/sweep-memberships.ts",
+    "create-tenant": "tsx scripts/create-tenant.mjs",
     "test": "vitest run --pool=forks --poolOptions.forks.singleFork"
   },
   "dependencies": {

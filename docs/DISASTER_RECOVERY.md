@@ -7,12 +7,21 @@ is the only stateful store). Apps are stateless and redeploy from git.
 
 **What:** nightly `pg_dump` of production + before every migration.
 
+Use `ops/backup.sh` in this repository rather than a bare `pg_dump`: it
+verifies the archive is readable before keeping it, refuses a suspiciously
+small file, prunes only after the new dump is proven good, and warns when no
+off-host copy is configured.
+
 ```bash
-# nightly (cron on any trusted machine, or GitHub Actions scheduled job)
-pg_dump "$PROD_OWNER_URL" -Fc -f "gymflow-$(date +%F).dump"
-# retain: 7 daily, 4 weekly, 12 monthly; store off-provider (e.g. an
-# encrypted object-storage bucket) — a provider outage must not take the
-# backups with it.
+# nightly (cron on any trusted machine, or a scheduled CI job)
+PROD_OWNER_URL="postgres://…"   \
+BACKUP_DIR=/srv/backups         \
+KEEP_DAILY=7                    \
+OFFSITE_CMD="rclone copyto remote:gymflow-backups"  \
+  ops/backup.sh
+# Store copies off-provider (e.g. an encrypted object-storage bucket) — a
+# provider outage must not take the backups with it. For weekly/monthly
+# retention, point a second schedule at a different BACKUP_DIR/KEEP_DAILY.
 ```
 
 On Supabase free tier there are **no usable managed backups** — the
