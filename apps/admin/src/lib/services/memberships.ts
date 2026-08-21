@@ -10,7 +10,7 @@ import {
   applyFreezeExtension,
   type MembershipQuote,
 } from '@gymflow/core';
-import { todayInTz, maxDate } from '@gymflow/utils';
+import { todayInTz, maxDate, formatMoney } from '@gymflow/utils';
 import type { SellMembershipInput, RenewMembershipInput } from '@gymflow/validation';
 import { asPrincipal, type Queryable } from '../db';
 import { writeAudit } from '../audit';
@@ -164,7 +164,11 @@ async function assertManualDiscountAuthorized(
  * A membership that isn't paid in full leaves the gym carrying a receivable,
  * so it is only allowed where the tenant has turned part payments on.
  */
-async function assertPartialPaymentAllowed(tx: Queryable, user: SessionUser): Promise<void> {
+async function assertPartialPaymentAllowed(
+  tx: Queryable,
+  user: SessionUser,
+  amountDue: number,
+): Promise<void> {
   const r = await tx.query(`SELECT allow_partial_payments FROM gym_settings WHERE tenant_id = $1`, [
     user.tenantId,
   ]);
@@ -172,7 +176,7 @@ async function assertPartialPaymentAllowed(tx: Queryable, user: SessionUser): Pr
     ?.allow_partial_payments;
   if (!allowed) {
     throw new UserFacingError(
-      'Partial payments are not enabled for this gym. Collect the full amount, or turn on part payments in Settings.',
+      `Partial payments are not enabled for this gym. Collect the full ${formatMoney(amountDue)}, or turn on part payments in Settings.`,
     );
   }
 }
@@ -366,10 +370,12 @@ export async function sellMembership(
       // rather than slipping past it because no payment object was sent.
       const paid = input.payment?.amount ?? 0;
       if (paid > quote.total) {
-        throw new UserFacingError('Payment is more than the amount due.');
+        throw new UserFacingError(
+          `Payment is more than the amount due. Collect ${formatMoney(quote.total)}.`,
+        );
       }
       if (paid < quote.total) {
-        await assertPartialPaymentAllowed(tx, user);
+        await assertPartialPaymentAllowed(tx, user, quote.total);
       }
     }
     if (input.payment) {
@@ -524,10 +530,12 @@ export async function renewMembership(
       // taking nothing today — needs part payments to be enabled.
       const paid = input.payment?.amount ?? 0;
       if (paid > quote.total) {
-        throw new UserFacingError('Payment is more than the amount due.');
+        throw new UserFacingError(
+          `Payment is more than the amount due. Collect ${formatMoney(quote.total)}.`,
+        );
       }
       if (paid < quote.total) {
-        await assertPartialPaymentAllowed(tx, user);
+        await assertPartialPaymentAllowed(tx, user, quote.total);
       }
     }
     if (input.payment && input.payment.amount > 0) {

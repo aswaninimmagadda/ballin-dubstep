@@ -46,6 +46,11 @@ export const en = {
     invalidCredentials: 'Incorrect email or password.',
     accountLocked: 'Too many failed attempts. Try again in a few minutes.',
     sessionExpired: 'Your session has expired. Please sign in again.',
+    changePassword: 'Change password',
+    currentPassword: 'Current password',
+    newPassword: 'New password',
+    confirmPassword: 'Confirm new password',
+    passwordChanged: 'Password changed. Sign in with your new password.',
   },
   dashboard: {
     title: 'Dashboard',

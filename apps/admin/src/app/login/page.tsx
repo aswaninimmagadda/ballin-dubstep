@@ -22,11 +22,11 @@ async function loginAction(formData: FormData): Promise<void> {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; msg?: string }>;
 }) {
   const user = await currentUser();
   if (user && user.kind !== 'member') redirect('/');
-  const { error } = await searchParams;
+  const { error, msg } = await searchParams;
   const tr = await t();
   const errorMessages: Record<string, string> = {
     invalid: tr.auth.invalidCredentials,
@@ -40,6 +40,11 @@ export default async function LoginPage({
         <h1 className="text-center text-2xl font-bold text-primary">{PRODUCT.name}</h1>
         <p className="mt-1 text-center text-sm text-slate-500">{tr.auth.signIn}</p>
         <ErrorBanner message={error ? (errorMessages[error] ?? tr.common.error) : null} />
+        {msg === 'password_changed' ? (
+          <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-center text-sm text-green-800">
+            {tr.auth.passwordChanged}
+          </p>
+        ) : null}
         <form action={loginAction} className="mt-6 space-y-4">
           <Field label={tr.auth.email} required>
             <input name="email" type="email" autoComplete="email" required className={inputCls} />

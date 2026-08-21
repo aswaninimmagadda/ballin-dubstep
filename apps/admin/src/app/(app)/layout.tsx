@@ -73,7 +73,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 {lang === 'en' ? 'తెలుగు' : 'English'}
               </button>
             </form>
-            <span className="hidden text-sm text-slate-500 sm:inline">{user.displayName}</span>
+            <a
+              href="/account/password"
+              className="hidden text-sm text-slate-500 hover:text-primary sm:inline"
+              title={tr.auth.changePassword}
+            >
+              {user.displayName}
+            </a>
             <form action={logoutAction}>
               <button className="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100">
                 {tr.common.signOut}

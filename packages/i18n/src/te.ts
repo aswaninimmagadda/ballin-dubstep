@@ -45,6 +45,11 @@ export const te: TranslationTree = {
     invalidCredentials: 'ఇమెయిల్ లేదా పాస్‌వర్డ్ తప్పు.',
     accountLocked: 'చాలా సార్లు విఫలమైంది. కొన్ని నిమిషాల తర్వాత ప్రయత్నించండి.',
     sessionExpired: 'మీ సెషన్ ముగిసింది. దయచేసి మళ్లీ సైన్ ఇన్ చేయండి.',
+    changePassword: 'పాస్‌వర్డ్ మార్చండి',
+    currentPassword: 'ప్రస్తుత పాస్‌వర్డ్',
+    newPassword: 'కొత్త పాస్‌వర్డ్',
+    confirmPassword: 'కొత్త పాస్‌వర్డ్ నిర్ధారించండి',
+    passwordChanged: 'పాస్‌వర్డ్ మారింది. కొత్త పాస్‌వర్డ్‌తో సైన్ ఇన్ చేయండి.',
   },
   dashboard: {
     title: 'డాష్‌బోర్డ్',

@@ -89,11 +89,11 @@ async function q(sql, params = []) {
   return r.rows;
 }
 
-async function loginAs(email) {
+async function loginAs(email, password = PASSWORD) {
   cookie = '';
   const loginPage = await (await get('/login')).text();
   const loginForm = extractForm(loginPage, 'email');
-  const loginRes = await postAction('/login', loginForm, { email, password: PASSWORD });
+  const loginRes = await postAction('/login', loginForm, { email, password });
   const setCookie = loginRes.headers.get('set-cookie') ?? '';
   cookie = setCookie.split(';')[0];
   return cookie.startsWith('gymflow_session=');
@@ -510,6 +510,38 @@ async function main() {
     Number(collected.refunded) >= 50000 && Number(collected.gross) > Number(collected.refunded),
     JSON.stringify(collected),
   );
+
+  // ---- staff can rotate their own password --------------------------------
+  // One-time passwords are handed over verbally at the desk; if the holder
+  // can never change it, that credential is permanent.
+  console.log('\n[self-service password change]');
+  const NEW_PW = 'e2e-rotated-password-9';
+  const pwForm = extractForm(
+    await (await getFollow('/account/password')).text(),
+    'currentPassword',
+  );
+  const wrongRes = await postAction('/account/password', pwForm, {
+    currentPassword: 'definitely-not-the-password',
+    newPassword: NEW_PW,
+    confirmPassword: NEW_PW,
+  });
+  check(
+    'wrong current password is refused',
+    decodeURIComponent(redirectTarget(wrongRes)).includes('current password is not correct'),
+    redirectTarget(wrongRes),
+  );
+  const pwRes = await postAction('/account/password', pwForm, {
+    currentPassword: PASSWORD,
+    newPassword: NEW_PW,
+    confirmPassword: NEW_PW,
+  });
+  check(
+    'password changed and session ended',
+    redirectTarget(pwRes).includes('msg=password_changed'),
+    redirectTarget(pwRes),
+  );
+  check('old password no longer works', !(await loginAs('owner@demo.gymflow.local')));
+  check('new password works', await loginAs('owner@demo.gymflow.local', NEW_PW));
 
   // ---- cleanup test member -------------------------------------------------
   await db.query(`DELETE FROM attendance WHERE member_id = $1`, [memberId]);
