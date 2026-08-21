@@ -38,8 +38,8 @@ portable one.
 
 Vercel: project root `apps/admin`, framework Next.js, install command
 `pnpm install`, build `pnpm --filter @gymflow/admin build`. Environment
-variables (Production + Preview): `DATABASE_APP_URL`, `SESSION_SECRET`
-(32+ random bytes), `MEMBER_TOKEN_SECRET` (32+ random bytes, **rotating this
+variables (Production + Preview): `DATABASE_APP_URL` and
+`MEMBER_TOKEN_SECRET` (32+ random bytes, **rotating this
 invalidates member QR passes + access tokens immediately** — sessions
 survive). Custom domain + SSL are automatic. Rollback = redeploy previous
 build from the dashboard.

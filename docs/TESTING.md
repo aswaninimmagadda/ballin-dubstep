@@ -37,9 +37,9 @@ actually-executed runs (CI re-runs them on every PR).
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 105 checks passing (two HTTP suites)
+### 3. End-to-end — 111 checks passing (two HTTP suites)
 
-`scripts/e2e-admin.mjs` (50 checks) drives the real HTTP surface (server
+`scripts/e2e-admin.mjs` (56 checks) drives the real HTTP surface (server
 actions via progressive-enhancement form posts) against a running server +
 seeded DB, then verifies database effects:
 
@@ -63,6 +63,8 @@ seeded DB, then verifies database effects:
 - **Refunds:** a refund is recorded, then the payments export shows the
   refunded and net amounts and the reports page surfaces the refund — the
   money that came back must leave the collections figure.
+- **Member edit:** a landline is accepted as an emergency contact, and a
+  field blanked on the form is genuinely cleared (not silently ignored).
 - **Own password:** wrong current password refused; a successful change ends
   every session, the old password stops working and the new one works.
 

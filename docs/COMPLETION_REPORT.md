@@ -76,7 +76,7 @@ Deployment targets and domain guidance: DEPLOYMENT.md.
 | -------------------------- | ----------------------- | -------------------------------------- |
 | Unit (vitest)              | **108 passed**          | `pnpm test:unit`                       |
 | Integration (real PG, RLS) | **49 passed**           | `pnpm --filter @gymflow/database test` |
-| E2E admin HTTP suite       | **50 checks passed**    | `node scripts/e2e-admin.mjs`           |
+| E2E admin HTTP suite       | **56 checks passed**    | `node scripts/e2e-admin.mjs`           |
 | E2E final acceptance (§82) | **55 checks passed**    | `node scripts/e2e-acceptance.mjs`      |
 | Typecheck / lint / format  | clean                   | `pnpm typecheck && pnpm lint`          |
 | Production builds          | admin ✓, member Metro ✓ | CI steps                               |
@@ -118,7 +118,6 @@ restored DB) — see DISASTER_RECOVERY.md. Details: TESTING.md.
 | ------------------------- | -------------------------------------------------------------------- |
 | DB app-role URL           | `DATABASE_APP_URL` env (host dashboard/CI)                           |
 | DB owner URL (migrations) | `DATABASE_URL` env — operator/CI only, never app                     |
-| Session signing secret    | `SESSION_SECRET` env (32+ random bytes)                              |
 | Member token/QR secret    | `MEMBER_TOKEN_SECRET` env (rotation invalidates passes)              |
 | Seed demo passwords       | `SEED_PASSWORD` / `SEED_MEMBER_PASSWORD` env                         |
 | New-gym owner password    | printed once by `create-tenant` (or `--owner-password`, discouraged) |

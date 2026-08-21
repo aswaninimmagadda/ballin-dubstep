@@ -32,7 +32,6 @@ before `db:seed` to avoid the dev-default demo passwords.
 ```bash
 cat > apps/admin/.env.local <<'EOF'
 DATABASE_APP_URL=postgres://gymflow_app:gymflow_app_dev_pw@localhost:5432/gymflow_dev
-SESSION_SECRET=<openssl rand -hex 32>
 MEMBER_TOKEN_SECRET=<openssl rand -hex 32>
 EOF
 pnpm dev:admin        # http://localhost:3000  (login: reception@demo.gymflow.local)
