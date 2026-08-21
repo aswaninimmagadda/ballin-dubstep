@@ -39,41 +39,51 @@ create-tenant -- --slug … --name … --owner-email …`) with zero source
    denominators) are Phase 2 with definitions to be documented alongside.
 8. **Bulk operations** are limited to CSV import/export + per-member
    WhatsApp; no bulk messaging/tagging UI yet.
-8a. **Promotion usage limits are engine-enforced but not form-settable.**
+9. **Promotion usage limits are engine-enforced but not form-settable.**
    The eligibility engine honours total and per-member redemption limits,
    and the schema stores them, but the promotions form doesn't expose the
    two fields yet — promotions created in the UI are unlimited until a
-   limit is set directly in the database (or the form gains the fields,
-   a small Phase-2 item).
-9. **Branch scoping is enforced but not surfaced** — staff_branch_access
-   works at the policy level; the admin UI doesn't yet manage it.
-10. **CSV import targets the first active branch** and creates one
+   limit is set directly in the database (or the form gains the fields, a
+   small Phase-2 item).
+10. **Collections-by-day is computed but not displayed.** The reports
+    service returns a per-day series; the page renders the total, the
+    by-method split and the plan mix only. The CSV export carries
+    per-payment dates, so the data is reachable today.
+11. **Branch scoping is enforced but not surfaced** — staff_branch_access
+    works at the policy level; the admin UI doesn't yet manage it.
+12. **CSV import targets the first active branch** and creates one
     membership per row; multi-branch imports are done per-branch (or rows
     edited afterwards). Trainer-name column is accepted but not yet linked.
 
 ## Technical
 
-11. **Login throttling is DB-backed per identifier/IP** — robust for the
+13. **Login throttling is DB-backed per identifier/IP** — robust for the
     pilot; a busy multi-instance deployment should add an edge rate limiter.
-12. **Admin PWA is online-first by design.** The service worker caches only
+14. **Admin PWA is online-first by design.** The service worker caches only
     static assets and shows an offline fallback page + live offline banner;
     business pages/data are never served stale, and no writes are queued
     offline (server-authoritative, fails visibly).
-13. **Overlapping freeze+pending-renewal edge:** extending a frozen
+15. **Overlapping freeze+pending-renewal edge:** extending a frozen
     membership can push its end past a pre-sold renewal's start; the system
     keeps both visible and staff resolve by adjusting the renewal (an
     `memberships.override` action). Rare in practice; a guided resolution
     flow is a Phase-2 nicety.
-14. **Trainer deletion is deactivation.** FKs restrict hard deletes when
+16. **Trainer deletion is deactivation.** FKs restrict hard deletes when
     sessions exist — intended; the Trainers page offers activate/deactivate.
-15. **E2E suites drive HTTP + DB, not a pixel-level browser.** The
+17. **E2E suites drive HTTP + DB, not a pixel-level browser.** The
     server-rendered forms make this high-fidelity; a Playwright layer would
     additionally catch client-side regressions (Phase 2).
-16. **Supabase free-tier project pausing** would take the pilot down after
+18. **The member app has not been run on physical Android hardware here.**
+    Its JS bundle builds in CI (Metro export) and every screen was exercised
+    against the live API through Expo's web renderer, but no APK/AAB has
+    been produced and no device/emulator run has happened — that is the
+    first thing to do in pilot testing (see the Install & Test Guide).
+19. **Supabase free-tier project pausing** would take the pilot down after
     inactivity — see DEPLOYMENT.md for the mitigation before go-live.
-17. **Member-app API base URL is app.json config** — fine for one shared
-    backend; per-tenant custom domains would need a config service.
-18. **Stored membership states are trued up by a daily sweep** (`pnpm
+20. **Member-app API base URL is a build-time setting** (`GYMFLOW_API_URL`,
+    baked in by `app.config.js`) — fine for one shared backend; per-tenant
+    custom domains would need a config service or an in-app server field.
+21. **Stored membership states are trued up by a daily sweep** (`pnpm
 --filter @gymflow/database sweep`, cron — see DEPLOYMENT.md). Every
     read path derives live status from dates (so screens, the check-in
     gate and the member app are correct between sweeps); the sweep keeps

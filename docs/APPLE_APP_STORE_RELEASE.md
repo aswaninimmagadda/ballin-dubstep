@@ -4,7 +4,7 @@
 > (developer.apple.com → App Store Connect help). Requirements shift;
 > below is the durable outline with the India-pilot practicalities.
 
-App identity (configured in `apps/member/app.json`):
+App identity (configured in `apps/member/app.config.js`):
 
 - Bundle identifier: **`app.gymflow.member`**
 

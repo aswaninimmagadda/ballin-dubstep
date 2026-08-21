@@ -6,7 +6,7 @@
 > time (play.google.com/console → Policy & programmes, and the "target API
 > level" requirements page).
 
-App identity (already configured in `apps/member/app.json`):
+App identity (already configured in `apps/member/app.config.js`):
 
 - Package name: **`app.gymflow.member`** (permanent once published — rename
   only _before_ first upload if the brand changes)
@@ -32,25 +32,28 @@ App identity (already configured in `apps/member/app.json`):
    up — losing a self-managed key without Play App Signing is fatal.
 
 4. **Adaptive icon & splash screen.** Both are configured in
-   `apps/member/app.json` (`android.adaptiveIcon` foreground/background,
-   `splash` image + backgroundColor) with template assets in
-   `apps/member/assets/`. Replace the templates with the commercial brand
-   before the first upload — the adaptive icon must read clearly in a
-   circle mask, the splash must not carry text that needs translating.
+   `apps/member/app.config.js` (`android.adaptiveIcon` foreground/background,
+   `backgroundColor`) with template assets in `apps/member/assets/`. Replace
+   the templates with the commercial brand before the first upload — the
+   adaptive icon must read clearly in a circle mask, the splash must not
+   carry text that needs translating.
 
 5. **Build the AAB.**
 
    ```bash
    npm i -g eas-cli && eas login
    cd apps/member
-   eas build --platform android --profile production   # produces .aab
+   GYMFLOW_API_URL=https://admin.yourgym.in \
+     eas build --platform android --profile production   # produces .aab
    ```
 
    First run creates `eas.json`; set `production` to `"autoIncrement": true`
-   for versionCode. Point `expo.extra.apiBaseUrl` at the **production**
-   admin origin before building. (EAS free tier queues builds; local
-   alternative: `npx expo prebuild && ./gradlew bundleRelease` with your own
-   Android SDK.)
+   for versionCode. `GYMFLOW_API_URL` is baked into the binary at build time
+   — it **must** be the production origin and it **must** be `https` (an
+   https origin also keeps Android cleartext off, which Play expects; see
+   `app.config.js`). Set the same variable in the EAS build profile's `env`
+   so cloud builds get it. (EAS free tier queues builds; local alternative:
+   `npx expo prebuild && ./gradlew bundleRelease` with your own Android SDK.)
 
 6. **Testing tracks.** Internal testing first: upload the AAB, add tester
    emails, install via the opt-in link, run the smoke script (login with a
@@ -86,7 +89,7 @@ App identity (already configured in `apps/member/app.json`):
 12. **Production rollout.** Promote from closed testing → staged rollout
     (start 20%) → 100%. Review times vary (hours to ~7 days).
 
-13. **Updates.** Bump `version` in app.json, `eas build`, upload to a test
+13. **Updates.** Bump `version` in app.config.js, `eas build`, upload to a test
     track, promote. Keep release notes in the console (bilingual EN/TE is
     a nice touch for members).
 

@@ -41,12 +41,16 @@ pnpm dev:admin        # http://localhost:3000  (login: reception@demo.gymflow.lo
 ## Member app
 
 ```bash
-pnpm dev:member       # Expo dev server; scan the QR with Expo Go
+# The phone must reach your machine, so pass your LAN IP — not localhost.
+GYMFLOW_API_URL=http://<your-LAN-IP>:3000 pnpm dev:member   # scan the QR with Expo Go
 ```
 
-Point the app at your machine: edit `apps/member/app.json` →
-`expo.extra.apiBaseUrl` to `http://<your-LAN-IP>:3000` (the phone must reach
-the admin server). Login: gym code `apfitness`, mobile `9876543210`,
+`GYMFLOW_API_URL` (read by `apps/member/app.config.js`) is the only knob:
+it sets `expo.extra.apiBaseUrl`, and when the origin is plain `http` it also
+enables Android cleartext + iOS local networking for that build — without
+which a **release** APK cannot talk to a LAN address at all (Expo only
+enables cleartext in debug manifests). Point it at an `https` origin and
+both switches stay off. Login: gym code `apfitness`, mobile `9876543210`,
 password = `SEED_MEMBER_PASSWORD`.
 
 ## Everyday commands
