@@ -46,6 +46,16 @@ product impact — budget the $99/yr only when there's real iPhone demand.
 9. **Release:** manual release after approval recommended for the first
    version; then phased automatic releases.
 
+## Build configuration
+
+`apps/member/eas.json` carries the same profiles as Android. iOS builds run
+on Expo's macOS workers, so **a Mac is not required** — but an Apple
+Developer account is, and cloud builds do not inherit your shell
+environment: set `env.GYMFLOW_API_URL` inside the profile before building,
+or the binary keeps the placeholder origin. The production origin must be
+`https`; App Transport Security blocks plain HTTP, and the local-network
+exception in `app.config.js` is only applied for `http` (LAN testing) builds.
+
 ## Current status in this repository
 
 - iOS build **not generated** (no Apple membership in the pilot budget);

@@ -43,16 +43,18 @@ App identity (already configured in `apps/member/app.config.js`):
    ```bash
    npm i -g eas-cli && eas login
    cd apps/member
-   GYMFLOW_API_URL=https://admin.yourgym.in \
-     eas build --platform android --profile production   # produces .aab
+   # set env.GYMFLOW_API_URL in eas.json's production profile FIRST
+   eas build --platform android --profile production   # produces .aab
    ```
 
-   First run creates `eas.json`; set `production` to `"autoIncrement": true`
-   for versionCode. `GYMFLOW_API_URL` is baked into the binary at build time
-   — it **must** be the production origin and it **must** be `https` (an
-   https origin also keeps Android cleartext off, which Play expects; see
-   `app.config.js`). Set the same variable in the EAS build profile's `env`
-   so cloud builds get it. (EAS free tier queues builds; local alternative:
+   `apps/member/eas.json` already defines the `preview` (APK) and
+   `production` (AAB, auto-incrementing versionCode) profiles. **Edit the
+   `env.GYMFLOW_API_URL` in the profile you are building** — EAS builds run
+   in Expo's cloud and do **not** inherit your shell environment, so a value
+   exported in your terminal is ignored and the binary would silently keep
+   the placeholder. Production must be `https`: it is the real origin, and an
+   https origin also keeps Android cleartext off, which Play expects (see
+   `app.config.js`). (EAS free tier queues builds; local alternative:
    `npx expo prebuild && ./gradlew bundleRelease` with your own Android SDK.)
 
 6. **Testing tracks.** Internal testing first: upload the AAB, add tester
@@ -99,5 +101,6 @@ App identity (already configured in `apps/member/app.config.js`):
   API origin; the Metro bundle is verified in CI so the JS side is
   build-ready).
 - Package id, adaptive-icon assets (template), app config: done.
-- Remaining human actions: developer account, EAS credentials, production
-  `apiBaseUrl`, listing assets, the two console declaration forms.
+- Remaining human actions: developer account, EAS credentials, the
+  production `GYMFLOW_API_URL` in `eas.json`, listing assets, and the two
+  console declaration forms.
