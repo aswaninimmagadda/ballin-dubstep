@@ -36,6 +36,30 @@ export async function hashPassword(password: string): Promise<string> {
   return `scrypt$${N}$${R}$${P}$${salt.toString('base64')}$${derived.toString('base64')}`;
 }
 
+/**
+ * A real hash of a value nobody can present, used to keep the cost of a login
+ * attempt the same whether or not the account exists.
+ *
+ * Without this, `!row || !(await verifyPassword(...))` short-circuits: an
+ * unknown identifier answers in ~5 ms while a known one pays the ~92 ms scrypt,
+ * which turns the login endpoint into an account-existence oracle. Callers
+ * that look an account up MUST verify against this when the lookup misses.
+ */
+const DECOY_HASH = `scrypt$${N}$${R}$${P}$${randomBytes(16).toString(
+  'base64',
+)}$${randomBytes(KEYLEN).toString('base64')}`;
+
+/**
+ * Burn the same scrypt work a real verification would, and always return
+ * false. Call this on the "no such account" branch so both branches cost the
+ * same. It is not perfectly constant-time — nothing built on a database
+ * lookup is — but it removes the 16x signal that made enumeration trivial.
+ */
+export async function verifyPasswordDecoy(password: string): Promise<false> {
+  await verifyPassword(password, DECOY_HASH);
+  return false;
+}
+
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   try {
     const parts = stored.split('$');

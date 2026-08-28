@@ -44,9 +44,36 @@ invalidates member QR passes + access tokens immediately** — sessions
 survive). Custom domain + SSL are automatic. Rollback = redeploy previous
 build from the dashboard.
 
+### `TRUSTED_PROXY_HOPS` — required behind any reverse proxy
+
+Login throttling counts failures per address. The address can only come from
+`X-Forwarded-For`, and that header is only trustworthy from the right: every
+standard proxy (Caddy's `reverse_proxy`, nginx's `proxy_add_x_forwarded_for`)
+**appends** what it observed, so the left-most entry is whatever the client
+typed. `TRUSTED_PROXY_HOPS` says how many proxies sit in front of the app, and
+the caller's address is read that many entries from the end.
+
+| Deployment                                  | Value             |
+| ------------------------------------------- | ----------------- |
+| Caddy or nginx directly in front of the app | `1`               |
+| Cloudflare (or another CDN) → Caddy → app   | `2`               |
+| Vercel                                      | `1`               |
+| App exposed directly, no proxy              | leave unset (`0`) |
+
+**Unset means per-address throttling is off**, by design: a limiter fed a
+value the caller controls is not just bypassable, it is aimable — 60 forged
+failures against a gym's public address would lock that gym out of both apps
+for 15 minutes. Per-identifier throttling (8 failures per account) is
+unaffected and is the control that actually stops password guessing.
+
+Setting the number too high is safe (the app attributes nothing rather than
+guess); setting it too low re-opens the bypass. Count the proxies that append
+to the header, not the total number of hops.
+
 Checklist per environment:
 
 - [ ] Secrets set (never the DB owner URL)
+- [ ] `TRUSTED_PROXY_HOPS` matches the proxy chain in front of the app
 - [ ] `pnpm db:migrate` run against the environment's DB from CI/operator
 - [ ] Seed only on staging/demo — **never** the production seed
 - [ ] Smoke: login, dashboard, member API login (see scripts/e2e-admin.mjs)

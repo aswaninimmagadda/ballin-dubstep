@@ -1,5 +1,6 @@
 import 'server-only';
 import { headers } from 'next/headers';
+import { clientIpFromHeaders } from './client-ip';
 import type { Queryable } from './db';
 import type { SessionUser } from './session';
 
@@ -23,7 +24,7 @@ export async function writeAudit(
   let userAgent: string | null = null;
   try {
     const h = await headers();
-    ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? h.get('x-real-ip') ?? null;
+    ip = clientIpFromHeaders(h);
     userAgent = h.get('user-agent')?.slice(0, 300) ?? null;
   } catch {
     // outside a request context (scripts/jobs) — leave null

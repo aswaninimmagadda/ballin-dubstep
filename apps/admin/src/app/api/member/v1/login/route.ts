@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { verifyPassword } from '@gymflow/core';
+import { verifyPassword, verifyPasswordDecoy } from '@gymflow/core';
 import { memberLoginSchema } from '@gymflow/validation';
+import { clientIpFromHeaders } from '@/lib/client-ip';
 import { asAnonymous } from '@/lib/db';
 import { issueRefreshToken, signAccessToken } from '@/lib/member-api';
 import { isThrottled } from '@/lib/session';
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
   const { gymCode, mobile, password } = parsed.data;
   const identifier = `${gymCode}:${mobile}`;
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
+  const ip = clientIpFromHeaders(req.headers);
 
   // Per-identifier and per-IP limits are separate: a gym shares one address,
   // so a member's forgotten password must not lock everyone else out.
@@ -38,7 +39,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       tx.query(`SELECT app.record_login_attempt($1, $2, $3)`, [identifier, ip, ok]),
     );
 
-  if (!row || !(await verifyPassword(password, row.password_hash as string))) {
+  // Same scrypt cost whether or not the mobile is registered at this gym —
+  // short-circuiting here made the endpoint an account-existence oracle.
+  const passwordOk = row
+    ? await verifyPassword(password, row.password_hash as string)
+    : await verifyPasswordDecoy(password);
+  if (!row || !passwordOk) {
     await record(false);
     return NextResponse.json({ error: 'invalid_credentials' }, { status: 401 });
   }

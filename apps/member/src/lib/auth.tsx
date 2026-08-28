@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTranslations, type Language, type TranslationTree } from '@gymflow/i18n';
-import { clearTokens, loadTokens, login as apiLogin } from './api';
+import { loadTokens, login as apiLogin, signOutEverywhere } from './api';
 
 interface AuthState {
   ready: boolean;
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await clearTokens();
+    await signOutEverywhere();
     setSignedIn(false);
   }, []);
 

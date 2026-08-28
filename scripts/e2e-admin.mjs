@@ -619,6 +619,93 @@ async function main() {
   );
   check('seed password works again', await loginAs('owner@demo.gymflow.local'));
 
+  // ---- member session security ------------------------------------------
+  // Three findings from the pre-release security review, each verified here
+  // over real HTTP rather than by reading the code.
+  console.log('\n[member session security]');
+  const memberMobile = memberRowDb.mobile.replace('+91', '');
+  const memberLogin = async () => {
+    const r = await fetch(`${BASE}/api/member/v1/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gymCode: 'apfitness', mobile: memberMobile, password: appPw }),
+    });
+    return r.ok ? await r.json() : null;
+  };
+
+  // 1. Sign-out must actually revoke the refresh token, not just forget it.
+  const outTokens = await memberLogin();
+  check('member signs in for the sign-out test', Boolean(outTokens?.refreshToken));
+  const logoutRes = await fetch(`${BASE}/api/member/v1/logout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken: outTokens.refreshToken }),
+  });
+  check('logout accepted', logoutRes.status === 204, String(logoutRes.status));
+  const afterLogout = await fetch(`${BASE}/api/member/v1/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken: outTokens.refreshToken }),
+  });
+  check(
+    'refresh token is dead after sign-out',
+    afterLogout.status === 401,
+    String(afterLogout.status),
+  );
+
+  // 2. Suspending the gym must stop refresh rotation, not just fresh logins.
+  const susTokens = await memberLogin();
+  check('member signs in before suspension', Boolean(susTokens?.refreshToken));
+  await db.query(`UPDATE tenants SET status = 'suspended' WHERE slug = 'apfitness'`);
+  try {
+    const susRefresh = await fetch(`${BASE}/api/member/v1/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: susTokens.refreshToken }),
+    });
+    check(
+      'suspended gym cannot rotate a refresh token',
+      susRefresh.status === 401,
+      String(susRefresh.status),
+    );
+  } finally {
+    await db.query(`UPDATE tenants SET status = 'active' WHERE slug = 'apfitness'`);
+  }
+
+  // 3. Login must not answer "does this account exist?" through its timing.
+  const timeLogin = async (mobile) => {
+    const t0 = performance.now();
+    await fetch(`${BASE}/api/member/v1/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gymCode: 'apfitness', mobile, password: 'definitely-wrong-pw' }),
+    });
+    return performance.now() - t0;
+  };
+  const med = async (mobile) => {
+    const runs = [];
+    for (let i = 0; i < 5; i += 1) runs.push(await timeLogin(mobile));
+    return runs.sort((a, b) => a - b)[2];
+  };
+  const known = await med(memberMobile);
+  const unknown = await med('9000000099');
+  // Before the fix the unknown branch skipped scrypt entirely and answered
+  // ~16x faster. Anything under 3x is noise on a shared box.
+  check(
+    'login timing does not reveal whether an account exists',
+    Math.max(known, unknown) / Math.max(1, Math.min(known, unknown)) < 3,
+    `known=${known.toFixed(0)}ms unknown=${unknown.toFixed(0)}ms`,
+  );
+
+  // 4. Cross-site posts to the credential handler are refused outright.
+  const csrf = await fetch(`${BASE}/credentials`, {
+    method: 'POST',
+    headers: { cookie, 'Sec-Fetch-Site': 'cross-site' },
+    body: new URLSearchParams({ kind: 'staff_reset', userId: memberId }),
+    redirect: 'manual',
+  });
+  check('cross-site post to /credentials refused', csrf.status === 403, String(csrf.status));
+
   // ---- member-initiated account deletion (Apple 5.1.1(v) / Play) ----------
   // Store-blocking feature: it must actually delete the login, and it must
   // NOT delete the gym's financial records.

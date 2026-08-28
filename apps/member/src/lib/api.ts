@@ -52,6 +52,30 @@ export async function clearTokens(): Promise<void> {
 }
 
 /**
+ * Sign out properly: hand the refresh token back to the server before
+ * dropping it. Clearing local storage alone left a valid 30-day refresh token
+ * on the server, so "sign out" only hid the session from this screen.
+ *
+ * The local clear happens regardless — if the phone is offline the member
+ * still expects the app to forget them, and the token expires on its own.
+ */
+export async function signOutEverywhere(): Promise<void> {
+  const refresh = await SecureStore.getItemAsync(REFRESH_KEY);
+  if (refresh) {
+    try {
+      await fetch(`${BASE}/api/member/v1/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: refresh }),
+      });
+    } catch {
+      // offline: local sign-out still proceeds
+    }
+  }
+  await clearTokens();
+}
+
+/**
  * In-flight refresh, shared by every caller.
  *
  * Screens fire several authenticated requests at once (Profile asks for the

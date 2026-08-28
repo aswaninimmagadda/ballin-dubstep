@@ -3,9 +3,10 @@ import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
 import { createHash, randomBytes } from 'node:crypto';
 import { redirect } from 'next/navigation';
-import { verifyPassword, hasPermission } from '@gymflow/core';
+import { verifyPassword, verifyPasswordDecoy, hasPermission } from '@gymflow/core';
 import type { Permission } from '@gymflow/types';
 import { asAnonymous, asPrincipal, type Claims } from './db';
+import { clientIpFromHeaders } from './client-ip';
 
 export const SESSION_COOKIE = 'gymflow_session';
 const SESSION_HOURS = 12;
@@ -64,7 +65,12 @@ export async function loginStaff(email: string, password: string): Promise<Login
   const recordAttempt = (ok: boolean) =>
     asAnonymous((tx) => tx.query(`SELECT app.record_login_attempt($1, $2, $3)`, [email, ip, ok]));
 
-  if (!row || !(await verifyPassword(password, row.password_hash as string))) {
+  // Always pay the scrypt cost, even when the account does not exist —
+  // otherwise the response time answers "is this an account?" in one request.
+  const passwordOk = row
+    ? await verifyPassword(password, row.password_hash as string)
+    : await verifyPasswordDecoy(password);
+  if (!row || !passwordOk) {
     await recordAttempt(false);
     return { ok: false, reason: 'invalid' };
   }
@@ -179,6 +185,5 @@ export async function requirePermission(perm: Permission): Promise<SessionUser> 
 }
 
 export async function clientIp(): Promise<string | null> {
-  const h = await headers();
-  return h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? h.get('x-real-ip') ?? null;
+  return clientIpFromHeaders(await headers());
 }

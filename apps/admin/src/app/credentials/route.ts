@@ -10,9 +10,28 @@ export const dynamic = 'force-dynamic';
 /**
  * One-time credential issuance. This is a POST-rendered page (not a
  * redirect) so generated passwords never appear in URLs, access logs or
- * browser history. The session cookie is SameSite=Lax, so cross-site form
- * posts cannot reach this handler with credentials.
+ * browser history.
+ *
+ * Unlike every mutation in the app shell, this is a plain route handler, so it
+ * does not get the origin check Next applies to server actions. The session
+ * cookie being SameSite=Lax does stop a cross-site form post from carrying it,
+ * but that is one browser default standing alone in front of the highest
+ * privilege operation in the product — issuing and resetting passwords — so
+ * the check is made explicitly here as well.
  */
+function sameOrigin(req: NextRequest): boolean {
+  // Sec-Fetch-Site is set by every browser that can make this request and is
+  // not settable from script; Origin is the fallback for anything older.
+  const site = req.headers.get('sec-fetch-site');
+  if (site) return site === 'same-origin' || site === 'none';
+  const origin = req.headers.get('origin');
+  if (!origin) return true; // non-browser client; the session cookie still gates it
+  try {
+    return new URL(origin).host === (req.headers.get('host') ?? new URL(req.url).host);
+  } catch {
+    return false;
+  }
+}
 
 function esc(s: string): string {
   return s
@@ -48,6 +67,9 @@ function errorPage(message: string, backHref: string): NextResponse {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  if (!sameOrigin(req)) {
+    return new NextResponse('Cross-origin request refused', { status: 403 });
+  }
   const user = await currentUser();
   if (!user || user.kind === 'member') {
     return NextResponse.redirect(new URL('/login', req.url), 303);

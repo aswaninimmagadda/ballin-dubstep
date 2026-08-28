@@ -70,7 +70,21 @@ export async function rotateRefreshToken(
     return (r as { rows: Record<string, unknown>[] }).rows[0];
   });
   if (!row || row.kind !== 'member' || !row.is_active) return null;
+  // Refresh is the long-lived credential, so it has to apply the same tenant
+  // rule as login. Without this a member of a suspended or archived gym kept
+  // rotating a fresh 30-day token forever, and the suspension meant nothing.
+  const status = row.tenant_status as string | null;
+  if (status && status !== 'active' && status !== 'trial') return null;
   return { userId: row.user_id as string, tenantId: row.tenant_id as string };
+}
+
+/**
+ * Hand a refresh token back on sign-out. Revokes the whole family for that
+ * user, so the token the app was holding stops working immediately instead of
+ * remaining valid on the server for its full 30 days.
+ */
+export async function revokeRefreshToken(token: string): Promise<void> {
+  await asAnonymous((tx) => tx.query(`SELECT app.refresh_revoke_family($1)`, [sha256hex(token)]));
 }
 
 export interface MemberAuth {
