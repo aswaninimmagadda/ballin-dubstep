@@ -600,6 +600,25 @@ async function main() {
   check('old password no longer works', !(await loginAs('owner@demo.gymflow.local')));
   check('new password works', await loginAs('owner@demo.gymflow.local', NEW_PW));
 
+  // Rotate back, so this suite leaves the seed exactly as it found it — the
+  // acceptance suite signs in as this same owner and must not depend on
+  // whether e2e-admin.mjs ran first.
+  const restoreForm = extractForm(
+    await (await getFollow('/account/password')).text(),
+    'currentPassword',
+  );
+  const restoreRes = await postAction('/account/password', restoreForm, {
+    currentPassword: NEW_PW,
+    newPassword: PASSWORD,
+    confirmPassword: PASSWORD,
+  });
+  check(
+    'password restored to the seed value',
+    redirectTarget(restoreRes).includes('msg=password_changed'),
+    redirectTarget(restoreRes),
+  );
+  check('seed password works again', await loginAs('owner@demo.gymflow.local'));
+
   // ---- member-initiated account deletion (Apple 5.1.1(v) / Play) ----------
   // Store-blocking feature: it must actually delete the login, and it must
   // NOT delete the gym's financial records.

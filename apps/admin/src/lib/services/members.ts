@@ -50,16 +50,27 @@ export async function searchMembers(
     params.push(todayInTz());
     const pToday = `$${params.length}`;
     params.push(limit, offset);
+    // Page the members first, THEN resolve the plan/dues LATERAL — otherwise the
+    // subquery runs once per member in the tenant to return 25 rows (measured
+    // 91ms vs 5ms on a 5,000-member gym). The LIMIT inside the derived table
+    // stops the planner from pulling the join back in.
     const rows = await tx.query(
-      `SELECT m.id, m.membership_number, m.first_name, m.last_name, m.mobile, m.status,
+      `SELECT p.id, p.membership_number, p.first_name, p.last_name, p.mobile, p.status,
               b.name AS branch_name, ms.plan_name_snapshot AS plan_name, ms.end_date::text AS end_date,
               ms.due_amount
-       FROM members m
-       JOIN branches b ON b.id = m.branch_id
+       FROM (
+         SELECT m.id, m.membership_number, m.first_name, m.last_name, m.mobile, m.status,
+                m.branch_id, m.created_at
+         FROM members m
+         ${where}
+         ORDER BY m.created_at DESC
+         LIMIT $${params.length - 1} OFFSET $${params.length}
+       ) p
+       JOIN branches b ON b.id = p.branch_id
        LEFT JOIN LATERAL (
          SELECT ms.plan_name_snapshot, ms.end_date, ${DUE_ON_MEMBERSHIP}::bigint::text AS due_amount
          FROM memberships ms
-         WHERE ms.member_id = m.id AND ms.state IN ('pending','active','frozen')
+         WHERE ms.member_id = p.id AND ms.state IN ('pending','active','frozen')
          ORDER BY CASE
            WHEN ms.state IN ('active','frozen') AND ms.end_date >= ${pToday}::date THEN 0
            WHEN ms.state = 'pending' AND ms.start_date <= ${pToday}::date THEN 1
@@ -67,9 +78,7 @@ export async function searchMembers(
            ELSE 3
          END, ms.end_date DESC LIMIT 1
        ) ms ON true
-       ${where}
-       ORDER BY m.created_at DESC
-       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+       ORDER BY p.created_at DESC`,
       params,
     );
     return {
