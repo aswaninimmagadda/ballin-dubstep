@@ -172,6 +172,8 @@ export interface MemberDetail {
   payments: Record<string, unknown>[];
   attendance: Record<string, unknown>[];
   addons: Record<string, unknown>[];
+  /** Set when the member asked, from the app, to have their data erased. */
+  deletionRequestedAt: string | null;
   openFreeze: Record<string, unknown> | null;
 }
 
@@ -204,6 +206,11 @@ export async function getMemberDetail(user: SessionUser, id: string): Promise<Me
       `SELECT * FROM attendance WHERE member_id = $1 ORDER BY checked_in_at DESC LIMIT 30`,
       [id],
     );
+    const deletionReq = await tx.query(
+      `SELECT requested_at::text AS requested_at FROM member_deletion_requests
+       WHERE member_id = $1 AND handled_at IS NULL LIMIT 1`,
+      [id],
+    );
     const addons = await tx.query(
       `SELECT ma.*, ma.start_date::text AS start_date, ma.end_date::text AS end_date,
               t.name AS trainer_name
@@ -234,6 +241,8 @@ export async function getMemberDetail(user: SessionUser, id: string): Promise<Me
       payments: payments.rows as Record<string, unknown>[],
       attendance: attendance.rows as Record<string, unknown>[],
       addons: addons.rows as Record<string, unknown>[],
+      deletionRequestedAt:
+        (deletionReq.rows[0] as { requested_at: string } | undefined)?.requested_at ?? null,
       openFreeze,
     };
   });

@@ -600,6 +600,77 @@ async function main() {
   check('old password no longer works', !(await loginAs('owner@demo.gymflow.local')));
   check('new password works', await loginAs('owner@demo.gymflow.local', NEW_PW));
 
+  // ---- member-initiated account deletion (Apple 5.1.1(v) / Play) ----------
+  // Store-blocking feature: it must actually delete the login, and it must
+  // NOT delete the gym's financial records.
+  console.log('\n[member account deletion]');
+  const delLogin = await fetch(`${BASE}/api/member/v1/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      gymCode: 'apfitness',
+      mobile: memberRowDb.mobile.replace('+91', ''),
+      password: appPw,
+    }),
+  });
+  check('member signs in before deleting', delLogin.status === 200, String(delLogin.status));
+  const delTokens = delLogin.status === 200 ? await delLogin.json() : null;
+  const [paymentsBefore] = await q(`SELECT count(*)::int AS n FROM payments WHERE member_id = $1`, [
+    memberId,
+  ]);
+  if (delTokens) {
+    const unauth = await fetch(`${BASE}/api/member/v1/account`, { method: 'DELETE' });
+    check('deletion requires authentication', unauth.status === 401, String(unauth.status));
+
+    const delRes = await fetch(`${BASE}/api/member/v1/account`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${delTokens.accessToken}` },
+    });
+    check('account deletion accepted', delRes.status === 200, String(delRes.status));
+
+    const [afterDel] = await q(`SELECT user_id FROM members WHERE id = $1`, [memberId]);
+    check('login unlinked from the member', afterDel.user_id === null, JSON.stringify(afterDel));
+    const [reqRow] = await q(
+      `SELECT count(*)::int AS n FROM member_deletion_requests
+       WHERE member_id = $1 AND handled_at IS NULL`,
+      [memberId],
+    );
+    check('deletion request recorded for the gym', reqRow.n === 1, String(reqRow.n));
+    const [paymentsAfter] = await q(
+      `SELECT count(*)::int AS n FROM payments WHERE member_id = $1`,
+      [memberId],
+    );
+    check(
+      'financial records survive deletion',
+      paymentsAfter.n === paymentsBefore.n && paymentsAfter.n > 0,
+      `${paymentsBefore.n} → ${paymentsAfter.n}`,
+    );
+    const relogin = await fetch(`${BASE}/api/member/v1/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gymCode: 'apfitness',
+        mobile: memberRowDb.mobile.replace('+91', ''),
+        password: appPw,
+      }),
+    });
+    check('deleted member can no longer sign in', relogin.status !== 200, String(relogin.status));
+  }
+
+  // ---- public account-deletion page (Play requires a reachable URL) -------
+  const delPage = await fetch(`${BASE}/account-deletion`);
+  const delPageBody = delPage.ok ? await delPage.text() : '';
+  check(
+    'public account-deletion page is reachable without login',
+    delPage.status === 200 && delPageBody.includes('Delete your'),
+    String(delPage.status),
+  );
+
+  // ---- health endpoint ----------------------------------------------------
+  const health = await fetch(`${BASE}/api/health`);
+  const healthBody = health.ok ? await health.json() : null;
+  check('health endpoint reports ok', health.status === 200 && healthBody?.status === 'ok');
+
   // ---- cleanup test member -------------------------------------------------
   await db.query(`DELETE FROM attendance WHERE member_id = $1`, [memberId]);
 

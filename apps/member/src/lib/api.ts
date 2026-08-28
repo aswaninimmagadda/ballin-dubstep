@@ -112,12 +112,16 @@ async function doRefresh(): Promise<boolean> {
   return true;
 }
 
-async function authedFetch(path: string, retry = true): Promise<Response> {
+async function authedFetch(path: string, retry = true, init?: RequestInit): Promise<Response> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    ...init,
+    headers: {
+      ...(init?.headers ?? {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
   });
   if (res.status === 401 && retry && (await refreshTokens())) {
-    return authedFetch(path, false);
+    return authedFetch(path, false, init);
   }
   return res;
 }
@@ -217,6 +221,12 @@ export const api = {
         trainer_name: string | null;
       }[];
     }>('/api/member/v1/pt'),
+  /** Delete this member's app account (store requirement). */
+  deleteAccount: async (): Promise<void> => {
+    const res = await authedFetch('/api/member/v1/account', true, { method: 'DELETE' });
+    if (!res.ok) throw new ApiError(res.status, 'delete_failed');
+    await clearTokens();
+  },
   notifications: () =>
     getCached<{
       notifications: { id: string; event: string; rendered_body: string; created_at: string }[];

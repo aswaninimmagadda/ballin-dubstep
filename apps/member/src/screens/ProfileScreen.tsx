@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { LANGUAGES } from '@gymflow/i18n';
 import { api, type MeResponse } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -8,6 +8,7 @@ import { theme } from '../lib/theme';
 
 export function ProfileScreen() {
   const { t, language, setLanguage, signOut } = useAuth();
+  const [deleting, setDeleting] = useState(false);
   const [me, setMe] = useState<MeResponse | null>(null);
   const [offers, setOffers] = useState<{ code: string; name: string; valid_to: string }[]>([]);
   const [notifications, setNotifications] = useState<
@@ -97,6 +98,41 @@ export function ProfileScreen() {
       ) : null}
 
       <PrimaryButton label={t.common.signOut} onPress={() => signOut()} />
+
+      {/*
+        Required by Apple guideline 5.1.1(v) and Google Play: an app with
+        accounts must let the member delete theirs from inside the app. The
+        wording is deliberate — the gym must keep payment records by law, so
+        we promise only what we actually do.
+      */}
+      <Pressable
+        accessibilityRole="button"
+        disabled={deleting}
+        onPress={() =>
+          Alert.alert(t.account.deleteTitle, t.account.deleteExplain, [
+            { text: t.common.cancel, style: 'cancel' },
+            {
+              text: t.account.deleteConfirm,
+              style: 'destructive',
+              onPress: async () => {
+                setDeleting(true);
+                try {
+                  await api.deleteAccount();
+                  Alert.alert(t.account.deletedTitle, t.account.deletedBody);
+                } catch {
+                  Alert.alert(t.common.error);
+                } finally {
+                  setDeleting(false);
+                  await signOut();
+                }
+              },
+            },
+          ])
+        }
+        style={styles.deleteBtn}
+      >
+        <Text style={styles.deleteText}>{deleting ? t.common.loading : t.account.deleteTitle}</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -105,6 +141,8 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: theme.color.surfaceMuted },
   content: { padding: theme.spacing.md, gap: 4 },
   label: { fontSize: 13, fontWeight: '700', color: theme.color.textMuted, marginBottom: 8 },
+  deleteBtn: { marginTop: theme.spacing.md, alignItems: 'center', paddingVertical: 12 },
+  deleteText: { color: theme.color.danger, fontSize: 14, fontWeight: '600' },
   langChip: {
     borderWidth: 1,
     borderColor: theme.color.border,

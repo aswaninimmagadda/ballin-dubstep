@@ -81,8 +81,16 @@ export default async function MemberDetailPage({
   const { msg, detail: errorDetail } = await searchParams;
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail) notFound();
-  const { member, currentMembership, memberships, payments, attendance, addons, openFreeze } =
-    detail;
+  const {
+    member,
+    currentMembership,
+    memberships,
+    payments,
+    attendance,
+    addons,
+    openFreeze,
+    deletionRequestedAt,
+  } = detail;
   const today = todayInTz();
   const wa = await renewalWhatsappLink(user, { memberId: id });
 
@@ -126,6 +134,11 @@ export default async function MemberDetailPage({
       ) : (
         <SuccessBanner message={msg ? messages[msg] : null} />
       )}
+      {deletionRequestedAt ? (
+        <ErrorBanner
+          message={`This member asked to have their data deleted on ${formatDisplayDate(deletionRequestedAt.slice(0, 10))}. Their app login is already removed. Erase the personal details you no longer need, keeping financial records.`}
+        />
+      ) : null}
       <PageHeader
         title={`${member.first_name} ${member.last_name ?? ''}`}
         subtitle={`${tr.members.memberNumber} ${member.membership_number} · ${maskPhone(String(member.mobile))} · ${String(member.branch_name)}`}

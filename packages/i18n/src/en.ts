@@ -52,6 +52,15 @@ export const en = {
     confirmPassword: 'Confirm new password',
     passwordChanged: 'Password changed. Sign in with your new password.',
   },
+  account: {
+    deleteTitle: 'Delete my account',
+    deleteExplain:
+      'This removes your app login straight away and signs you out everywhere. Your gym is asked to erase your remaining personal details. Membership and payment records are kept by your gym, as the law requires. This cannot be undone.',
+    deleteConfirm: 'Delete account',
+    deletedTitle: 'Account deleted',
+    deletedBody:
+      'Your app login has been removed. Contact your gym if you want to use the app again.',
+  },
   dashboard: {
     title: 'Dashboard',
     activeMembers: 'Active members',
