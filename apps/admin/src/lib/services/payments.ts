@@ -1,22 +1,77 @@
 import 'server-only';
 import { fiscalYearLabel, formatReceiptNumber } from '@gymflow/core';
-import { todayInTz } from '@gymflow/utils';
+import { formatMoney, todayInTz } from '@gymflow/utils';
 import type { RecordPaymentInput } from '@gymflow/validation';
 import { asPrincipal } from '../db';
+import { DUE_ON_MEMBERSHIP } from './money-sql';
 import { writeAudit } from '../audit';
 import { UserFacingError } from '../errors';
 import { queueMemberNotification } from './notifications';
 import type { SessionUser } from '../session';
+
+/**
+ * How far back a payment may be dated.
+ *
+ * The receipt's financial-year label — and therefore its permanent receipt
+ * number — comes from this date, so a slipped year on the date field mints a
+ * receipt in a closed financial year that can never be corrected, because
+ * receipts are append-only. Late entry of a few weeks is normal at a gym
+ * desk; a date from last year is always a typo.
+ */
+export const MAX_BACKDATE_DAYS = 30;
+
+/** The earliest date a payment may carry, for bounding the form's date input. */
+export function earliestPaymentDate(today: string): string {
+  const d = new Date(`${today}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - MAX_BACKDATE_DAYS);
+  return d.toISOString().slice(0, 10);
+}
+
+function assertPaymentDateInRange(paymentDate: string, today: string): void {
+  if (paymentDate > today) {
+    throw new UserFacingError('A payment cannot be dated in the future.');
+  }
+  const earliestIso = earliestPaymentDate(today);
+  if (paymentDate < earliestIso) {
+    throw new UserFacingError(
+      `A payment cannot be dated more than ${MAX_BACKDATE_DAYS} days ago (earliest ${earliestIso}). Check the year.`,
+    );
+  }
+}
 
 export async function recordPayment(
   user: SessionUser,
   input: RecordPaymentInput,
 ): Promise<{ paymentId: string; receiptNumber: string }> {
   const today = todayInTz();
+  const paymentDate = input.paymentDate ?? today;
+  assertPaymentDateInRange(paymentDate, today);
   return asPrincipal(user.claims, async (tx) => {
     const mR = await tx.query(`SELECT id, branch_id FROM members WHERE id = $1`, [input.memberId]);
     const m = mR.rows[0] as { id: string; branch_id: string } | undefined;
     if (!m) throw new UserFacingError('Member not found.');
+
+    // A payment aimed at a membership cannot exceed what is still owed on it.
+    // Selling and renewing already refuse an overpayment; this path did not,
+    // so a slipped digit at the desk wrote a payment the drawer would never
+    // reconcile and drove the dues figure negative — which the member page
+    // then hid, because it only renders dues when the balance is positive.
+    if (input.membershipId) {
+      const dR = await tx.query(
+        `SELECT ${DUE_ON_MEMBERSHIP}::bigint::text AS due FROM memberships ms WHERE ms.id = $1`,
+        [input.membershipId],
+      );
+      const dueRow = dR.rows[0] as { due: string } | undefined;
+      if (!dueRow) throw new UserFacingError('Membership not found.');
+      const due = Number(dueRow.due);
+      if (input.amount > due) {
+        throw new UserFacingError(
+          due <= 0
+            ? 'This membership is already paid in full.'
+            : `Payment is more than the amount due. Collect ${formatMoney(due)}.`,
+        );
+      }
+    }
 
     const pr = await tx.query(
       `INSERT INTO payments (tenant_id, branch_id, member_id, amount, method, payment_date,
@@ -28,7 +83,7 @@ export async function recordPayment(
         m.id,
         input.amount,
         input.method,
-        input.paymentDate ?? today,
+        paymentDate,
         input.externalReference ?? null,
         user.userId,
         input.notes ?? null,
@@ -56,7 +111,7 @@ export async function recordPayment(
       [user.tenantId],
     );
     const s = sR.rows[0] as { receipt_prefix: string; receipt_sequence_padding: number };
-    const fy = fiscalYearLabel(input.paymentDate ?? today);
+    const fy = fiscalYearLabel(paymentDate);
     const seqR = await tx.query(`SELECT app.next_receipt_seq($1, $2) AS seq`, [user.tenantId, fy]);
     const seq = Number((seqR.rows[0] as { seq: string }).seq);
     const receiptNumber = formatReceiptNumber({

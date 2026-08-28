@@ -1,6 +1,7 @@
+import { hasPermission } from '@gymflow/core';
 import { notFound, redirect } from 'next/navigation';
 import { randomUUID } from 'node:crypto';
-import { formatMoney, todayInTz } from '@gymflow/utils';
+import { formatMoney, todayInTz, parseMoney } from '@gymflow/utils';
 import { AMOUNT_ERROR, readAmount } from '@/lib/amount';
 import { sellMembershipSchema } from '@gymflow/validation';
 import { requirePermission } from '@/lib/session';
@@ -12,6 +13,22 @@ import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * An empty discount field means "no discount", not "zero" — the schema treats
+ * an explicit 0 the same way, but keeping undefined out of the payload makes
+ * the intent obvious in the audit trail.
+ */
+function discountPaise(raw: FormDataEntryValue | null): number | undefined {
+  const text = String(raw ?? '').trim();
+  if (!text) return undefined;
+  try {
+    const paise = parseMoney(text);
+    return paise > 0 ? paise : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 async function sellAction(formData: FormData): Promise<void> {
   'use server';
@@ -27,6 +44,9 @@ async function sellAction(formData: FormData): Promise<void> {
     startDate: String(formData.get('startDate') ?? ''),
     includeJoiningFee: formData.get('includeJoiningFee') === 'on',
     promotionCode: String(formData.get('promotionCode') ?? '').trim() || null,
+    // Sent only when the field is filled in; the service refuses a discount
+    // over the gym's threshold unless the actor holds discounts.approve.
+    manualDiscount: discountPaise(formData.get('manualDiscount')),
     idempotencyKey: String(formData.get('idempotencyKey') ?? ''),
     payment:
       amount.kind === 'ok'
@@ -61,6 +81,12 @@ export default async function SellPage({
   searchParams: Promise<{ error?: string; new?: string }>;
 }) {
   const user = await requirePermission('memberships.sell');
+  // The gym's approval threshold is checked server-side; anyone who may
+  // apply a discount at all sees the field.
+  const canDiscount =
+    user.kind === 'platform_admin' ||
+    hasPermission(user.permissions, 'discounts.apply') ||
+    hasPermission(user.permissions, 'discounts.approve');
   const { id } = await params;
   const { error, new: isNew } = await searchParams;
   const [detail, plans, tr] = await Promise.all([getMemberDetail(user, id), listPlans(user), t()]);
@@ -124,6 +150,20 @@ export default async function SellPage({
             <Field label={tr.membership.promotion} hint="Optional promo code">
               <input name="promotionCode" placeholder="e.g. NEWYEAR26" className={inputCls} />
             </Field>
+            {/* A promo code and a hand-written discount are mutually exclusive;
+                the service takes the promotion when both are sent. The
+                approval threshold in Settings is enforced server-side, so this
+                field is safe to show to anyone who may sell. */}
+            {canDiscount ? (
+              <Field label={tr.membership.manualDiscount} hint={tr.membership.manualDiscountHint}>
+                <input
+                  name="manualDiscount"
+                  inputMode="decimal"
+                  placeholder="0"
+                  className={inputCls}
+                />
+              </Field>
+            ) : null}
           </div>
 
           <label className="flex items-center gap-2 text-sm">

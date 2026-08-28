@@ -22,6 +22,9 @@ export function toUserMessage(err: unknown): string {
   if (/members_tenant_mobile_unique/.test(message)) {
     return 'A member with this mobile number already exists.';
   }
+  if (/membership_plans_tenant_id_name_key|addon_packages_tenant_id_name_key/.test(message)) {
+    return 'A plan or package with this name already exists. Change its price instead of creating a duplicate, or pick a different name.';
+  }
   if (/trainer_sessions_no_double_book/.test(message)) {
     return 'The trainer already has a session at this time.';
   }

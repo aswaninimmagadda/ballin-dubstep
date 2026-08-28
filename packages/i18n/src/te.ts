@@ -139,6 +139,8 @@ export const te: TranslationTree = {
     },
   },
   membership: {
+    manualDiscount: 'తగ్గింపు',
+    manualDiscountHint: 'ఐచ్ఛికం. ప్రోమో కోడ్‌కు బదులుగా — పరిమితి దాటితే ఆమోదం అవసరం.',
     sell: 'సభ్యత్వం అమ్మండి',
     renew: 'సభ్యత్వం పునరుద్ధరించండి',
     startDate: 'ప్రారంభ తేదీ',
@@ -215,6 +217,7 @@ export const te: TranslationTree = {
     },
   },
   plans: {
+    reprice: 'ధర మార్చు',
     title: 'ప్లాన్‌లు',
     newPlan: 'కొత్త ప్లాన్',
     duration: 'వ్యవధి',

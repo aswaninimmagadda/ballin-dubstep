@@ -616,6 +616,157 @@ async function main() {
   check('Gym B export has no demo-gym members', !exportCsvText.includes('+919876543210'));
 
   // ---- ISOLATION: Gym A vs Gym B ------------------------------------------
+  // ---- owner economics: repricing and counter discounts ------------------
+  // The plans page has always promised "Price changes create a new version —
+  // past sales keep their original terms", and the service has always done
+  // that; there was no way to reach it. Likewise the discount-approval
+  // threshold was enforced by a service no form ever called.
+  console.log('\n[owner: reprice + counter discount]');
+  check('owner relogin for repricing', await loginAs(`owner@${SLUG}.test`, ownerPw));
+  const plansPage = await (await get('/plans')).text();
+  check(
+    'the plans table offers a reprice control',
+    /name="basePrice"[\s\S]{0,400}?Reprice|Reprice/.test(plansPage),
+  );
+  const repriceForm = extractForm(plansPage, 'planId');
+  const repriceRes = await postAction('/plans', repriceForm, {
+    planId: qPlan.id,
+    basePrice: '2500',
+    joiningFee: '300',
+  });
+  check('reprice accepted', !target(repriceRes).includes('error'), target(repriceRes));
+  const versions = await q(
+    `SELECT version, base_price::bigint::text AS base_price, duration_value, grace_period_days
+       FROM membership_plan_versions WHERE plan_id = $1 ORDER BY version`,
+    [qPlan.id],
+  );
+  check(
+    'repricing created a new version, it did not edit the old one',
+    versions.length === 2,
+    `versions=${versions.length}`,
+  );
+  check(
+    'the new version carries the new price',
+    versions.at(-1).base_price === '250000',
+    versions.at(-1).base_price,
+  );
+  check(
+    'the original version is untouched',
+    versions[0].base_price === '200000',
+    versions[0].base_price,
+  );
+  check(
+    'other terms carried forward, not reset',
+    versions.at(-1).duration_value === versions[0].duration_value &&
+      versions.at(-1).grace_period_days === versions[0].grace_period_days,
+  );
+  const soldEarlier = await q(
+    `SELECT total_amount::bigint::text AS total FROM memberships
+      WHERE member_id = $1 ORDER BY created_at LIMIT 1`,
+    [memberId],
+  );
+  check(
+    'a membership sold before the reprice keeps its original amount',
+    soldEarlier[0].total === '184000',
+    soldEarlier[0]?.total,
+  );
+
+  // A duplicate plan name must say so, not "Something went wrong".
+  const dupPlanRes = await postAction(
+    '/plans',
+    extractForm(await (await get('/plans')).text(), 'durationValue'),
+    {
+      name: 'Quarterly',
+      durationValue: '3',
+      durationUnit: 'months',
+      basePrice: '2500',
+      joiningFee: '0',
+      gracePeriodDays: '5',
+      freezeAllowanceDays: '30',
+      maxFreezes: '2',
+    },
+  );
+  check(
+    'a duplicate plan name is explained, not swallowed',
+    decodeURIComponent(target(dupPlanRes)).includes('already exists'),
+    decodeURIComponent(target(dupPlanRes)).slice(-140),
+  );
+
+  // PT packages: repriceable and retireable (they snapshot on sale, so no
+  // versioning is needed).
+  const [ptPkgToReprice] = await q(
+    `SELECT a.id FROM addon_packages a JOIN tenants t ON t.id = a.tenant_id
+      WHERE t.slug = $1 AND a.name = 'PT 5'`,
+    [SLUG],
+  );
+  const ptRepriceForm = extractForm(await (await get('/plans')).text(), 'packageId');
+  const ptRes = await postAction('/plans', ptRepriceForm, {
+    packageId: ptPkgToReprice.id,
+    price: '1800',
+  });
+  check('PT package repriced', !target(ptRes).includes('error'), target(ptRes));
+  const [ptAfter] = await q(
+    `SELECT price::bigint::text AS price, is_active FROM addon_packages WHERE id = $1`,
+    [ptPkgToReprice.id],
+  );
+  check('the PT package carries the new price', ptAfter.price === '180000', ptAfter.price);
+  const [ptSold] = await q(
+    `SELECT price_snapshot::bigint::text AS p FROM member_addons WHERE member_id = $1 LIMIT 1`,
+    [memberId],
+  );
+  check(
+    'an already-sold PT package keeps its snapshot price',
+    !ptSold || ptSold.p === '150000',
+    ptSold?.p,
+  );
+
+  // Counter discount: the owner holds discounts.approve, so any size is fine.
+  const discMobile = `9${String(Math.floor(100000000 + Math.random() * 899999999))}`;
+  check(
+    'reception relogin for the discount sale',
+    await loginAs(`reception@${SLUG}.test`, recepPw),
+  );
+  const dStep1 = extractForm(await (await get('/members/new')).text(), 'mobile');
+  const dDup = await postAction('/members/new', dStep1, { mobile: discMobile });
+  const dStep2Path = target(dDup).replace(/^https?:\/\/[^/]+/, '');
+  const dStep2Html = await (await get(dStep2Path)).text();
+  check('the sell form offers a discount field to staff who may discount', dStep2Html.length > 0);
+  const dCreate = await postAction(dStep2Path, extractForm(dStep2Html, 'firstName'), {
+    mobile: discMobile,
+    branchId: dStep2Html.match(/<option[^>]*value="([a-f0-9-]{36})"/)?.[1],
+    firstName: 'Disc',
+    lastName: 'Ount',
+    referralSource: 'walk_in',
+  });
+  const dSellPath = target(dCreate).replace(/^https?:\/\/[^/]+/, '');
+  const dMemberId = dSellPath.match(/members\/([a-f0-9-]+)\/sell/)?.[1];
+  const dSellHtml = await (await get(dSellPath)).text();
+  check(
+    'the discount field is rendered on the sell form',
+    dSellHtml.includes('name="manualDiscount"'),
+  );
+  // Quarterly is now ₹2500 + ₹300 joining = ₹2800; ₹300 off = ₹2500.
+  const dSellRes = await postAction(dSellPath, extractForm(dSellHtml, 'planId'), {
+    planId: qPlan.id,
+    startDate: istToday,
+    includeJoiningFee: 'on',
+    manualDiscount: '300',
+    amount: '2500',
+    method: 'cash',
+  });
+  check(
+    'a counter discount within the limit is accepted',
+    target(dSellRes).includes('msg=sold'),
+    target(dSellRes),
+  );
+  const [dMs] = await q(
+    `SELECT total_amount::bigint::text AS total, discount_amount::bigint::text AS disc
+       FROM memberships WHERE member_id = $1`,
+    [dMemberId],
+  );
+  check('the discount is recorded on the membership', dMs.disc === '30000', dMs.disc);
+  check('the total is net of the discount', dMs.total === '250000', dMs.total);
+
   // ---- GST: a registered gym must be able to issue a tax invoice ---------
   // Gyms above the GST turnover threshold cannot legally invoice without
   // GSTIN, taxable value and a CGST/SGST split on the document.

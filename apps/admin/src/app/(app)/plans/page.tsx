@@ -3,8 +3,8 @@ import { formatMoney, parseMoney } from '@gymflow/utils';
 import { createPlanSchema } from '@gymflow/validation';
 import { requirePermission } from '@/lib/session';
 import { hasPermission } from '@gymflow/core';
-import { createPlan, listPlans, setPlanActive } from '@/lib/services/plans';
-import { createAddonPackage, listAddonPackages } from '@/lib/services/addons';
+import { createPlan, listPlans, setPlanActive, updatePlanTerms } from '@/lib/services/plans';
+import { createAddonPackage, listAddonPackages, updateAddonPackage } from '@/lib/services/addons';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
 import {
@@ -64,6 +64,81 @@ async function toggleActiveAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('plans.manage');
   await setPlanActive(user, String(formData.get('planId')), formData.get('active') === '1');
+  redirect('/plans');
+}
+
+/**
+ * Change a plan's price. The page has always promised "Price changes create a
+ * new version — past sales keep their original terms", and updatePlanTerms
+ * has always done exactly that; there was simply no way to reach it, so an
+ * owner whose rates went up had to create a second plan with a different name
+ * (a duplicate name failed with "Something went wrong") and the old one stayed
+ * sellable.
+ *
+ * Every other term is carried forward from the current version, so this is a
+ * reprice and not a silent reset of duration, freezes or grace.
+ */
+async function repriceAction(formData: FormData): Promise<void> {
+  'use server';
+  const user = await requirePermission('plans.manage');
+  const planId = String(formData.get('planId'));
+  let basePrice = 0;
+  let joiningFee = 0;
+  try {
+    basePrice = parseMoney(String(formData.get('basePrice') ?? ''));
+    joiningFee = parseMoney(String(formData.get('joiningFee') ?? '0'));
+  } catch {
+    redirect(`/plans?error=${encodeURIComponent('Enter a valid price, e.g. 2500')}`);
+  }
+  const plans = await listPlans(user, true);
+  const current = plans.find((p) => p.id === planId);
+  if (!current) redirect(`/plans?error=${encodeURIComponent('Plan not found.')}`);
+  try {
+    await updatePlanTerms(user, planId, {
+      durationUnit: current.duration_unit,
+      durationValue: current.duration_value,
+      basePrice,
+      joiningFee,
+      taxRateBps: Number(formData.get('taxRateBps') ?? current.tax_rate_bps),
+      taxInclusive: current.tax_inclusive,
+      freezeAllowanceDays: current.freeze_allowance_days,
+      maxFreezes: current.max_freezes,
+      gracePeriodDays: current.grace_period_days,
+      allowedTimings: current.allowed_timings,
+    });
+  } catch (err) {
+    redirect(`/plans?error=${encodeURIComponent(toUserMessage(err))}`);
+  }
+  redirect('/plans?msg=repriced');
+}
+
+async function repriceAddonAction(formData: FormData): Promise<void> {
+  'use server';
+  const user = await requirePermission('plans.manage');
+  let price = 0;
+  try {
+    price = parseMoney(String(formData.get('price') ?? ''));
+  } catch {
+    redirect(`/plans?error=${encodeURIComponent('Enter a valid package price, e.g. 2000')}`);
+  }
+  try {
+    await updateAddonPackage(user, String(formData.get('packageId')), { price });
+  } catch (err) {
+    redirect(`/plans?error=${encodeURIComponent(toUserMessage(err))}`);
+  }
+  redirect('/plans?msg=repriced');
+}
+
+async function toggleAddonActiveAction(formData: FormData): Promise<void> {
+  'use server';
+  const user = await requirePermission('plans.manage');
+  try {
+    await updateAddonPackage(user, String(formData.get('packageId')), {
+      isActive: formData.get('active') === '1',
+    });
+  } catch (err) {
+    redirect(`/plans?error=${encodeURIComponent(toUserMessage(err))}`);
+  }
   redirect('/plans');
 }
 
@@ -145,13 +220,36 @@ export default async function PlansPage({
                 </td>
                 <td className="px-4 py-3">
                   {canManage ? (
-                    <form action={toggleActiveAction}>
-                      <input type="hidden" name="planId" value={p.id} />
-                      <input type="hidden" name="active" value={p.is_active ? '0' : '1'} />
-                      <button className="text-xs font-semibold text-slate-500 hover:text-slate-700">
-                        {p.is_active ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </form>
+                    <div className="flex flex-col items-end gap-2">
+                      <form action={repriceAction} className="flex items-center gap-1">
+                        <input type="hidden" name="planId" value={p.id} />
+                        <input
+                          name="basePrice"
+                          required
+                          inputMode="decimal"
+                          defaultValue={String(Number(p.base_price) / 100)}
+                          aria-label={`New price for ${p.name}`}
+                          className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        />
+                        <input
+                          name="joiningFee"
+                          inputMode="decimal"
+                          defaultValue={String(Number(p.joining_fee) / 100)}
+                          aria-label={`New joining fee for ${p.name}`}
+                          className="w-16 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        />
+                        <button className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">
+                          {tr.plans.reprice}
+                        </button>
+                      </form>
+                      <form action={toggleActiveAction}>
+                        <input type="hidden" name="planId" value={p.id} />
+                        <input type="hidden" name="active" value={p.is_active ? '0' : '1'} />
+                        <button className="text-xs font-semibold text-slate-500 hover:text-slate-700">
+                          {p.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </form>
+                    </div>
                   ) : null}
                 </td>
               </tr>
@@ -280,6 +378,7 @@ export default async function PlansPage({
                 'Validity',
                 tr.membership.price,
                 tr.members.status,
+                '',
               ]}
             >
               {addonPackages.map((a) => (
@@ -293,6 +392,33 @@ export default async function PlansPage({
                     <Badge tone={a.is_active ? 'success' : 'muted'}>
                       {a.is_active ? 'Active' : 'Inactive'}
                     </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    {canManage ? (
+                      <div className="flex flex-col items-end gap-2">
+                        <form action={repriceAddonAction} className="flex items-center gap-1">
+                          <input type="hidden" name="packageId" value={a.id} />
+                          <input
+                            name="price"
+                            required
+                            inputMode="decimal"
+                            defaultValue={String(Number(a.price) / 100)}
+                            aria-label={`New price for ${a.name}`}
+                            className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                          />
+                          <button className="whitespace-nowrap text-xs font-semibold text-primary hover:underline">
+                            {tr.plans.reprice}
+                          </button>
+                        </form>
+                        <form action={toggleAddonActiveAction}>
+                          <input type="hidden" name="packageId" value={a.id} />
+                          <input type="hidden" name="active" value={a.is_active ? '0' : '1'} />
+                          <button className="text-xs font-semibold text-slate-500 hover:text-slate-700">
+                            {a.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </form>
+                      </div>
+                    ) : null}
                   </td>
                 </tr>
               ))}

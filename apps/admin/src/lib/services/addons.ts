@@ -30,6 +30,49 @@ export async function listAddonPackages(
   });
 }
 
+/**
+ * Reprice an add-on package, or take it off sale.
+ *
+ * Unlike membership plans, add-on packages are not versioned: member_addons
+ * snapshots name and price at the moment of sale (name_snapshot,
+ * price_snapshot), so changing the package here cannot disturb anything
+ * already sold. Without these the price was permanent, the package could not
+ * be retired, and the name could not be reused — a gym that raised its PT
+ * rate had nowhere to go.
+ */
+export async function updateAddonPackage(
+  user: SessionUser,
+  packageId: string,
+  patch: { price?: number; isActive?: boolean },
+): Promise<void> {
+  return asPrincipal(user.claims, async (tx) => {
+    const sets: string[] = [];
+    const params: unknown[] = [packageId];
+    if (patch.price !== undefined) {
+      params.push(patch.price);
+      sets.push(`price = $${params.length}`);
+    }
+    if (patch.isActive !== undefined) {
+      params.push(patch.isActive);
+      sets.push(`is_active = $${params.length}`);
+    }
+    if (!sets.length) return;
+    const r = await tx.query(
+      `UPDATE addon_packages SET ${sets.join(', ')}, updated_at = now() WHERE id = $1`,
+      params,
+    );
+    if ((r as { rowCount: number }).rowCount === 0) {
+      throw new UserFacingError('Package not found.');
+    }
+    await writeAudit(tx, user, {
+      action: patch.isActive === undefined ? 'addon_package.reprice' : 'addon_package.set_active',
+      entityType: 'addon_package',
+      entityId: packageId,
+      after: patch as Record<string, unknown>,
+    });
+  });
+}
+
 export async function createAddonPackage(
   user: SessionUser,
   input: {

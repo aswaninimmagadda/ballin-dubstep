@@ -17,6 +17,11 @@ export interface PlanRow {
   joining_fee: string;
   grace_period_days: number;
   version: number;
+  tax_rate_bps: number;
+  tax_inclusive: boolean;
+  freeze_allowance_days: number;
+  max_freezes: number;
+  allowed_timings: string | null;
 }
 
 export async function listPlans(user: SessionUser, includeInactive = false): Promise<PlanRow[]> {
@@ -24,7 +29,9 @@ export async function listPlans(user: SessionUser, includeInactive = false): Pro
     const r = await tx.query(
       `SELECT p.id, p.name, p.public_description, p.is_active, p.display_order,
               v.duration_unit, v.duration_value, v.base_price::bigint::text AS base_price,
-              v.joining_fee::bigint::text AS joining_fee, v.grace_period_days, v.version
+              v.joining_fee::bigint::text AS joining_fee, v.grace_period_days, v.version,
+              v.tax_rate_bps, v.tax_inclusive, v.freeze_allowance_days, v.max_freezes,
+              v.allowed_timings
        FROM membership_plans p
        JOIN LATERAL (
          SELECT * FROM membership_plan_versions WHERE plan_id = p.id ORDER BY version DESC LIMIT 1

@@ -141,6 +141,8 @@ export const en = {
     },
   },
   membership: {
+    manualDiscount: 'Discount',
+    manualDiscountHint: 'Optional. Instead of a promo code — needs approval above the gym limit.',
     sell: 'Sell membership',
     renew: 'Renew membership',
     startDate: 'Start date',
@@ -217,6 +219,7 @@ export const en = {
     },
   },
   plans: {
+    reprice: 'Reprice',
     title: 'Plans',
     newPlan: 'New plan',
     duration: 'Duration',

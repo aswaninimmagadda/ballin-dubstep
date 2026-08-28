@@ -4,7 +4,10 @@ import { parseMoney, todayInTz } from '@gymflow/utils';
 import { recordPaymentSchema } from '@gymflow/validation';
 import { requirePermission } from '@/lib/session';
 import { getMemberDetail } from '@/lib/services/members';
-import { recordPayment } from '@/lib/services/payments';
+import {
+  recordPayment,
+  earliestPaymentDate as earliestPaymentDateFor,
+} from '@/lib/services/payments';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
@@ -59,6 +62,7 @@ export default async function PaymentPage({
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail) notFound();
   const today = todayInTz();
+  const earliestPaymentDate = earliestPaymentDateFor(today);
 
   return (
     <>
@@ -96,8 +100,18 @@ export default async function PaymentPage({
             <Field label={tr.payments.reference} hint="UPI/UTR reference for non-cash payments">
               <input name="externalReference" className={inputCls} />
             </Field>
+            {/* Bounded in the browser as well as the server: the receipt's
+                financial-year number is derived from this date and receipts
+                are append-only, so a slipped year cannot be undone. */}
             <Field label={tr.payments.date}>
-              <input name="paymentDate" type="date" defaultValue={today} className={inputCls} />
+              <input
+                name="paymentDate"
+                type="date"
+                defaultValue={today}
+                min={earliestPaymentDate}
+                max={today}
+                className={inputCls}
+              />
             </Field>
           </div>
           <Field label={tr.members.notes}>

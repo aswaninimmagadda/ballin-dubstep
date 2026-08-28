@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { randomUUID } from 'node:crypto';
-import { proposeRenewal } from '@gymflow/core';
-import { formatDisplayDate, formatMoney, todayInTz } from '@gymflow/utils';
+import { proposeRenewal, hasPermission } from '@gymflow/core';
+import { formatDisplayDate, formatMoney, todayInTz, parseMoney } from '@gymflow/utils';
 import { AMOUNT_ERROR, readAmount } from '@/lib/amount';
 import { renewMembershipSchema } from '@gymflow/validation';
 import { requirePermission } from '@/lib/session';
@@ -13,6 +13,22 @@ import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * An empty discount field means "no discount", not "zero" — the schema treats
+ * an explicit 0 the same way, but keeping undefined out of the payload makes
+ * the intent obvious in the audit trail.
+ */
+function discountPaise(raw: FormDataEntryValue | null): number | undefined {
+  const text = String(raw ?? '').trim();
+  if (!text) return undefined;
+  try {
+    const paise = parseMoney(text);
+    return paise > 0 ? paise : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 async function renewAction(formData: FormData): Promise<void> {
   'use server';
@@ -28,6 +44,9 @@ async function renewAction(formData: FormData): Promise<void> {
     planId: String(formData.get('planId') ?? ''),
     includeJoiningFee: false,
     promotionCode: String(formData.get('promotionCode') ?? '').trim() || null,
+    // Sent only when the field is filled in; the service refuses a discount
+    // over the gym's threshold unless the actor holds discounts.approve.
+    manualDiscount: discountPaise(formData.get('manualDiscount')),
     idempotencyKey: String(formData.get('idempotencyKey') ?? ''),
     payment:
       amount.kind === 'ok'
@@ -60,6 +79,12 @@ export default async function RenewPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const user = await requirePermission('memberships.renew');
+  // The gym's approval threshold is checked server-side; anyone who may
+  // apply a discount at all sees the field.
+  const canDiscount =
+    user.kind === 'platform_admin' ||
+    hasPermission(user.permissions, 'discounts.apply') ||
+    hasPermission(user.permissions, 'discounts.approve');
   const { id } = await params;
   const { error } = await searchParams;
   const [detail, plans, tr] = await Promise.all([getMemberDetail(user, id), listPlans(user), t()]);
@@ -132,6 +157,18 @@ export default async function RenewPage({
               className={`${inputCls} max-w-xs`}
             />
           </Field>
+          {/* Mutually exclusive with the promo code above; the approval
+              threshold in Settings is enforced server-side. */}
+          {canDiscount ? (
+            <Field label={tr.membership.manualDiscount} hint={tr.membership.manualDiscountHint}>
+              <input
+                name="manualDiscount"
+                inputMode="decimal"
+                placeholder="0"
+                className={`${inputCls} max-w-xs`}
+              />
+            </Field>
+          ) : null}
 
           <fieldset className="rounded-lg border border-slate-200 p-4">
             <legend className="px-1 text-sm font-semibold text-slate-700">

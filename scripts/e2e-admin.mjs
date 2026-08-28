@@ -619,6 +619,69 @@ async function main() {
   );
   check('seed password works again', await loginAs('owner@demo.gymflow.local'));
 
+  // ---- money guards at the desk ------------------------------------------
+  // Two ways a slipped keystroke used to become permanent.
+  console.log('\n[payment guards]');
+  const payPath = `/members/${memberId}/payment`;
+  const payHtml = await (await getFollow(payPath)).text();
+  // Match the whole <input> tag rather than assuming attribute order.
+  const dateTag = (payHtml.match(/<input[^>]*>/g) ?? []).find((tag) =>
+    tag.includes('name="paymentDate"'),
+  );
+  check(
+    'the payment date input is bounded in the browser',
+    Boolean(dateTag && /\bmin="/.test(dateTag) && /\bmax="/.test(dateTag)),
+    dateTag ?? 'no paymentDate input in the page',
+  );
+
+  const [openMs] = await q(
+    `SELECT id FROM memberships WHERE member_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    [memberId],
+  );
+  const backdated = await postAction(payPath, extractForm(payHtml, 'paymentDate'), {
+    membershipId: openMs.id,
+    amount: '100',
+    method: 'cash',
+    paymentDate: '2019-06-01',
+  });
+  check(
+    'a payment dated in a closed financial year is refused',
+    decodeURIComponent(redirectTarget(backdated)).includes('more than 30 days ago'),
+    decodeURIComponent(redirectTarget(backdated)).slice(-120),
+  );
+
+  const future = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+  const futureRes = await postAction(
+    payPath,
+    extractForm(await (await getFollow(payPath)).text(), 'paymentDate'),
+    { membershipId: openMs.id, amount: '100', method: 'cash', paymentDate: future },
+  );
+  check(
+    'a payment dated in the future is refused',
+    decodeURIComponent(redirectTarget(futureRes)).includes('future'),
+    decodeURIComponent(redirectTarget(futureRes)).slice(-120),
+  );
+
+  const overRes = await postAction(
+    payPath,
+    extractForm(await (await getFollow(payPath)).text(), 'paymentDate'),
+    { membershipId: openMs.id, amount: '999999', method: 'cash' },
+  );
+  check(
+    'a payment larger than the outstanding balance is refused',
+    /more than the amount due|already paid in full/.test(
+      decodeURIComponent(redirectTarget(overRes)),
+    ),
+    decodeURIComponent(redirectTarget(overRes)).slice(-140),
+  );
+  const [negCheck] = await q(
+    `SELECT count(*)::int AS n FROM payments p
+      JOIN payment_allocations pa ON pa.payment_id = p.id
+      WHERE pa.membership_id = $1 AND p.amount > 900000`,
+    [openMs.id],
+  );
+  check('and no over-payment reached the ledger', negCheck.n === 0, String(negCheck.n));
+
   // ---- member forgot their app password ----------------------------------
   // The member detail page used to replace the activation button with the
   // text "Member app: enabled" once a login existed, so a member who forgot
