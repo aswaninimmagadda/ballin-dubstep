@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { LANGUAGES } from '@gymflow/i18n';
-import { api, type MeResponse } from '../lib/api';
+import { API_BASE_URL, api, type MeResponse } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Card, Muted, PrimaryButton, Title } from '../components/ui';
 import { theme } from '../lib/theme';
@@ -97,6 +97,20 @@ export function ProfileScreen() {
         </Card>
       ) : null}
 
+      {/*
+        Both stores require the privacy policy to be reachable from inside the
+        app, not only from the store listing. It is served from the same origin
+        as the API, so a white-label build points at its own operator's copy
+        with no code change.
+      */}
+      <Pressable
+        accessibilityRole="link"
+        onPress={() => Linking.openURL(`${API_BASE_URL}/privacy`)}
+        style={styles.policyRow}
+      >
+        <Text style={styles.link}>{t.account.privacyPolicy}</Text>
+      </Pressable>
+
       <PrimaryButton label={t.common.signOut} onPress={() => signOut()} />
 
       {/*
@@ -138,6 +152,7 @@ export function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  policyRow: { paddingVertical: 12, minHeight: theme.touchTarget },
   scroll: { flex: 1, backgroundColor: theme.color.surfaceMuted },
   content: { padding: theme.spacing.md, gap: 4 },
   label: { fontSize: 13, fontWeight: '700', color: theme.color.textMuted, marginBottom: 8 },

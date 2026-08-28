@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * always marked stale so screens can say so.
  */
 
-const BASE: string =
+export const API_BASE_URL: string =
   (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl ??
   'http://localhost:3000';
 
@@ -63,7 +63,7 @@ export async function signOutEverywhere(): Promise<void> {
   const refresh = await SecureStore.getItemAsync(REFRESH_KEY);
   if (refresh) {
     try {
-      await fetch(`${BASE}/api/member/v1/logout`, {
+      await fetch(`${API_BASE_URL}/api/member/v1/logout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: refresh }),
@@ -90,7 +90,7 @@ export async function signOutEverywhere(): Promise<void> {
 let refreshInFlight: Promise<boolean> | null = null;
 
 export async function login(gymCode: string, mobile: string, password: string): Promise<void> {
-  const res = await fetch(`${BASE}/api/member/v1/login`, {
+  const res = await fetch(`${API_BASE_URL}/api/member/v1/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ gymCode, mobile, password }),
@@ -115,7 +115,7 @@ async function doRefresh(): Promise<boolean> {
   if (!refresh) return false;
   let res: Response;
   try {
-    res = await fetch(`${BASE}/api/member/v1/refresh`, {
+    res = await fetch(`${API_BASE_URL}/api/member/v1/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: refresh }),
@@ -137,7 +137,7 @@ async function doRefresh(): Promise<boolean> {
 }
 
 async function authedFetch(path: string, retry = true, init?: RequestInit): Promise<Response> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       ...(init?.headers ?? {}),

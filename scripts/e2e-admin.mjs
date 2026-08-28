@@ -860,6 +860,41 @@ async function main() {
     check('deleted member can no longer sign in', relogin.status !== 200, String(relogin.status));
   }
 
+  // ---- public store-required pages ---------------------------------------
+  // Both stores need these reachable with no login and actually useful — a
+  // page that says "ask reception" and gives no contact is a rejection, and
+  // so is a policy URL full of placeholders.
+  console.log('\n[public store pages]');
+  const noCookie = (path) => fetch(`${BASE}${path}`, { redirect: 'manual' });
+  const deletionNoGym = await noCookie('/account-deletion');
+  const deletionNoGymHtml = await deletionNoGym.text();
+  check(
+    'the deletion page offers a gym-code lookup when no gym is known',
+    deletionNoGym.status === 200 && deletionNoGymHtml.includes('name="gym"'),
+  );
+  const deletionWithGym = await (await noCookie('/account-deletion?gym=apfitness')).text();
+  check(
+    'and resolves that gym to a real phone number',
+    /href="tel:\+?\d{6,}"/.test(deletionWithGym),
+  );
+  check('and to a WhatsApp link', /wa\.me\/\d{6,}/.test(deletionWithGym));
+  const deletionBadGym = await (await noCookie('/account-deletion?gym=nosuchgym')).text();
+  check(
+    'an unknown gym code is explained, not silently blank',
+    /could not find a gym/i.test(deletionBadGym),
+  );
+  const privacy = await noCookie('/privacy');
+  const privacyHtml = await privacy.text();
+  check('the app privacy policy is public', privacy.status === 200, String(privacy.status));
+  check(
+    'the privacy policy has no unfilled placeholders',
+    !/\[Gym name\]|\[phone|\[email/i.test(privacyHtml),
+  );
+  check(
+    'it declares the check-in and PT data the app actually fetches',
+    /check-?in/i.test(privacyHtml) && /personal.training/i.test(privacyHtml),
+  );
+
   // ---- public account-deletion page (Play requires a reachable URL) -------
   const delPage = await fetch(`${BASE}/account-deletion`);
   const delPageBody = delPage.ok ? await delPage.text() : '';

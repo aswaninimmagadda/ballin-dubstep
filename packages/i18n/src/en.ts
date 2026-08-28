@@ -53,6 +53,7 @@ export const en = {
     passwordChanged: 'Password changed. Sign in with your new password.',
   },
   account: {
+    privacyPolicy: 'Privacy policy',
     deleteTitle: 'Delete my account',
     deleteExplain:
       'This removes your app login straight away and signs you out everywhere. Your gym is asked to erase your remaining personal details. Membership and payment records are kept by your gym, as the law requires. This cannot be undone.',

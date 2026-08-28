@@ -95,3 +95,12 @@ jobs:
         working-directory: apps/member
         env:
           CI: '1'
+          GYMFLOW_API_URL: https://admin.example-ci.test
+
+      # `expo export` only proves the JavaScript bundles. Permissions, the
+      # splash screen, edge-to-edge and the release-origin guard are properties
+      # of the Android project, which nothing in CI used to generate.
+      - name: Check the Android manifest the build would ship
+        run: node scripts/check-android-manifest.mjs
+        env:
+          CI: '1'

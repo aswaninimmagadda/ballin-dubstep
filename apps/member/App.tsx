@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/lib/auth';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -16,9 +17,34 @@ type Tab = 'home' | 'payments' | 'attendance' | 'pt' | 'profile';
 function Shell() {
   const { ready, signedIn, t } = useAuth();
   const [tab, setTab] = useState<Tab>('home');
+  // Android 15+ draws edge-to-edge and there is no opt-out, so the app is
+  // laid out under the status bar and the gesture/navigation bar. Real insets
+  // are the only thing keeping the tab bar above the system navigation —
+  // react-native's own SafeAreaView is a plain View on Android (it is
+  // deprecated and applies insets on iOS only), which left the 52dp tab bar
+  // sitting behind the 48dp navigation bar.
+  const insets = useSafeAreaInsets();
 
-  if (!ready) return <Loading />;
-  if (!signedIn) return <LoginScreen />;
+  // The sign-in and loading screens are laid out edge-to-edge too, so they
+  // need the same insets — otherwise the gym-code field sits under the clock.
+  const chrome = {
+    paddingTop: insets.top,
+    paddingBottom: insets.bottom,
+    paddingLeft: insets.left,
+    paddingRight: insets.right,
+  };
+  if (!ready)
+    return (
+      <View style={[styles.root, chrome]}>
+        <Loading />
+      </View>
+    );
+  if (!signedIn)
+    return (
+      <View style={[styles.root, chrome]}>
+        <LoginScreen />
+      </View>
+    );
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'home', label: t.nav.dashboard },
@@ -29,7 +55,7 @@ function Shell() {
   ];
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.body}>
         {tab === 'home' ? <HomeScreen /> : null}
         {tab === 'payments' ? <PaymentsScreen /> : null}
@@ -37,7 +63,15 @@ function Shell() {
         {tab === 'pt' ? <PtScreen /> : null}
         {tab === 'profile' ? <ProfileScreen /> : null}
       </View>
-      <View style={styles.tabBar} accessibilityRole="tablist">
+      <View
+        style={[
+          styles.tabBar,
+          // Keep the touch targets their full height and push the whole bar
+          // clear of the system navigation, rather than shrinking the labels.
+          { paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right },
+        ]}
+        accessibilityRole="tablist"
+      >
         {tabs.map(({ key, label }) => (
           <Pressable
             key={key}
@@ -58,12 +92,14 @@ function Shell() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <SafeAreaView style={styles.safe}>
-        <StatusBar style="dark" />
-        <Shell />
-      </SafeAreaView>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <View style={styles.safe}>
+          <StatusBar style="dark" />
+          <Shell />
+        </View>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 

@@ -34,15 +34,24 @@ product impact — budget the $99/yr only when there's real iPhone demand.
 5. **TestFlight:** `eas submit -p ios` uploads the build; internal testers
    immediately, external testers after a light beta review. Run the same
    smoke script as Android.
-6. **App Privacy** (Connect → App Privacy): declare collection of name +
-   phone (account), purchase history (app functionality), linked to the
-   user, no tracking. Mirror the published privacy policy URL.
+6. **App Privacy** (Connect → App Privacy): declare everything the app
+   actually fetches — name + phone (account), purchase history (app
+   functionality), **gym check-in history** and **personal-training session
+   history** (both app functionality, both linked to the user). No tracking,
+   no advertising identifier, no location. The privacy-policy URL is
+   `https://<your-admin-origin>/privacy`, a public no-login page shipped with
+   the admin app and linked from the app's Overview tab — not
+   `docs/PRIVACY.md`, which is the template the _gym_ publishes as controller
+   and still carries placeholders.
 7. **Listing:** screenshots for 6.7" and 6.1" (Simulator OK), description,
    keywords ("gym, membership, fitness, telugu"), support URL, age 4+.
 8. **Review notes:** provide a demo login (demo tenant gym code + mobile +
    password) so the reviewer can sign in — Apple rejects apps they can't
-   enter. State that accounts are created by the gym (B2B2C pattern) —
-   this is accepted when explained.
+   enter. State that accounts are created by the gym at the desk (B2B2C
+   pattern) and there is no public sign-up; this is accepted when explained.
+   Issue the demo password from the member page's _Reset app password_ action
+   immediately before submitting, use a **demo tenant only** (§85), and keep
+   it valid until review completes.
 9. **Release:** manual release after approval recommended for the first
    version; then phased automatic releases.
 
@@ -58,6 +67,14 @@ law requires it — Apple accepts retention that is legally mandated when it is
 disclosed. The same explanation is public at `/account-deletion` on the admin
 origin.
 
+## White-labelling
+
+App identity is environment-driven (`GYMFLOW_APP_NAME`, `GYMFLOW_APP_SLUG`,
+`GYMFLOW_APP_SCHEME`, `GYMFLOW_IOS_BUNDLE_ID`, `GYMFLOW_BRAND_COLOR`) so a
+gym-branded build needs no source fork — see the table in
+`docs/GOOGLE_PLAY_RELEASE.md`. The bundle identifier is permanent once
+published, so decide it before the first upload.
+
 ## Build configuration
 
 `apps/member/eas.json` carries the same profiles as Android. iOS builds run
@@ -71,8 +88,10 @@ exception in `app.config.js` is only applied for `http` (LAN testing) builds.
 ## Current status in this repository
 
 - iOS build **not generated** (no Apple membership in the pilot budget);
-  architecture is iOS-ready — Expo project compiles for iOS unchanged, no
-  Android-only APIs are used (SecureStore/AsyncStorage/SVG all
-  cross-platform).
+  architecture is iOS-ready — the Expo project compiles for iOS unchanged and
+  no Android-only APIs are used (SecureStore/AsyncStorage/SVG/safe-area-context
+  are all cross-platform). Safe areas use `react-native-safe-area-context`,
+  which is what handles the iPhone notch and home indicator as well as
+  Android's edge-to-edge insets.
 - Remaining human actions: enrollment, EAS iOS credentials, listing
   assets, privacy declarations, demo credentials for review.

@@ -44,9 +44,9 @@ actually-executed runs (CI re-runs them on every PR).
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 203 checks passing (three HTTP suites)
+### 3. End-to-end — 210 checks passing (three HTTP suites)
 
-`scripts/e2e-admin.mjs` (84 checks) drives the real HTTP surface (server
+`scripts/e2e-admin.mjs` (91 checks) drives the real HTTP surface (server
 actions via progressive-enhancement form posts) against a running server +
 seeded DB, then verifies database effects:
 
@@ -121,6 +121,22 @@ RLS as the runtime role, and rolls the whole fixture back. Fails the run if
 any query exceeds `PERF_BUDGET_MS` (250 ms), so it works as a regression
 gate. Current slowest: 69 ms. See docs/PERFORMANCE.md for what it found and
 why the numbers used to be 15-45x worse.
+
+### 3c. Android release check — `scripts/check-android-manifest.mjs`
+
+17 assertions about the binary rather than the source, run in CI. `expo
+export` only proves the JavaScript bundles; permissions, the splash screen,
+edge-to-edge and the release-origin guard live in the Android project, which
+nothing in the pipeline used to generate. It runs `expo prebuild` and asserts
+that only INTERNET and VIBRATE survive into the release manifest (storage and
+draw-over-other-apps are stripped), that the splash and adaptive icons are
+produced, that cleartext is off for an https origin, that the app uses
+`react-native-safe-area-context` rather than react-native's deprecated
+`SafeAreaView` (a plain View on Android, where edge-to-edge is mandatory), and
+that a production build is **refused** when `GYMFLOW_API_URL` is still the
+eas.json placeholder or is plain http.
+
+It does not replace a run on a real device — see `docs/KNOWN_LIMITATIONS.md`.
 
 ### 4. Manual smoke script
 
