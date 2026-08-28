@@ -20,11 +20,17 @@ import type { SessionUser } from '../session';
  */
 export const MAX_BACKDATE_DAYS = 30;
 
-/** The earliest date a payment may carry, for bounding the form's date input. */
+/**
+ * The earliest date a payment may carry: 30 days back, but never before the
+ * start of the current financial year (1 April), because a receipt written
+ * into a closed year cannot be corrected.
+ */
 export function earliestPaymentDate(today: string): string {
   const d = new Date(`${today}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - MAX_BACKDATE_DAYS);
-  return d.toISOString().slice(0, 10);
+  const window = d.toISOString().slice(0, 10);
+  const fyStart = `${fiscalYearLabel(today).slice(0, 4)}-04-01`;
+  return window > fyStart ? window : fyStart;
 }
 
 function assertPaymentDateInRange(paymentDate: string, today: string): void {
@@ -35,6 +41,18 @@ function assertPaymentDateInRange(paymentDate: string, today: string): void {
   if (paymentDate < earliestIso) {
     throw new UserFacingError(
       `A payment cannot be dated more than ${MAX_BACKDATE_DAYS} days ago (earliest ${earliestIso}). Check the year.`,
+    );
+  }
+  // The 30-day window is not enough on its own: entered on 10 April, 25 March
+  // is only 16 days back but lands in the PREVIOUS financial year, and the
+  // receipt number it mints there is append-only. Every April the books are
+  // closed behind you, so a cross-year date has to be a deliberate decision
+  // taken with the accountant, not a side effect of a date picker.
+  if (fiscalYearLabel(paymentDate) !== fiscalYearLabel(today)) {
+    throw new UserFacingError(
+      `That date falls in financial year ${fiscalYearLabel(paymentDate)}, which is closed. ` +
+        `Receipts cannot be added to a closed year — record it in ${fiscalYearLabel(today)} ` +
+        'and note the original date, or ask your accountant.',
     );
   }
 }
@@ -57,6 +75,17 @@ export async function recordPayment(
     // reconcile and drove the dues figure negative — which the member page
     // then hid, because it only renders dues when the balance is positive.
     if (input.membershipId) {
+      // Lock the membership first. Reading the balance and then inserting
+      // against it is a check-then-act, and under READ COMMITTED two
+      // receptionists collecting the last part payment at the same moment
+      // both read the same outstanding figure and both write. The refund path
+      // already takes this lock; this one has to as well.
+      const lockR = await tx.query(`SELECT id FROM memberships WHERE id = $1 FOR UPDATE`, [
+        input.membershipId,
+      ]);
+      if ((lockR as { rowCount: number }).rowCount === 0) {
+        throw new UserFacingError('Membership not found.');
+      }
       const dR = await tx.query(
         `SELECT ${DUE_ON_MEMBERSHIP}::bigint::text AS due FROM memberships ms WHERE ms.id = $1`,
         [input.membershipId],
@@ -205,6 +234,8 @@ export interface ReceiptView {
   tax_state_name: string | null;
   tax_rate_bps: number | null;
   tax_amount: string | null;
+  status: string;
+  refunded_amount: string;
 }
 
 export async function getReceipt(
@@ -219,16 +250,30 @@ export async function getReceipt(
               m.first_name || coalesce(' ' || m.last_name, '') AS member_name,
               m.membership_number, b.name AS branch_name, t.name AS gym_name,
               gs.receipt_footer, u.display_name AS received_by_name,
-              ms.plan_name_snapshot AS plan_name,
+              coalesce(ms.plan_name_snapshot, ma.name_snapshot) AS plan_name,
+              p.status,
+              -- A refunded payment used to reprint as a full-value tax
+              -- invoice, which is a document claiming money the gym gave back.
+              coalesce((SELECT sum(rf.amount) FROM refunds rf WHERE rf.payment_id = p.id), 0)
+                ::bigint::text AS refunded_amount,
               gs.gstin, gs.tax_sac_code, gs.tax_state_name,
               -- The tax was frozen onto the membership when it was sold, and
               -- this payment may be only part of it, so the tax shown on this
               -- receipt is that snapshot pro-rated by what was actually paid
               -- here. Deriving it from today's plan rate would rewrite history.
-              ms.tax_rate_bps,
-              CASE WHEN coalesce(ms.total_amount, 0) > 0
-                   THEN (ms.tax_amount * p.amount) / ms.total_amount
-                   ELSE 0 END::bigint::text AS tax_amount
+              coalesce(ms.tax_rate_bps, ma.tax_rate_bps) AS tax_rate_bps,
+              -- Half-up, not truncating: three part payments on a 3,000 plan
+              -- at 18% each floor to 15,254 paise and sum to one paise less
+              -- than the tax actually charged, so the receipts would not add
+              -- up to the invoice. (2ab + c) / 2c is exact half-up in integers.
+              CASE
+                WHEN coalesce(ms.total_amount, 0) > 0
+                  THEN (2 * ms.tax_amount * p.amount + ms.total_amount)
+                       / (2 * ms.total_amount)
+                WHEN coalesce(ma.price_snapshot, 0) > 0
+                  THEN (2 * ma.tax_amount * p.amount + ma.price_snapshot)
+                       / (2 * ma.price_snapshot)
+                ELSE 0 END::bigint::text AS tax_amount
        FROM receipts r
        JOIN payments p ON p.id = r.payment_id
        JOIN members m ON m.id = p.member_id
@@ -238,6 +283,7 @@ export async function getReceipt(
        LEFT JOIN users u ON u.id = p.received_by
        LEFT JOIN payment_allocations pa ON pa.payment_id = p.id
        LEFT JOIN memberships ms ON ms.id = pa.membership_id
+       LEFT JOIN member_addons ma ON ma.id = pa.member_addon_id
        WHERE r.payment_id = $1`,
       [paymentId],
     );

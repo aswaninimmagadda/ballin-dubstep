@@ -172,6 +172,8 @@ export const en = {
     },
   },
   payments: {
+    statusRefunded: 'Refunded',
+    statusPartiallyRefunded: 'Partially refunded',
     title: 'Payments',
     amount: 'Amount',
     method: 'Payment method',

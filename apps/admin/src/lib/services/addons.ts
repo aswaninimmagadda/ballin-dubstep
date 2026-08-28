@@ -1,5 +1,5 @@
 import 'server-only';
-import { addDays, todayInTz } from '@gymflow/utils';
+import { addDays, computeTax, todayInTz } from '@gymflow/utils';
 import { fiscalYearLabel, formatReceiptNumber } from '@gymflow/core';
 import { asPrincipal } from '../db';
 import { writeAudit } from '../audit';
@@ -81,12 +81,15 @@ export async function createAddonPackage(
     sessionCount?: number | null;
     validityDays: number;
     price: number;
+    taxRateBps?: number;
+    taxInclusive?: boolean;
   },
 ): Promise<string> {
   return asPrincipal(user.claims, async (tx) => {
     const r = await tx.query(
-      `INSERT INTO addon_packages (tenant_id, kind, name, session_count, validity_days, price)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      `INSERT INTO addon_packages (tenant_id, kind, name, session_count, validity_days, price,
+                                   tax_rate_bps, tax_inclusive)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
       [
         user.tenantId,
         input.kind,
@@ -94,6 +97,8 @@ export async function createAddonPackage(
         input.sessionCount ?? null,
         input.validityDays,
         input.price,
+        input.taxRateBps ?? 0,
+        input.taxInclusive ?? true,
       ],
     );
     const id = (r.rows[0] as { id: string }).id;
@@ -130,7 +135,8 @@ export async function sellAddon(
     if (!m) throw new UserFacingError('Member not found.');
 
     const pR = await tx.query(
-      `SELECT id, name, session_count, validity_days, price::bigint AS price
+      `SELECT id, name, session_count, validity_days, price::bigint AS price,
+              tax_rate_bps, tax_inclusive
        FROM addon_packages WHERE id = $1 AND is_active`,
       [input.addonPackageId],
     );
@@ -141,16 +147,22 @@ export async function sellAddon(
           session_count: number | null;
           validity_days: number;
           price: string;
+          tax_rate_bps: number;
+          tax_inclusive: boolean;
         }
       | undefined;
     if (!pkg) throw new UserFacingError('This package is not available.');
-    const price = Number(pkg.price);
+    // PT is the same taxable supply as a membership (SAC 999723). Splitting
+    // the tax here and snapshotting it keeps a registered gym's invoices
+    // adding up — without it every PT sale printed an untaxed receipt.
+    const split = computeTax(Number(pkg.price), pkg.tax_rate_bps, pkg.tax_inclusive);
+    const price = split.gross;
 
     const aR = await tx.query(
       `INSERT INTO member_addons
         (tenant_id, member_id, addon_package_id, name_snapshot, price_snapshot, trainer_id,
-         sessions_total, start_date, end_date, idempotency_key)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+         sessions_total, start_date, end_date, idempotency_key, tax_amount, tax_rate_bps)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
       [
         user.tenantId,
         m.id,
@@ -162,6 +174,8 @@ export async function sellAddon(
         start,
         addDays(start, pkg.validity_days),
         input.idempotencyKey,
+        split.tax,
+        pkg.tax_rate_bps,
       ],
     );
     const memberAddonId = (aR.rows[0] as { id: string }).id;

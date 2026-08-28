@@ -4,7 +4,11 @@ import { writeAudit } from '../audit';
 import type { SessionUser } from '../session';
 import type { CreateMemberInput } from '@gymflow/validation';
 import { maskPhone, todayInTz } from '@gymflow/utils';
-import { DUE_ON_MEMBERSHIP, LIVE_MEMBERSHIP_STATES, PAID_AGAINST_MEMBERSHIP } from './money-sql';
+import {
+  DUE_ON_MEMBERSHIP,
+  COLLECTABLE_MEMBERSHIP_STATES,
+  PAID_AGAINST_MEMBERSHIP,
+} from './money-sql';
 
 export interface MemberListRow {
   id: string;
@@ -43,7 +47,7 @@ export async function searchMembers(
     if (opts.duesOnly) {
       where += ` AND EXISTS (
         SELECT 1 FROM memberships ms
-        WHERE ms.member_id = m.id AND ms.state IN ${LIVE_MEMBERSHIP_STATES}
+        WHERE ms.member_id = m.id AND ms.state IN ${COLLECTABLE_MEMBERSHIP_STATES}
           AND ${DUE_ON_MEMBERSHIP} > 0)`;
     }
     const total = await tx.query(`SELECT count(*)::int AS n FROM members m ${where}`, params);

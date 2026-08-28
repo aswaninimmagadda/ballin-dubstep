@@ -13,7 +13,8 @@ export async function GET(): Promise<NextResponse> {
   if (user.kind !== 'platform_admin' && !hasPermission(user.permissions, 'import.run')) {
     return NextResponse.json({ error: 'Missing permission: import.run' }, { status: 403 });
   }
-  return new NextResponse(importTemplateCsv(), {
+  // BOM for the same reason as the exports: Excel guesses the encoding.
+  return new NextResponse(`\uFEFF${importTemplateCsv()}`, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': 'attachment; filename="gymflow-member-import-template.csv"',

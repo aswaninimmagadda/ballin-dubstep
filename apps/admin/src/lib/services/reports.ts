@@ -1,6 +1,13 @@
 import 'server-only';
 import { asPrincipal } from '../db';
-import { DUE_ON_MEMBERSHIP, LIVE_MEMBERSHIP_STATES, PAID_AGAINST_MEMBERSHIP } from './money-sql';
+import {
+  COLLECTABLE_ADDON_STATES,
+  COLLECTABLE_MEMBERSHIP_STATES,
+  DUE_ON_ADDON,
+  DUE_ON_MEMBERSHIP,
+  PAID_AGAINST_ADDON,
+  PAID_AGAINST_MEMBERSHIP,
+} from './money-sql';
 import type { SessionUser } from '../session';
 
 export interface CollectionsSummary {
@@ -29,10 +36,18 @@ export async function collectionsReport(
       params.push(opts.method);
       where += ` AND method = $${params.length}`;
     }
+    // Net of refunds, like the headline above it. They used to disagree: the
+    // card's total subtracted refunds and the per-method rows underneath it
+    // did not, so the rows summed to more than the total and neither number
+    // matched the drawer.
     const byMethod = await tx.query(
-      `SELECT method, sum(amount)::bigint::text AS total, count(*)::int AS count
-       FROM payments WHERE ${where}
-       GROUP BY method ORDER BY sum(amount) DESC`,
+      `SELECT p.method,
+              (sum(p.amount) - coalesce(sum((
+                 SELECT coalesce(sum(rf.amount), 0) FROM refunds rf WHERE rf.payment_id = p.id
+               )), 0))::bigint::text AS total,
+              count(*)::int AS count
+       FROM payments p WHERE ${where.replace('payment_date', 'p.payment_date').replace('status', 'p.status').replace('branch_id', 'p.branch_id').replace('method =', 'p.method =')}
+       GROUP BY p.method ORDER BY 2 DESC`,
       params,
     );
     const byDay = await tx.query(
@@ -83,16 +98,37 @@ export async function collectionsReport(
 export interface PlanMixRow {
   plan_name: string;
   active_count: number;
-  revenue: string;
+  /** Money actually collected against this plan, net of refunds. */
+  collected: string;
+  /** What was contracted and is still owed on live memberships. */
+  outstanding: string;
 }
 
+/**
+ * Which plans sell, and what they have actually brought in.
+ *
+ * This used to be `sum(total_amount)` over every membership row with no filter
+ * at all, labelled "Revenue" and printed next to a cash figure: cancelled
+ * memberships, never-paid memberships and fully refunded ones were all counted
+ * as money earned. A plan sold once, never paid for and cancelled the next day
+ * contributed its full price to "revenue" forever.
+ *
+ * Collected is now money that actually arrived and stayed; outstanding is what
+ * is still owed on a collectable membership. Neither is guessed from the
+ * contract value.
+ */
 export async function planMixReport(user: SessionUser): Promise<PlanMixRow[]> {
   return asPrincipal(user.claims, async (tx) => {
     const r = await tx.query(
-      `SELECT plan_name_snapshot AS plan_name,
-              count(*) FILTER (WHERE state = 'active')::int AS active_count,
-              sum(total_amount)::bigint::text AS revenue
-       FROM memberships GROUP BY plan_name_snapshot ORDER BY count(*) DESC`,
+      `SELECT ms.plan_name_snapshot AS plan_name,
+              count(*) FILTER (WHERE ms.state = 'active')::int AS active_count,
+              sum(${PAID_AGAINST_MEMBERSHIP})::bigint::text AS collected,
+              sum(CASE WHEN ms.state IN ${COLLECTABLE_MEMBERSHIP_STATES}
+                       THEN GREATEST(${DUE_ON_MEMBERSHIP}, 0) ELSE 0 END)::bigint::text
+                AS outstanding
+       FROM memberships ms
+       GROUP BY ms.plan_name_snapshot
+       ORDER BY count(*) DESC`,
     );
     return r.rows as PlanMixRow[];
   });
@@ -128,17 +164,32 @@ export async function exportCsv(
                  FROM attendance a JOIN members m ON m.id = a.member_id
                  ORDER BY a.checked_in_at DESC`,
     // Who still owes money, for the follow-up list.
-    dues: `SELECT m.membership_number, m.first_name || coalesce(' ' || m.last_name,'') AS name,
-                  m.mobile, ms.plan_name_snapshot AS plan, ms.state,
-                  ms.start_date::text AS start_date, ms.end_date::text AS end_date,
-                  ms.total_amount::bigint AS total_paise,
-                  ${PAID_AGAINST_MEMBERSHIP}::bigint AS paid_paise,
-                  ${DUE_ON_MEMBERSHIP}::bigint AS due_paise
-           FROM memberships ms
-           JOIN members m ON m.id = ms.member_id
-           WHERE ms.state IN ${LIVE_MEMBERSHIP_STATES}
-             AND ${DUE_ON_MEMBERSHIP} > 0
-           ORDER BY ${DUE_ON_MEMBERSHIP} DESC`,
+    // Memberships AND add-ons: a PT package sold on a deposit is a receivable
+    // exactly like a part-paid membership, and used to appear in no report.
+    dues: `SELECT * FROM (
+             SELECT m.membership_number, m.first_name || coalesce(' ' || m.last_name,'') AS name,
+                    m.mobile, 'membership' AS item_type, ms.plan_name_snapshot AS item, ms.state,
+                    ms.start_date::text AS start_date, ms.end_date::text AS end_date,
+                    ms.total_amount::bigint AS total_paise,
+                    ${PAID_AGAINST_MEMBERSHIP}::bigint AS paid_paise,
+                    ${DUE_ON_MEMBERSHIP}::bigint AS due_paise
+             FROM memberships ms
+             JOIN members m ON m.id = ms.member_id
+             WHERE ms.state IN ${COLLECTABLE_MEMBERSHIP_STATES}
+               AND ${DUE_ON_MEMBERSHIP} > 0
+             UNION ALL
+             SELECT m.membership_number, m.first_name || coalesce(' ' || m.last_name,'') AS name,
+                    m.mobile, 'addon' AS item_type, ma.name_snapshot AS item, ma.state,
+                    ma.start_date::text AS start_date, ma.end_date::text AS end_date,
+                    ma.price_snapshot::bigint AS total_paise,
+                    ${PAID_AGAINST_ADDON}::bigint AS paid_paise,
+                    ${DUE_ON_ADDON}::bigint AS due_paise
+             FROM member_addons ma
+             JOIN members m ON m.id = ma.member_id
+             WHERE ma.state IN ${COLLECTABLE_ADDON_STATES}
+               AND ${DUE_ON_ADDON} > 0
+           ) dues
+           ORDER BY due_paise DESC`,
   };
   return asPrincipal(user.claims, async (tx) => {
     const r = await tx.query(queries[kind]!);

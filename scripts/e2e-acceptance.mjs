@@ -902,6 +902,108 @@ async function main() {
     check('and no CGST line', !plainReceipt.includes('CGST'));
   }
 
+  // ---- receivables must not leak out of the books ------------------------
+  console.log('\n[receivables]');
+  check('owner relogin for receivables', await loginAs(`owner@${SLUG}.test`, ownerPw));
+
+  // 1. An expired membership still owes what it owes. The nightly sweep used
+  //    to make the balance disappear from every aggregate on the same night.
+  const [partPaid] = await q(
+    `SELECT ms.id, ms.member_id, ms.end_date FROM memberships ms
+       JOIN members m ON m.id = ms.member_id
+       JOIN tenants t ON t.id = ms.tenant_id
+      WHERE t.slug = $1 AND ms.state = 'active'
+        AND (ms.total_amount - coalesce((
+              SELECT sum(pa.amount) FROM payment_allocations pa WHERE pa.membership_id = ms.id
+            ), 0)) > 0
+      LIMIT 1`,
+    [SLUG],
+  );
+  if (partPaid) {
+    const duesBefore = await (await getFollow('/api/export/dues')).text();
+    check('a part-paid live membership is in the dues export', duesBefore.includes('membership'));
+    await db.query(`UPDATE memberships SET state = 'expired' WHERE id = $1`, [partPaid.id]);
+    const duesAfterExpiry = await (await getFollow('/api/export/dues')).text();
+    const stillListed = duesAfterExpiry
+      .split('\n')
+      .some((line) => line.includes('expired') && line.includes('membership'));
+    check('and it is still there after the membership expires', stillListed);
+    await db.query(`UPDATE memberships SET state = 'active' WHERE id = $1`, [partPaid.id]);
+  }
+
+  // 2. A PT package sold on a deposit is a receivable too, and appeared in no
+  //    report at all.
+  const [ptAddon] = await q(
+    `SELECT ma.id, ma.price_snapshot::bigint::text AS price FROM member_addons ma
+       JOIN tenants t ON t.id = ma.tenant_id WHERE t.slug = $1 LIMIT 1`,
+    [SLUG],
+  );
+  if (ptAddon) {
+    const [alloc] = await q(
+      `SELECT coalesce(sum(amount),0)::bigint::text AS paid FROM payment_allocations
+        WHERE member_addon_id = $1`,
+      [ptAddon.id],
+    );
+    const outstanding = Number(ptAddon.price) - Number(alloc.paid);
+    const duesCsv = await (await getFollow('/api/export/dues')).text();
+    check(
+      'the dues export distinguishes memberships from add-ons',
+      duesCsv.includes('item_type'),
+      duesCsv.split('\n')[0],
+    );
+    if (outstanding > 0) {
+      check('an unpaid PT package shows up as a receivable', duesCsv.includes('addon'));
+    }
+  }
+
+  // 3. A CSV-imported part-paid member must keep the balance they owe.
+  // "Imported One" paid 1,000 against a Quarterly plan. total_amount must be
+  // the plan price, not the 1,000 — writing the paid figure there recorded
+  // every migrated part-payer as settled in full.
+  const [importedMs] = await q(
+    `SELECT ms.total_amount::bigint::text AS total,
+            coalesce((SELECT sum(pa.amount) FROM payment_allocations pa
+                       WHERE pa.membership_id = ms.id), 0)::bigint::text AS paid
+       FROM memberships ms
+       JOIN members m ON m.id = ms.member_id
+       JOIN tenants t ON t.id = ms.tenant_id
+      WHERE t.slug = $1 AND m.mobile = '+919222200001'`,
+    [SLUG],
+  );
+  check(
+    'an imported part-paid member keeps the balance they owe',
+    Boolean(importedMs) &&
+      Number(importedMs.total) > Number(importedMs.paid) &&
+      Number(importedMs.paid) === 100000,
+    JSON.stringify(importedMs),
+  );
+  const duesAfterImport = await (await getFollow('/api/export/dues')).text();
+  check('and appears in the dues export', duesAfterImport.includes('9222200001'));
+
+  // 4. Plan mix reports money that arrived, not contract value.
+  const reportsHtml = await (await getFollow('/reports')).text();
+  check(
+    'the plan-mix table reports Collected, not "Revenue"',
+    reportsHtml.includes('Collected') && !reportsHtml.includes('>Revenue<'),
+  );
+  check('and shows what is still outstanding', reportsHtml.includes('Outstanding'));
+
+  // 5. CSV opens correctly in Excel for Telugu names.
+  const exportRes = await getFollow('/api/export/members');
+  // Read bytes, not text: Response.text() decodes UTF-8 and strips the BOM,
+  // so a string check here would pass whether or not the BOM was ever sent.
+  const exportBytes = new Uint8Array(await exportRes.arrayBuffer());
+  check(
+    'CSV exports start with a UTF-8 BOM for Excel',
+    exportBytes[0] === 0xef && exportBytes[1] === 0xbb && exportBytes[2] === 0xbf,
+    Array.from(exportBytes.slice(0, 3)).join(','),
+  );
+  check(
+    'and are not cached',
+    /no-store/.test(exportRes.headers.get('cache-control') ?? ''),
+    exportRes.headers.get('cache-control') ?? 'none',
+  );
+
   // ---- support recovery: a locked-out owner ------------------------------
   // The admin UI's staff list is tenant-scoped, so a platform admin sees no
   // staff at all. Without this CLI a gym whose only owner forgot their

@@ -15,8 +15,13 @@ interface PaymentRow {
 }
 
 function rupees(minor: string): string {
-  const n = Number(minor) / 100;
-  return `₹${n.toLocaleString('en-IN')}`;
+  // Two decimals always, matching the admin app's formatMoney and the printed
+  // receipt. Without them 250050 paise rendered as "₹2,500.5", which a member
+  // comparing the app against their receipt reads as a different number.
+  return `₹${(Number(minor) / 100).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 export function PaymentsScreen() {
@@ -45,12 +50,26 @@ export function PaymentsScreen() {
         ListEmptyComponent={<Muted>—</Muted>}
         renderItem={({ item }) => (
           <Card style={styles.row}>
-            <View>
-              <Text style={styles.amount}>{rupees(item.amount)}</Text>
+            <View style={styles.details}>
+              {/* The API has always sent `status`; the screen never showed it,
+                  so a refunded payment appeared to the member as money the gym
+                  still holds. */}
+              <Text
+                style={[styles.amount, item.status === 'refunded' ? styles.amountRefunded : null]}
+              >
+                {rupees(item.amount)}
+              </Text>
               <Muted>
                 {item.payment_date} ·{' '}
                 {t.payments.methods[item.method as keyof typeof t.payments.methods] ?? item.method}
               </Muted>
+              {item.status === 'refunded' || item.status === 'partially_refunded' ? (
+                <Text style={styles.refundNote}>
+                  {item.status === 'refunded'
+                    ? t.payments.statusRefunded
+                    : t.payments.statusPartiallyRefunded}
+                </Text>
+              ) : null}
             </View>
             {item.receipt_number ? <Text style={styles.receipt}>{item.receipt_number}</Text> : null}
           </Card>
@@ -61,6 +80,9 @@ export function PaymentsScreen() {
 }
 
 const styles = StyleSheet.create({
+  details: { flexShrink: 1 },
+  amountRefunded: { textDecorationLine: 'line-through', color: theme.color.textMuted },
+  refundNote: { marginTop: 2, fontSize: 12, fontWeight: '700', color: theme.color.danger },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   amount: { fontSize: 17, fontWeight: '700', color: theme.color.text },
   receipt: { fontSize: 12, color: theme.color.textMuted, fontVariant: ['tabular-nums'] },

@@ -466,6 +466,26 @@ export default async function PlansPage({
                     <input name="price" inputMode="decimal" required className={inputCls} />
                   </Field>
                 </div>
+                {/* PT is the same taxable supply as a membership (SAC 999723).
+                    A registered gym leaving this at 0% would issue a
+                    non-compliant receipt for every package it sells. */}
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label={tr.plans.gstRate}>
+                    <select name="addonTaxRateBps" defaultValue="0" className={inputCls}>
+                      <option value="0">{tr.plans.gstNotRegistered}</option>
+                      <option value="500">5%</option>
+                      <option value="1200">12%</option>
+                      <option value="1800">18%</option>
+                      <option value="2800">28%</option>
+                    </select>
+                  </Field>
+                  <Field label={tr.plans.gstMode}>
+                    <select name="addonTaxInclusive" defaultValue="true" className={inputCls}>
+                      <option value="true">{tr.plans.gstInclusive}</option>
+                      <option value="false">{tr.plans.gstExclusive}</option>
+                    </select>
+                  </Field>
+                </div>
                 <Button className="w-full">{tr.common.save}</Button>
               </form>
             </Card>

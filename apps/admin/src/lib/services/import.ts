@@ -6,7 +6,7 @@ import {
   type ImportMemberRow,
 } from '@gymflow/validation';
 import { computeEndDate, fiscalYearLabel, formatReceiptNumber } from '@gymflow/core';
-import { parseMoney, todayInTz } from '@gymflow/utils';
+import { computeTax, parseMoney, todayInTz } from '@gymflow/utils';
 import { asPrincipal } from '../db';
 import { writeAudit } from '../audit';
 import { UserFacingError } from '../errors';
@@ -203,7 +203,9 @@ export async function executeImport(
     if (!branchId) throw new UserFacingError('Create a branch before importing.');
 
     const plansR = await tx.query(
-      `SELECT p.id, p.name, v.id AS version_id, v.duration_unit, v.duration_value, v.grace_period_days
+      `SELECT p.id, p.name, v.id AS version_id, v.duration_unit, v.duration_value,
+              v.grace_period_days, v.base_price::bigint::text AS base_price,
+              v.tax_rate_bps, v.tax_inclusive
        FROM membership_plans p
        JOIN LATERAL (SELECT * FROM membership_plan_versions WHERE plan_id = p.id
                      ORDER BY version DESC LIMIT 1) v ON true
@@ -218,6 +220,9 @@ export async function executeImport(
           duration_unit: 'days' | 'months';
           duration_value: number;
           grace_period_days: number;
+          base_price: string;
+          tax_rate_bps: number;
+          tax_inclusive: boolean;
         }[]
       ).map((p) => [p.name.toLowerCase(), p]),
     );
@@ -270,11 +275,19 @@ export async function executeImport(
       const memberId = (mR.rows[0] as { id: string }).id;
 
       const amount = p.amount_paid ? parseMoney(p.amount_paid) : 0;
+      // total_amount is what the member CONTRACTED to pay — the plan's price —
+      // not what they had already handed over. Writing the paid figure here
+      // recorded every part-paid member as fully settled, so a gym migrating
+      // its book on day one silently wrote off every outstanding balance it
+      // had, with nothing on any screen to show it had happened.
+      const contracted = Number(plan.base_price);
+      const taxSplit = computeTax(contracted, plan.tax_rate_bps, plan.tax_inclusive);
       const msR = await tx.query(
         `INSERT INTO memberships
           (tenant_id, branch_id, member_id, plan_id, plan_version_id, plan_name_snapshot,
-           start_date, base_end_date, end_date, grace_period_days, state, total_amount, sold_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12) RETURNING id`,
+           start_date, base_end_date, end_date, grace_period_days, state, total_amount, sold_by,
+           tax_amount, tax_rate_bps)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
         [
           user.tenantId,
           branchId,
@@ -286,8 +299,10 @@ export async function executeImport(
           endDate,
           plan.grace_period_days,
           state,
-          amount,
+          taxSplit.gross,
           user.userId,
+          taxSplit.tax,
+          plan.tax_rate_bps,
         ],
       );
       const membershipId = (msR.rows[0] as { id: string }).id;

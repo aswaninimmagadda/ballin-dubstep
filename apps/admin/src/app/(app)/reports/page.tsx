@@ -123,12 +123,19 @@ export default async function ReportsPage({
           <h2 className="mb-4 text-sm font-semibold text-slate-700">
             Membership plan mix (all time)
           </h2>
-          <Table headers={[tr.members.plan, 'Active', 'Revenue']}>
+          {/* "Revenue" used to be sum(total_amount) over every membership row
+              with no filter — cancelled, never-paid and refunded ones all
+              counted as money earned, printed next to a cash figure. These two
+              columns are what actually arrived and what is still owed. */}
+          <Table headers={[tr.members.plan, 'Active', 'Collected', 'Outstanding']}>
             {planMix.map((p) => (
               <tr key={p.plan_name}>
                 <td className="px-4 py-3">{p.plan_name}</td>
                 <td className="px-4 py-3">{p.active_count}</td>
-                <td className="px-4 py-3 font-medium">{formatMoney(Number(p.revenue))}</td>
+                <td className="px-4 py-3 font-medium">{formatMoney(Number(p.collected))}</td>
+                <td className="px-4 py-3 text-amber-700">
+                  {Number(p.outstanding) > 0 ? formatMoney(Number(p.outstanding)) : '—'}
+                </td>
               </tr>
             ))}
           </Table>

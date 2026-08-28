@@ -46,9 +46,20 @@ export default async function ReceiptPage({
   // carried tax. Printing "TAX INVOICE" without a GSTIN would be a false
   // document; printing a 0% CGST line on an unregistered gym's receipt is
   // just noise.
-  const taxAmount = Number(receipt.tax_amount ?? 0);
+  // A refund does not edit the payment — payments are append-only — so the
+  // receipt has to say so itself. Reprinting a refunded payment as a
+  // full-value tax invoice is a document claiming money the gym gave back.
+  const refunded = Number(receipt.refunded_amount ?? 0);
+  const gross = Number(receipt.amount);
+  const netRetained = gross - refunded;
+  const fullyRefunded = refunded > 0 && netRetained <= 0;
+
+  const taxAmountGross = Number(receipt.tax_amount ?? 0);
+  // Tax follows the money: refund half the payment and half the tax goes with
+  // it. Half-up so the invoice and the credit note add back to the original.
+  const taxAmount = gross > 0 ? Math.round((taxAmountGross * netRetained) / gross) : 0;
   const isTaxInvoice = Boolean(receipt.gstin) && taxAmount > 0;
-  const amountPaid = Number(receipt.amount);
+  const amountPaid = netRetained;
   const taxableValue = amountPaid - taxAmount;
   // Integer paise throughout: SGST takes the remainder so CGST + SGST is
   // exactly the tax charged, whatever the rounding.
@@ -73,9 +84,20 @@ export default async function ReceiptPage({
         <header className="border-b border-dashed border-slate-300 pb-4 text-center">
           <h1 className="text-xl font-bold">{receipt.gym_name}</h1>
           <p className="text-sm text-slate-500">{receipt.branch_name}</p>
+          {fullyRefunded ? (
+            <p className="mt-2 rounded-md bg-red-50 py-1 text-sm font-bold tracking-wide text-red-700">
+              FULLY REFUNDED — NOT A VALID RECEIPT
+            </p>
+          ) : refunded > 0 ? (
+            <p className="mt-2 rounded-md bg-amber-50 py-1 text-sm font-semibold text-amber-800">
+              PARTIALLY REFUNDED — {formatMoney(refunded)} returned
+            </p>
+          ) : null}
           {isTaxInvoice ? (
             <>
-              <p className="mt-2 text-sm font-semibold tracking-wide">TAX INVOICE</p>
+              <p className="mt-2 text-sm font-semibold tracking-wide">
+                {refunded > 0 ? 'REVISED TAX INVOICE' : 'TAX INVOICE'}
+              </p>
               <p className="font-mono text-xs text-slate-600">GSTIN: {receipt.gstin}</p>
               {receipt.tax_state_name ? (
                 <p className="text-[11px] text-slate-500">
@@ -153,9 +175,23 @@ export default async function ReceiptPage({
               </div>
             </dl>
           ) : null}
+          {refunded > 0 ? (
+            <dl className="mb-3 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-slate-500">Amount received</dt>
+                <dd>{formatMoney(gross)}</dd>
+              </div>
+              <div className="flex justify-between text-red-700">
+                <dt>Refunded</dt>
+                <dd>−{formatMoney(refunded)}</dd>
+              </div>
+            </dl>
+          ) : null}
           <div className="flex items-center justify-between">
-            <span className="text-base font-semibold">{tr.membership.total}</span>
-            <span className="text-2xl font-bold">{formatMoney(Number(receipt.amount))}</span>
+            <span className="text-base font-semibold">
+              {refunded > 0 ? 'Net retained' : tr.membership.total}
+            </span>
+            <span className="text-2xl font-bold">{formatMoney(netRetained)}</span>
           </div>
         </div>
         {receipt.receipt_footer ? (

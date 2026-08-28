@@ -30,10 +30,16 @@ export async function GET(
   await asPrincipal(user.claims, (tx) =>
     writeAudit(tx, user, { action: 'export.csv', entityType: 'export', after: { kind } }),
   );
-  return new NextResponse(csv, {
+  // Excel ignores the charset in the HTTP header and guesses the encoding from
+  // the bytes, so a UTF-8 CSV of Telugu names opens as mojibake unless it
+  // starts with a BOM. Every other tool skips it silently.
+  return new NextResponse(`\uFEFF${csv}`, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="${kind}-${new Date().toISOString().slice(0, 10)}.csv"`,
+      // An export is a full dump of the gym's member and payment data; it must
+      // not sit in a shared browser or proxy cache.
+      'Cache-Control': 'no-store, max-age=0',
     },
   });
 }

@@ -170,6 +170,8 @@ export const te: TranslationTree = {
     },
   },
   payments: {
+    statusRefunded: 'వాపసు చేయబడింది',
+    statusPartiallyRefunded: 'పాక్షికంగా వాపసు',
     title: 'చెల్లింపులు',
     amount: 'మొత్తం',
     method: 'చెల్లింపు విధానం',
