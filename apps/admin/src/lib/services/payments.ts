@@ -145,6 +145,11 @@ export interface ReceiptView {
   receipt_footer: string | null;
   received_by_name: string | null;
   plan_name: string | null;
+  gstin: string | null;
+  tax_sac_code: string | null;
+  tax_state_name: string | null;
+  tax_rate_bps: number | null;
+  tax_amount: string | null;
 }
 
 export async function getReceipt(
@@ -159,7 +164,16 @@ export async function getReceipt(
               m.first_name || coalesce(' ' || m.last_name, '') AS member_name,
               m.membership_number, b.name AS branch_name, t.name AS gym_name,
               gs.receipt_footer, u.display_name AS received_by_name,
-              ms.plan_name_snapshot AS plan_name
+              ms.plan_name_snapshot AS plan_name,
+              gs.gstin, gs.tax_sac_code, gs.tax_state_name,
+              -- The tax was frozen onto the membership when it was sold, and
+              -- this payment may be only part of it, so the tax shown on this
+              -- receipt is that snapshot pro-rated by what was actually paid
+              -- here. Deriving it from today's plan rate would rewrite history.
+              ms.tax_rate_bps,
+              CASE WHEN coalesce(ms.total_amount, 0) > 0
+                   THEN (ms.tax_amount * p.amount) / ms.total_amount
+                   ELSE 0 END::bigint::text AS tax_amount
        FROM receipts r
        JOIN payments p ON p.id = r.payment_id
        JOIN members m ON m.id = p.member_id

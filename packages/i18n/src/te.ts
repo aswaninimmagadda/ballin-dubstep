@@ -84,6 +84,10 @@ export const te: TranslationTree = {
     quickRecordPayment: 'చెల్లింపు నమోదు',
   },
   members: {
+    appAccessEnable: 'సభ్యుని యాప్ యాక్సెస్ ఇవ్వండి',
+    appAccessReset: 'యాప్ పాస్‌వర్డ్ రీసెట్ చేయండి',
+    appAccessEnabled: 'సభ్యుని యాప్: ప్రారంభించబడింది',
+    appAccessResetHint: 'కొత్త వన్-టైమ్ పాస్‌వర్డ్ ఇస్తుంది. పాతది పని చేయదు.',
     title: 'సభ్యులు',
     newMember: 'కొత్త సభ్యుడు',
     memberNumber: 'సభ్యుల సంఖ్య',
@@ -209,6 +213,22 @@ export const te: TranslationTree = {
       won: 'చేరారు',
       lost: 'రాలేదు',
     },
+  },
+  plans: {
+    title: 'ప్లాన్‌లు',
+    newPlan: 'కొత్త ప్లాన్',
+    duration: 'వ్యవధి',
+    gracePeriod: 'గ్రేస్ పీరియడ్',
+    freezeDays: 'ఫ్రీజ్ రోజులు',
+    maxFreezes: 'గరిష్ఠ ఫ్రీజ్‌లు',
+    allowedTimings: 'అనుమతించిన సమయాలు',
+    publicDescription: 'బహిరంగ వివరణ',
+    gstRate: 'GST రేటు',
+    gstHint: 'ఫిట్‌నెస్ సేవలకు 18% (SAC 999723). రిజిస్టర్ కాకపోతే 0% ఉంచండి.',
+    gstMode: 'ధరలో GST కలిసి ఉందా?',
+    gstInclusive: 'ధరలో GST కలిసి ఉంది',
+    gstExclusive: 'ధరపై GST అదనం',
+    gstNotRegistered: '0% (రిజిస్టర్ కాలేదు)',
   },
   whatsappTemplates: {
     renewalDefault:

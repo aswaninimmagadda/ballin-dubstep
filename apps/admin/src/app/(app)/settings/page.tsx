@@ -19,16 +19,45 @@ export const dynamic = 'force-dynamic';
 async function saveSettingsAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('settings.manage');
+  // `|| undefined` on a number turns a deliberate 0 into "leave unchanged",
+  // and on a string turns "clear this" into the same thing. Parse both
+  // explicitly: missing field = leave alone, present-but-empty = clear.
+  const num = (name: string): number | undefined => {
+    const raw = formData.get(name);
+    if (raw === null || String(raw).trim() === '') return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const text = (name: string): string | undefined => {
+    const raw = formData.get(name);
+    return raw === null ? undefined : String(raw).trim();
+  };
+  const clearable = (name: string): string | null | undefined => {
+    const v = text(name);
+    return v === undefined ? undefined : v === '' ? null : v;
+  };
+
+  const gstin = clearable('gstin')?.toUpperCase() ?? clearable('gstin');
+  if (gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(gstin)) {
+    redirect(
+      `/settings?error=${encodeURIComponent(
+        'GSTIN must be 15 characters, e.g. 37ABCDE1234F1Z5. Leave it empty if the gym is not registered.',
+      )}`,
+    );
+  }
+
   try {
     await updateSettings(user, {
-      receipt_prefix: String(formData.get('receiptPrefix') ?? '').toUpperCase() || undefined,
-      default_grace_period_days: Number(formData.get('gracePeriodDays')) || undefined,
-      max_freezes_per_year: Number(formData.get('maxFreezes')) || undefined,
-      max_freeze_days_per_year: Number(formData.get('maxFreezeDays')) || undefined,
+      receipt_prefix: text('receiptPrefix')?.toUpperCase() || undefined,
+      default_grace_period_days: num('gracePeriodDays'),
+      max_freezes_per_year: num('maxFreezes'),
+      max_freeze_days_per_year: num('maxFreezeDays'),
       allow_partial_payments: formData.get('allowPartial') === 'on',
-      whatsapp_renewal_template_en: String(formData.get('waTemplateEn') ?? '') || undefined,
-      whatsapp_renewal_template_te: String(formData.get('waTemplateTe') ?? '') || undefined,
-      receipt_footer: String(formData.get('receiptFooter') ?? '') || undefined,
+      whatsapp_renewal_template_en: text('waTemplateEn') || undefined,
+      whatsapp_renewal_template_te: text('waTemplateTe') || undefined,
+      receipt_footer: clearable('receiptFooter'),
+      gstin,
+      tax_state_name: clearable('taxStateName'),
     });
   } catch (err) {
     redirect(`/settings?error=${encodeURIComponent(toUserMessage(err))}`);
@@ -158,6 +187,32 @@ export default async function SettingsPage({
                 className={inputCls}
               />
             </Field>
+            {/* Setting a GSTIN turns every receipt into a GST tax invoice
+                (taxable value + CGST/SGST split + SAC). A gym below the
+                turnover threshold must leave it empty and keeps the plain
+                payment acknowledgement. */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="GSTIN"
+                hint="15 characters, e.g. 37ABCDE1234F1Z5. Empty = not registered, plain receipts."
+              >
+                <input
+                  name="gstin"
+                  defaultValue={settings.gstin ?? ''}
+                  maxLength={15}
+                  placeholder="37ABCDE1234F1Z5"
+                  className={`${inputCls} font-mono uppercase`}
+                />
+              </Field>
+              <Field label="State (place of supply)" hint="Printed on the tax invoice">
+                <input
+                  name="taxStateName"
+                  defaultValue={settings.tax_state_name ?? ''}
+                  placeholder="Andhra Pradesh"
+                  className={inputCls}
+                />
+              </Field>
+            </div>
             {canManage ? <Button>{tr.common.save}</Button> : null}
           </fieldset>
         </form>

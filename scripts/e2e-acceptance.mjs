@@ -616,6 +616,172 @@ async function main() {
   check('Gym B export has no demo-gym members', !exportCsvText.includes('+919876543210'));
 
   // ---- ISOLATION: Gym A vs Gym B ------------------------------------------
+  // ---- GST: a registered gym must be able to issue a tax invoice ---------
+  // Gyms above the GST turnover threshold cannot legally invoice without
+  // GSTIN, taxable value and a CGST/SGST split on the document.
+  console.log('\n[GST tax invoice]');
+  check('owner relogin for GST setup', await loginAs(`owner@${SLUG}.test`, ownerPw));
+  const gstSettingsForm = extractForm(await (await get('/settings')).text(), 'receiptPrefix');
+  const gstSet = await postAction('/settings', gstSettingsForm, {
+    receiptPrefix: 'HFT',
+    gracePeriodDays: '5',
+    maxFreezes: '2',
+    maxFreezeDays: '30',
+    gstin: '37ABCDE1234F1Z5',
+    taxStateName: 'Andhra Pradesh',
+  });
+  check('GSTIN saved', target(gstSet).includes('msg=saved'), target(gstSet));
+
+  const badGstRes = await postAction(
+    '/settings',
+    extractForm(await (await get('/settings')).text(), 'receiptPrefix'),
+    { receiptPrefix: 'HFT', gstin: 'NOTAGSTIN' },
+  );
+  check(
+    'a malformed GSTIN is refused, not silently stored',
+    target(badGstRes).includes('error'),
+    target(badGstRes),
+  );
+
+  const gstPlanForm = extractForm(await (await get('/plans')).text(), 'durationValue');
+  const gstPlanRes = await postAction('/plans', gstPlanForm, {
+    name: 'GST Annual',
+    durationValue: '12',
+    durationUnit: 'months',
+    basePrice: '11800',
+    joiningFee: '0',
+    gracePeriodDays: '5',
+    freezeAllowanceDays: '30',
+    maxFreezes: '2',
+    taxRateBps: '1800',
+    taxInclusive: 'true',
+  });
+  check('18% GST plan created', !target(gstPlanRes).includes('error'), target(gstPlanRes));
+  const [gstPlan] = await q(
+    `SELECT p.id, v.tax_rate_bps FROM membership_plans p
+       JOIN membership_plan_versions v ON v.plan_id = p.id
+       JOIN tenants t ON t.id = p.tenant_id
+      WHERE t.slug = $1 AND p.name = 'GST Annual'`,
+    [SLUG],
+  );
+  check(
+    'the plan stored the 18% rate',
+    gstPlan?.tax_rate_bps === 1800,
+    String(gstPlan?.tax_rate_bps),
+  );
+
+  // Sell it to a fresh member and pay in full.
+  check('reception relogin', await loginAs(`reception@${SLUG}.test`, recepPw));
+  const gstMobile = `9${String(Math.floor(100000000 + Math.random() * 899999999))}`;
+  const gStep1 = extractForm(await (await get('/members/new')).text(), 'mobile');
+  const gDup = await postAction('/members/new', gStep1, { mobile: gstMobile });
+  const gStep2Path = target(gDup).replace(/^https?:\/\/[^/]+/, '');
+  const gStep2Html = await (await get(gStep2Path)).text();
+  const gCreate = await postAction(gStep2Path, extractForm(gStep2Html, 'firstName'), {
+    mobile: gstMobile,
+    branchId: gStep2Html.match(/<option[^>]*value="([a-f0-9-]{36})"/)?.[1],
+    firstName: 'Gst',
+    lastName: 'Payer',
+    referralSource: 'walk_in',
+  });
+  const gSellPath = target(gCreate).replace(/^https?:\/\/[^/]+/, '');
+  const gstMemberId = gSellPath.match(/members\/([a-f0-9-]+)\/sell/)?.[1];
+  check('GST member onboarded', Boolean(gstMemberId), gSellPath);
+  const gSellRes = await postAction(
+    gSellPath,
+    extractForm(await (await get(gSellPath)).text(), 'planId'),
+    {
+      planId: gstPlan.id,
+      startDate: istToday,
+      amount: '11800',
+      method: 'cash',
+    },
+  );
+  check('GST membership sold', target(gSellRes).includes('msg=sold'), target(gSellRes));
+
+  // ₹11,800 inclusive of 18% => taxable ₹10,000, GST ₹1,800 (CGST 900 + SGST 900)
+  const [gstMs] = await q(
+    `SELECT total_amount, tax_amount, tax_rate_bps FROM memberships
+      WHERE member_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    [gstMemberId],
+  );
+  check(
+    'the sale snapshotted the tax',
+    Number(gstMs.tax_amount) === 180000,
+    `tax_amount=${gstMs.tax_amount}`,
+  );
+  check('the sale snapshotted the rate', gstMs.tax_rate_bps === 1800);
+  check(
+    'total is unchanged by tax (inclusive pricing)',
+    Number(gstMs.total_amount) === 1180000,
+    `total=${gstMs.total_amount}`,
+  );
+
+  const [gstPay] = await q(
+    `SELECT p.id FROM payments p WHERE p.member_id = $1 ORDER BY p.created_at DESC LIMIT 1`,
+    [gstMemberId],
+  );
+  const invoice = await (await getFollow(`/receipts/${gstPay.id}`)).text();
+  check('the receipt is titled TAX INVOICE', invoice.includes('TAX INVOICE'));
+  check('the GSTIN is printed', invoice.includes('37ABCDE1234F1Z5'));
+  check('the SAC code is printed', invoice.includes('999723'));
+  check('the place of supply is printed', invoice.includes('Andhra Pradesh'));
+  check('taxable value is shown as ₹10,000', /Taxable value[\s\S]{0,120}?10,000/.test(invoice));
+  check('CGST is half the rate at 9%', /CGST @ 9%/.test(invoice));
+  check('SGST is half the rate at 9%', /SGST @ 9%/.test(invoice));
+  check(
+    'CGST and SGST are ₹900 each',
+    (invoice.match(/₹900(\.00)?/g) ?? []).length >= 2,
+    String((invoice.match(/₹900(\.00)?/g) ?? []).length),
+  );
+
+  // A gym that is NOT registered must not print a tax invoice. Gym A has no
+  // GSTIN, so its receipts stay plain acknowledgements.
+  const [gymAPay] = await q(
+    `SELECT p.id FROM payments p JOIN tenants t ON t.id = p.tenant_id
+      WHERE t.slug = 'apfitness' ORDER BY p.created_at DESC LIMIT 1`,
+  );
+  if (gymAPay) {
+    check(
+      'owner relogin for the unregistered-gym check',
+      await loginAs('owner@demo.gymflow.local', 'gymflow-dev-password'),
+    );
+    const plainReceipt = await (await getFollow(`/receipts/${gymAPay.id}`)).text();
+    check('an unregistered gym prints no tax invoice', !plainReceipt.includes('TAX INVOICE'));
+    check('and no CGST line', !plainReceipt.includes('CGST'));
+  }
+
+  // ---- support recovery: a locked-out owner ------------------------------
+  // The admin UI's staff list is tenant-scoped, so a platform admin sees no
+  // staff at all. Without this CLI a gym whose only owner forgot their
+  // password needed a developer with a psql prompt.
+  console.log('\n[support: recover a locked-out owner]');
+  const recoverOut = execFileSync(
+    'pnpm',
+    [
+      '--filter',
+      '@gymflow/database',
+      'reset-staff-password',
+      '--',
+      '--email',
+      `owner@${SLUG}.test`,
+    ],
+    { env: { ...process.env, DATABASE_URL: DB }, encoding: 'utf8' },
+  );
+  const recoveredPw = recoverOut.match(/\n\s{4}(\S{10,})\n/)?.[1];
+  check('operator CLI issued a new owner password', Boolean(recoveredPw), recoverOut.slice(-200));
+  check('the old owner password no longer works', !(await loginAs(`owner@${SLUG}.test`, ownerPw)));
+  check(
+    'the owner can sign in with the recovered password',
+    await loginAs(`owner@${SLUG}.test`, recoveredPw),
+  );
+  const resetAudit = await db.query(
+    `SELECT count(*)::int AS n FROM audit_logs a JOIN tenants t ON t.id = a.tenant_id
+      WHERE t.slug = $1 AND a.action = 'staff.password_reset'`,
+    [SLUG],
+  );
+  check('the recovery is in the gym audit log', resetAudit.rows[0].n === 1);
+
   console.log('\n[isolation: Gym A ↔ Gym B]');
   check(
     'Gym A owner login',

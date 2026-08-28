@@ -43,8 +43,8 @@ async function createPlanAction(formData: FormData): Promise<void> {
       durationValue: Number(formData.get('durationValue')),
       basePrice,
       joiningFee,
-      taxRateBps: 0,
-      taxInclusive: true,
+      taxRateBps: Number(formData.get('taxRateBps') ?? 0),
+      taxInclusive: String(formData.get('taxInclusive') ?? 'true') === 'true',
       freezeAllowanceDays: Number(formData.get('freezeAllowanceDays') ?? 0),
       maxFreezes: Number(formData.get('maxFreezes') ?? 0),
       gracePeriodDays: Number(formData.get('gracePeriodDays') ?? 3),
@@ -233,6 +233,27 @@ export default async function PlansPage({
                     defaultValue={2}
                     className={inputCls}
                   />
+                </Field>
+              </div>
+              {/* Fitness services are SAC 999723, taxed at 18%. Gyms below the
+                  GST turnover threshold leave this at 0% and get the plain
+                  receipt; the rate is frozen onto each sale, so changing it
+                  here never alters an invoice already issued. */}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={tr.plans.gstRate} hint={tr.plans.gstHint}>
+                  <select name="taxRateBps" defaultValue="0" className={inputCls}>
+                    <option value="0">{tr.plans.gstNotRegistered}</option>
+                    <option value="500">5%</option>
+                    <option value="1200">12%</option>
+                    <option value="1800">18%</option>
+                    <option value="2800">28%</option>
+                  </select>
+                </Field>
+                <Field label={tr.plans.gstMode}>
+                  <select name="taxInclusive" defaultValue="true" className={inputCls}>
+                    <option value="true">{tr.plans.gstInclusive}</option>
+                    <option value="false">{tr.plans.gstExclusive}</option>
+                  </select>
                 </Field>
               </div>
               <Field label="Allowed timings" hint="Optional, e.g. 05:30-10:30 for a morning plan">

@@ -5,16 +5,16 @@ actually-executed runs (CI re-runs them on every PR).
 
 ## Layers
 
-### 1. Unit tests — 108 passing (vitest, no DB)
+### 1. Unit tests — 114 passing (vitest, no DB)
 
 | Package             | Tests | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | @gymflow/utils      | 35    | Integer money (rounding, overflow, discount clamps, inclusive/exclusive GST splits, INR formatting/parsing), calendar dates (leap years, end-of-month clamping, timezone boundaries incl. IST-vs-UTC midnight), Indian phone normalization/masking, WhatsApp links                                                                                                                                                                                              |
-| @gymflow/core       | 58    | Expiry calculation (1/3/6/12-month, Jan-31 starts, leap Februarys, day-based trials), grace, freeze extension (incl. the 15-day scenario), renewal proposals (seamless/lapsed/override/end-of-month), derived status + check-in gating, pricing quotes (promo kinds, over-discount clamps, tax), promotion eligibility (all rejection reasons), receipt/fiscal-year formatting, QR pass tokens (rotation, replay, tamper, wrong secret, no PII), scrypt hashing |
+| @gymflow/core       | 64    | Expiry calculation (1/3/6/12-month, Jan-31 starts, leap Februarys, day-based trials), grace, freeze extension (incl. the 15-day scenario), renewal proposals (seamless/lapsed/override/end-of-month), derived status + check-in gating, pricing quotes (promo kinds, over-discount clamps, tax), promotion eligibility (all rejection reasons), receipt/fiscal-year formatting, QR pass tokens (rotation, replay, tamper, wrong secret, no PII), scrypt hashing |
 | @gymflow/validation | 10    | Member/sale/payment/import/login schemas, E.164 transforms, idempotency-key requirement, float rejection                                                                                                                                                                                                                                                                                                                                                        |
 | @gymflow/i18n       | 5     | Telugu/English key parity (fails the build if a key is missed), template rendering                                                                                                                                                                                                                                                                                                                                                                              |
 
-### 2. Integration tests — 49 passing (vitest + real Postgres, as the runtime role)
+### 2. Integration tests — 57 passing (vitest + real Postgres, as the runtime role)
 
 `packages/database/test/`:
 
@@ -33,13 +33,20 @@ actually-executed runs (CI re-runs them on every PR).
   cannot lock everyone out.
 - **branch-scoping** (4) — staff restricted via `staff_branch_access` see
   only their branch's members/payments; unrestricted staff see all.
+- **privilege-escalation** (8) — the paths found in the pre-release security
+  review, each of which worked before it was fixed: a user rewriting their own
+  `kind`/`tenant_id`, a member promoting itself to staff through the OR'd
+  `WITH CHECK` of a second permissive policy, a receptionist aiming member-app
+  credential issuance at the owner's login (on both INSERT and UPDATE), and
+  refresh rotation surviving a tenant suspension. A benign self-update is
+  asserted to still work, so the fix is not just "deny everything".
 
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 111 checks passing (two HTTP suites)
+### 3. End-to-end — 180 checks passing (three HTTP suites)
 
-`scripts/e2e-admin.mjs` (56 checks) drives the real HTTP surface (server
+`scripts/e2e-admin.mjs` (79 checks) drives the real HTTP surface (server
 actions via progressive-enhancement form posts) against a running server +
 seeded DB, then verifies database effects:
 
@@ -68,7 +75,7 @@ seeded DB, then verifies database effects:
 - **Own password:** wrong current password refused; a successful change ends
   every session, the old password stops working and the new one works.
 
-`scripts/e2e-acceptance.mjs` (55 checks) executes the brief's **final
+`scripts/e2e-acceptance.mjs` (81 checks) executes the brief's **final
 acceptance test (§82)** end to end: a second gym is provisioned purely via
 platform tooling (`create-tenant` CLI — zero source changes), its owner
 configures settings/plan/PT package/trainer/staff/promotion over HTTP, a
@@ -91,8 +98,29 @@ and receipt prefixes differ, member credentials are tenant-scoped).
 layer by the integration suite (two-tenant fixture, attacks from both
 sides) on every CI run.
 
+It also proves the two operations a gym cannot open without: a **GST tax
+invoice** (18% inclusive plan → the sale snapshots ₹1,800 tax on ₹11,800, the
+receipt prints GSTIN, SAC 999723, taxable value ₹10,000 and CGST/SGST of ₹900
+each, a malformed GSTIN is refused, and a gym with no GSTIN still prints a
+plain acknowledgement with no CGST line), and **support recovery** of a gym
+whose only owner is locked out (the operator CLI issues a new password, the
+old one stops working, and the reset lands in that gym's audit log).
+
+`scripts/e2e-empty-tenant.mjs` (20 checks) is the day-one test: a
+freshly-provisioned gym with no members, no plans and no payments. Every page
+and every export must render rather than divide by zero or 500.
+
 Run locally: seed + `pnpm --filter @gymflow/admin start` + `node
-scripts/e2e-admin.mjs` + `node scripts/e2e-acceptance.mjs`.
+scripts/e2e-admin.mjs` + `node scripts/e2e-acceptance.mjs` + `node
+scripts/e2e-empty-tenant.mjs`.
+
+### 3b. Performance probe — `scripts/perf-probe.mjs`
+
+Builds a 5,000-member tenant, measures the admin app's hot queries through
+RLS as the runtime role, and rolls the whole fixture back. Fails the run if
+any query exceeds `PERF_BUDGET_MS` (250 ms), so it works as a regression
+gate. Current slowest: 69 ms. See docs/PERFORMANCE.md for what it found and
+why the numbers used to be 15-45x worse.
 
 ### 4. Manual smoke script
 

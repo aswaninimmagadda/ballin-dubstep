@@ -276,7 +276,7 @@ async function main() {
     body: credFd,
   });
   const enableHtml = await enableRes.text();
-  const appPw = enableHtml.match(/<code>([^<]+)<\/code>/)?.[1] ?? '';
+  let appPw = enableHtml.match(/<code>([^<]+)<\/code>/)?.[1] ?? '';
   check(
     'member app enabled with one-time password (not in any URL)',
     enableRes.status === 200 && appPw.length >= 8,
@@ -618,6 +618,40 @@ async function main() {
     redirectTarget(restoreRes),
   );
   check('seed password works again', await loginAs('owner@demo.gymflow.local'));
+
+  // ---- member forgot their app password ----------------------------------
+  // The member detail page used to replace the activation button with the
+  // text "Member app: enabled" once a login existed, so a member who forgot
+  // their password could not be given a new one by anyone, at any desk.
+  console.log('\n[member app password reset]');
+  const memberPage = await (await getFollow(`/members/${memberId}`)).text();
+  check(
+    'the member page offers a password reset once access exists',
+    /Reset app password/.test(memberPage),
+  );
+  const resetFd = new URLSearchParams();
+  resetFd.set('kind', 'member_app');
+  resetFd.set('memberId', memberId);
+  const memberResetRes = await fetch(`${BASE}/credentials`, {
+    method: 'POST',
+    headers: { cookie },
+    body: resetFd,
+  });
+  const newAppPw = (await memberResetRes.text()).match(/<code>([^<]+)<\/code>/)?.[1] ?? '';
+  check('a new one-time password is issued', memberResetRes.status === 200 && newAppPw.length >= 8);
+  check('the reissued password differs from the first', newAppPw !== appPw);
+  const memberMobileDigits = memberRowDb.mobile.replace('+91', '');
+  const tryMemberPw = async (pw) =>
+    (
+      await fetch(`${BASE}/api/member/v1/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gymCode: 'apfitness', mobile: memberMobileDigits, password: pw }),
+      })
+    ).status;
+  check('the old app password stops working', (await tryMemberPw(appPw)) === 401);
+  check('the member can sign in with the new one', (await tryMemberPw(newAppPw)) === 200);
+  appPw = newAppPw;
 
   // ---- member session security ------------------------------------------
   // Three findings from the pre-release security review, each verified here

@@ -19,6 +19,9 @@ export interface TenantSettings {
   whatsapp_renewal_template_te: string;
   receipt_footer: string | null;
   date_format: string;
+  gstin: string | null;
+  tax_sac_code: string;
+  tax_state_name: string | null;
 }
 
 export async function getSettings(user: SessionUser): Promise<TenantSettings | null> {
@@ -33,57 +36,60 @@ export async function getSettings(user: SessionUser): Promise<TenantSettings | n
   });
 }
 
-export async function updateSettings(
-  user: SessionUser,
-  patch: Partial<
-    Pick<
-      TenantSettings,
-      | 'receipt_prefix'
-      | 'default_grace_period_days'
-      | 'max_freezes_per_year'
-      | 'max_freeze_days_per_year'
-      | 'allow_partial_payments'
-      | 'whatsapp_renewal_template_en'
-      | 'whatsapp_renewal_template_te'
-      | 'receipt_footer'
-      | 'date_format'
-    >
-  >,
-): Promise<void> {
+/**
+ * Columns settings.manage may write, and whether clearing them is meaningful.
+ * Anything not listed here cannot be reached from the form at all.
+ */
+const SETTINGS_COLUMNS = {
+  receipt_prefix: 'value',
+  default_grace_period_days: 'value',
+  max_freezes_per_year: 'value',
+  max_freeze_days_per_year: 'value',
+  allow_partial_payments: 'value',
+  whatsapp_renewal_template_en: 'value',
+  whatsapp_renewal_template_te: 'value',
+  receipt_footer: 'clearable',
+  date_format: 'value',
+  gstin: 'clearable',
+  tax_sac_code: 'value',
+  tax_state_name: 'clearable',
+} as const;
+
+export type SettingsPatch = Partial<
+  Record<keyof typeof SETTINGS_COLUMNS, string | number | boolean | null>
+>;
+
+/**
+ * Absent key = leave the column alone. Explicit null = clear it.
+ *
+ * The previous version built one fixed UPDATE of `coalesce($n, column)`, which
+ * made those two cases indistinguishable: a grace period of 0, a max-freezes
+ * of 0, or a cleared receipt footer all arrived as null and were silently
+ * discarded — while the page still said "Settings saved." Building the SET
+ * list from what the caller actually sent is what makes a zero a zero.
+ */
+export async function updateSettings(user: SessionUser, patch: SettingsPatch): Promise<void> {
+  const sets: string[] = [];
+  const params: unknown[] = [user.tenantId];
+  for (const [col, mode] of Object.entries(SETTINGS_COLUMNS)) {
+    const value = patch[col as keyof typeof SETTINGS_COLUMNS];
+    if (value === undefined) continue;
+    if (value === null && mode !== 'clearable') continue;
+    params.push(value);
+    sets.push(`${col} = $${params.length}`);
+  }
+  if (!sets.length) return;
   return asPrincipal(user.claims, async (tx) => {
     const before = await tx.query(`SELECT * FROM gym_settings WHERE tenant_id = $1`, [
       user.tenantId,
     ]);
-    await tx.query(
-      `UPDATE gym_settings SET
-         receipt_prefix = coalesce($2, receipt_prefix),
-         default_grace_period_days = coalesce($3, default_grace_period_days),
-         max_freezes_per_year = coalesce($4, max_freezes_per_year),
-         max_freeze_days_per_year = coalesce($5, max_freeze_days_per_year),
-         allow_partial_payments = coalesce($6, allow_partial_payments),
-         whatsapp_renewal_template_en = coalesce($7, whatsapp_renewal_template_en),
-         whatsapp_renewal_template_te = coalesce($8, whatsapp_renewal_template_te),
-         receipt_footer = coalesce($9, receipt_footer),
-         date_format = coalesce($10, date_format)
-       WHERE tenant_id = $1`,
-      [
-        user.tenantId,
-        patch.receipt_prefix ?? null,
-        patch.default_grace_period_days ?? null,
-        patch.max_freezes_per_year ?? null,
-        patch.max_freeze_days_per_year ?? null,
-        patch.allow_partial_payments ?? null,
-        patch.whatsapp_renewal_template_en ?? null,
-        patch.whatsapp_renewal_template_te ?? null,
-        patch.receipt_footer ?? null,
-        patch.date_format ?? null,
-      ],
-    );
+    await tx.query(`UPDATE gym_settings SET ${sets.join(', ')} WHERE tenant_id = $1`, params);
+    const prev = (before.rows[0] ?? {}) as Record<string, unknown>;
     await writeAudit(tx, user, {
       action: 'settings.update',
       entityType: 'gym_settings',
       entityId: user.tenantId,
-      before: { receipt_prefix: (before.rows[0] as Record<string, unknown>)?.receipt_prefix },
+      before: Object.fromEntries(Object.keys(patch).map((k) => [k, prev[k] ?? null])),
       after: patch as Record<string, unknown>,
     });
   });

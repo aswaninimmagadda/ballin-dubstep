@@ -281,17 +281,22 @@ export default async function MemberDetailPage({
             </p>
           ) : null}
           <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3">
-            {!member.user_id ? (
-              <form action="/credentials" method="post">
-                <input type="hidden" name="kind" value="member_app" />
-                <input type="hidden" name="memberId" value={id} />
-                <button className="text-sm font-semibold text-primary hover:underline">
-                  Enable member app access
-                </button>
-              </form>
-            ) : (
-              <span className="text-xs text-slate-400">Member app: enabled</span>
-            )}
+            {/* The same action both enables access and reissues the password:
+                app.member_app_enable upserts the credential. Hiding it once
+                access existed meant a member who forgot their app password
+                could not be given a new one by anyone, at any desk. */}
+            <form action="/credentials" method="post">
+              <input type="hidden" name="kind" value="member_app" />
+              <input type="hidden" name="memberId" value={id} />
+              <button className="text-sm font-semibold text-primary hover:underline">
+                {member.user_id ? tr.members.appAccessReset : tr.members.appAccessEnable}
+              </button>
+              {member.user_id ? (
+                <p className="mt-1 text-xs text-slate-400">
+                  {tr.members.appAccessEnabled} · {tr.members.appAccessResetHint}
+                </p>
+              ) : null}
+            </form>
             {currentMembership ? (
               <a
                 href={`/members/${id}/cancel`}

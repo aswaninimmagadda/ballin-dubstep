@@ -86,6 +86,10 @@ export const en = {
     quickRecordPayment: 'Record payment',
   },
   members: {
+    appAccessEnable: 'Enable member app access',
+    appAccessReset: 'Reset app password',
+    appAccessEnabled: 'Member app: enabled',
+    appAccessResetHint: 'Issues a new one-time password. The old one stops working.',
     title: 'Members',
     newMember: 'New member',
     memberNumber: 'Member #',
@@ -211,6 +215,22 @@ export const en = {
       won: 'Won',
       lost: 'Lost',
     },
+  },
+  plans: {
+    title: 'Plans',
+    newPlan: 'New plan',
+    duration: 'Duration',
+    gracePeriod: 'Grace period',
+    freezeDays: 'Freeze days',
+    maxFreezes: 'Max freezes',
+    allowedTimings: 'Allowed timings',
+    publicDescription: 'Public description',
+    gstRate: 'GST rate',
+    gstHint: 'Fitness services are 18% (SAC 999723). Leave 0% if not registered.',
+    gstMode: 'Price includes GST?',
+    gstInclusive: 'Price includes GST',
+    gstExclusive: 'GST added on top',
+    gstNotRegistered: '0% (not registered)',
   },
   whatsappTemplates: {
     renewalDefault:

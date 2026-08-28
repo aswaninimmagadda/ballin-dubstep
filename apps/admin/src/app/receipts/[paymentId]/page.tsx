@@ -41,6 +41,23 @@ export default async function ReceiptPage({
   const { error, msg } = await searchParams;
   const [receipt, tr] = await Promise.all([getReceipt(user, paymentId), t()]);
   if (!receipt) notFound();
+
+  // A gym only issues a tax invoice if it is registered AND this sale actually
+  // carried tax. Printing "TAX INVOICE" without a GSTIN would be a false
+  // document; printing a 0% CGST line on an unregistered gym's receipt is
+  // just noise.
+  const taxAmount = Number(receipt.tax_amount ?? 0);
+  const isTaxInvoice = Boolean(receipt.gstin) && taxAmount > 0;
+  const amountPaid = Number(receipt.amount);
+  const taxableValue = amountPaid - taxAmount;
+  // Integer paise throughout: SGST takes the remainder so CGST + SGST is
+  // exactly the tax charged, whatever the rounding.
+  const cgst = Math.floor(taxAmount / 2);
+  const sgst = taxAmount - cgst;
+  const halfRatePct = ((receipt.tax_rate_bps ?? 0) / 200).toFixed(
+    (receipt.tax_rate_bps ?? 0) % 200 === 0 ? 0 : 2,
+  );
+
   const canRefund =
     hasPermission(user.permissions, 'payments.refund') || user.kind === 'platform_admin';
 
@@ -56,6 +73,17 @@ export default async function ReceiptPage({
         <header className="border-b border-dashed border-slate-300 pb-4 text-center">
           <h1 className="text-xl font-bold">{receipt.gym_name}</h1>
           <p className="text-sm text-slate-500">{receipt.branch_name}</p>
+          {isTaxInvoice ? (
+            <>
+              <p className="mt-2 text-sm font-semibold tracking-wide">TAX INVOICE</p>
+              <p className="font-mono text-xs text-slate-600">GSTIN: {receipt.gstin}</p>
+              {receipt.tax_state_name ? (
+                <p className="text-[11px] text-slate-500">
+                  Place of supply: {receipt.tax_state_name}
+                </p>
+              ) : null}
+            </>
+          ) : null}
         </header>
         <dl className="mt-4 space-y-2 text-sm">
           <div className="flex justify-between">
@@ -101,6 +129,30 @@ export default async function ReceiptPage({
           ) : null}
         </dl>
         <div className="mt-4 border-t border-dashed border-slate-300 pt-4">
+          {isTaxInvoice ? (
+            // A gym and its members are in the same state, so the supply is
+            // always intra-state: the rate splits evenly into CGST and SGST.
+            // The paise are split so the two halves always re-add to the tax
+            // actually charged — never two independent roundings.
+            <dl className="mb-3 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-slate-500">SAC</dt>
+                <dd className="font-mono">{receipt.tax_sac_code}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-500">Taxable value</dt>
+                <dd>{formatMoney(taxableValue)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-500">{`CGST @ ${halfRatePct}%`}</dt>
+                <dd>{formatMoney(cgst)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-500">{`SGST @ ${halfRatePct}%`}</dt>
+                <dd>{formatMoney(sgst)}</dd>
+              </div>
+            </dl>
+          ) : null}
           <div className="flex items-center justify-between">
             <span className="text-base font-semibold">{tr.membership.total}</span>
             <span className="text-2xl font-bold">{formatMoney(Number(receipt.amount))}</span>

@@ -312,8 +312,9 @@ export async function sellMembership(
       `INSERT INTO memberships
         (tenant_id, branch_id, member_id, plan_id, plan_version_id, plan_name_snapshot,
          start_date, base_end_date, end_date, grace_period_days, state, total_amount,
-         discount_amount, promotion_id, sold_by, idempotency_key)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+         discount_amount, promotion_id, sold_by, idempotency_key,
+         tax_amount, tax_rate_bps)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
       [
         user.tenantId,
         m.branch_id,
@@ -330,6 +331,10 @@ export async function sellMembership(
         promo?.id ?? null,
         user.userId,
         input.idempotencyKey,
+        // frozen at sale time: raising the plan's rate later must not rewrite
+        // a receipt that has already been handed to a member
+        quote.tax,
+        pv.tax_rate_bps,
       ],
     );
     const membershipId = (msR.rows[0] as { id: string }).id;
@@ -480,8 +485,9 @@ export async function renewMembership(
       `INSERT INTO memberships
         (tenant_id, branch_id, member_id, plan_id, plan_version_id, plan_name_snapshot,
          start_date, base_end_date, end_date, grace_period_days, state, total_amount,
-         discount_amount, promotion_id, sold_by, previous_membership_id, idempotency_key)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+         discount_amount, promotion_id, sold_by, previous_membership_id, idempotency_key,
+         tax_amount, tax_rate_bps)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
       [
         user.tenantId,
         prev.branch_id,
@@ -499,6 +505,8 @@ export async function renewMembership(
         user.userId,
         prev.id,
         input.idempotencyKey,
+        quote.tax,
+        pv.tax_rate_bps,
       ],
     );
     const membershipId = (msR.rows[0] as { id: string }).id;
