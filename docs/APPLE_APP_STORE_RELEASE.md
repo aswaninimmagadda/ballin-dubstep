@@ -46,6 +46,18 @@ product impact — budget the $99/yr only when there's real iPhone demand.
 9. **Release:** manual release after approval recommended for the first
    version; then phased automatic releases.
 
+## Account deletion (guideline 5.1.1(v)) — required
+
+Apps that support account creation must let the user delete the account from
+inside the app. Ours does: **Overview tab → "Delete my account"**, which
+removes the login (credentials, roles, sessions, user row), signs the member
+out everywhere and files a data-deletion request with the gym. Point the
+reviewer at that path in App Review notes, and say plainly that membership
+and payment records are retained by the gym as the controller, because the
+law requires it — Apple accepts retention that is legally mandated when it is
+disclosed. The same explanation is public at `/account-deletion` on the admin
+origin.
+
 ## Build configuration
 
 `apps/member/eas.json` carries the same profiles as Android. iOS builds run

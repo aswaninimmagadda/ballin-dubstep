@@ -82,11 +82,17 @@ App identity (already configured in `apps/member/app.config.js`):
     no user-generated content, no gambling → rates Everyone. Target
     audience 18+ (gym members); not a child-directed app.
 
-11. **Data safety form** (Policy → App content): declares — collects phone
-    number + name (account management), payment history (app
-    functionality); not shared with third parties; encrypted in transit;
-    deletable via request (PRIVACY.md flow); no location, no ads SDKs, no
-    tracking.
+11. **Data safety form + account deletion** (Policy → App content):
+    declares — collects phone number + name (account management), payment
+    history (app functionality); not shared with third parties; encrypted in
+    transit; no location, no ads SDKs, no tracking. Play also requires the
+    **account-deletion declaration**: the in-app path is Overview tab →
+    "Delete my account", and the public URL to enter is
+    `https://<your-admin-origin>/account-deletion` (a no-login page shipped
+    with the admin app). Declare honestly that the login is deleted while
+    financial records are retained by the gym for the statutory period —
+    partial-deletion is an accepted answer on that form, a false "everything
+    is deleted" is not.
 
 12. **Production rollout.** Promote from closed testing → staged rollout
     (start 20%) → 100%. Review times vary (hours to ~7 days).

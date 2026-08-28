@@ -84,6 +84,7 @@ jobs:
           done
           node scripts/e2e-admin.mjs
           node scripts/e2e-acceptance.mjs
+          node scripts/e2e-empty-tenant.mjs
         env:
           DATABASE_URL: postgres://gymflow:gymflow_dev_pw@localhost:5432/gymflow_test
           DATABASE_APP_URL: postgres://gymflow_app:gymflow_app_dev_pw@localhost:5432/gymflow_test

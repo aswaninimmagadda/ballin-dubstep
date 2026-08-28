@@ -33,6 +33,17 @@ tenants — isolation is enforced at the database layer.
   **without destroying legally-retained payment records**. Financial and
   audit records are never deleted on profile removal.
 
+## Deletion in practice (implemented)
+
+A member deletes their account from the app (Overview → Delete my account) or
+by asking reception. Immediately: the login, its credentials and roles, every
+session and refresh token, and the `users` row are deleted, and the member is
+unlinked from the login. A row is written to `member_deletion_requests` so the
+gym sees an open request on the member's page and can erase the personal
+details it no longer needs. Financial records (payments, receipts, refunds)
+are append-only and are retained for the statutory period — the app says so
+before the member confirms, and `/account-deletion` states it publicly.
+
 ## Retention defaults (tenant-adjustable policy, documented not hard-coded)
 
 - Financial records (payments/receipts/refunds): retain ≥ 8 years
