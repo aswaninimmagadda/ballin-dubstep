@@ -25,14 +25,25 @@ export interface MemberListRow {
 
 export async function searchMembers(
   user: SessionUser,
-  opts: { q?: string; status?: string; duesOnly?: boolean; limit?: number; offset?: number },
+  opts: {
+    q?: string;
+    status?: string;
+    duesOnly?: boolean;
+    /** Show archived members instead of live ones, so they can be found again. */
+    archived?: boolean;
+    limit?: number;
+    offset?: number;
+  },
 ): Promise<{ rows: MemberListRow[]; total: number }> {
   const q = (opts.q ?? '').trim();
   const limit = Math.min(opts.limit ?? 25, 100);
   const offset = opts.offset ?? 0;
   return asPrincipal(user.claims, async (tx) => {
     const params: unknown[] = [];
-    let where = 'WHERE m.archived_at IS NULL';
+    // The members list is the ONLY way to reach a member, so an archived one
+    // was unreachable in the product entirely. `status=archived` in the filter
+    // dropdown selected a status the list could never show.
+    let where = opts.archived ? 'WHERE m.archived_at IS NOT NULL' : 'WHERE m.archived_at IS NULL';
     if (q) {
       params.push(`%${q}%`);
       const p = `$${params.length}`;
@@ -292,6 +303,51 @@ export async function enableMemberApp(
  * (the tenant+mobile unique index is partial on archived_at IS NULL) and
  * ends any member-app sessions.
  */
+/**
+ * Put an archived member back on the books.
+ *
+ * Archiving was two clicks, open to reception, and had no reverse anywhere in
+ * the product: the member vanished from the only list and the only search
+ * (both filter `archived_at IS NULL`) and from duplicate detection, so
+ * re-adding them created a second record under a mobile number the unique
+ * index had just freed. The row was always still there; nothing could reach it.
+ */
+export async function unarchiveMember(user: SessionUser, memberId: string): Promise<void> {
+  const { UserFacingError } = await import('../errors');
+  return asPrincipal(user.claims, async (tx) => {
+    // members_tenant_mobile_unique is partial on archived_at IS NULL, so a
+    // number reused since the archive would collide. Say which one.
+    const clash = await tx.query(
+      `SELECT other.membership_number
+         FROM members m
+         JOIN members other ON other.mobile = m.mobile
+                           AND other.tenant_id = m.tenant_id
+                           AND other.archived_at IS NULL
+        WHERE m.id = $1 AND m.archived_at IS NOT NULL`,
+      [memberId],
+    );
+    const taken = (clash.rows[0] as { membership_number: string } | undefined)?.membership_number;
+    if (taken) {
+      throw new UserFacingError(
+        `Their mobile number is now used by member ${taken}. Change that member's number first.`,
+      );
+    }
+    const r = await tx.query(
+      `UPDATE members SET archived_at = NULL, status = 'expired'
+        WHERE id = $1 AND archived_at IS NOT NULL`,
+      [memberId],
+    );
+    if ((r as { rowCount: number }).rowCount === 0) {
+      throw new UserFacingError('Member not found (or not archived).');
+    }
+    await writeAudit(tx, user, {
+      action: 'member.unarchive',
+      entityType: 'member',
+      entityId: memberId,
+    });
+  });
+}
+
 export async function archiveMember(user: SessionUser, memberId: string): Promise<void> {
   const { UserFacingError } = await import('../errors');
   return asPrincipal(user.claims, async (tx) => {

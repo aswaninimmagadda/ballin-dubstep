@@ -86,6 +86,10 @@ export const te: TranslationTree = {
     quickRecordPayment: 'చెల్లింపు నమోదు',
   },
   members: {
+    showArchived: 'ఆర్కైవ్ చేసినవి మాత్రమే',
+    noArchived: 'ఆర్కైవ్ చేసిన సభ్యులు లేరు.',
+    unarchive: 'సభ్యుని పునరుద్ధరించండి',
+    unarchived: 'సభ్యుడు పునరుద్ధరించబడ్డారు.',
     appAccessEnable: 'సభ్యుని యాప్ యాక్సెస్ ఇవ్వండి',
     appAccessReset: 'యాప్ పాస్‌వర్డ్ రీసెట్ చేయండి',
     appAccessEnabled: 'సభ్యుని యాప్: ప్రారంభించబడింది',
@@ -141,6 +145,9 @@ export const te: TranslationTree = {
     },
   },
   membership: {
+    payLaterHint:
+      'తర్వాత వసూలు చేయడానికి ఖాళీగా వదలండి — ఈ జిమ్ పాక్షిక చెల్లింపులను అనుమతిస్తుంది.',
+    payFullHint: 'పూర్తి మొత్తం వసూలు చేయండి: ఈ జిమ్ పాక్షిక చెల్లింపులను అనుమతించదు.',
     manualDiscount: 'తగ్గింపు',
     manualDiscountHint: 'ఐచ్ఛికం. ప్రోమో కోడ్‌కు బదులుగా — పరిమితి దాటితే ఆమోదం అవసరం.',
     sell: 'సభ్యత్వం అమ్మండి',
@@ -193,6 +200,8 @@ export const te: TranslationTree = {
     refundReason: 'వాపసు కారణం',
   },
   attendance: {
+    memberGrace: 'గ్రేస్ పీరియడ్‌లో ఉన్నారు — పునరుద్ధరణ ఆలస్యం. ఈరోజే రెన్యూ చేయమని చెప్పండి.',
+    memberExpiringSoon: 'ఒక వారంలో ముగుస్తుంది — ఇప్పుడే రెన్యూ చేయడం మంచిది.',
     title: 'హాజరు',
     checkIn: 'చెక్ ఇన్',
     checkedInAt: 'చెక్ ఇన్ సమయం',
@@ -204,6 +213,9 @@ export const te: TranslationTree = {
     allowAnyway: 'అయినా అనుమతించండి',
   },
   leads: {
+    markLost: 'కోల్పోయినట్లు గుర్తించండి',
+    markLostConfirm: 'ఫాలో-అప్ జాబితా నుండి తొలగిస్తుంది. Lost ఫిల్టర్‌తో మళ్లీ చూడవచ్చు.',
+    showLost: 'కోల్పోయినవి చూపించు',
     title: 'ఎంక్వైరీలు',
     newLead: 'కొత్త ఎంక్వైరీ',
     source: 'మూలం',

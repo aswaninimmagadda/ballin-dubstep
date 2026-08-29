@@ -175,8 +175,12 @@ async function assertPartialPaymentAllowed(
   const allowed = (r.rows[0] as { allow_partial_payments: boolean } | undefined)
     ?.allow_partial_payments;
   if (!allowed) {
+    // The receptionist who hits this cannot open Settings — settings.manage is
+    // an owner permission — so telling her to change it there is telling her
+    // to fix something she is locked out of. Name the amount and the person.
     throw new UserFacingError(
-      `Partial payments are not enabled for this gym. Collect the full ${formatMoney(amountDue)}, or turn on part payments in Settings.`,
+      `This gym does not allow part payments, so collect the full ${formatMoney(amountDue)}. ` +
+        'To take deposits, the gym owner turns on "Allow part payments" in Settings.',
     );
   }
 }

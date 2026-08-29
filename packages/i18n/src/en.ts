@@ -88,6 +88,10 @@ export const en = {
     quickRecordPayment: 'Record payment',
   },
   members: {
+    showArchived: 'Archived only',
+    noArchived: 'No archived members.',
+    unarchive: 'Restore member',
+    unarchived: 'Member restored.',
     appAccessEnable: 'Enable member app access',
     appAccessReset: 'Reset app password',
     appAccessEnabled: 'Member app: enabled',
@@ -143,6 +147,8 @@ export const en = {
     },
   },
   membership: {
+    payLaterHint: 'Leave empty to collect later — this gym allows part payments.',
+    payFullHint: 'Collect the full amount: this gym does not allow part payments.',
     manualDiscount: 'Discount',
     manualDiscountHint: 'Optional. Instead of a promo code — needs approval above the gym limit.',
     sell: 'Sell membership',
@@ -195,6 +201,8 @@ export const en = {
     refundReason: 'Refund reason',
   },
   attendance: {
+    memberGrace: 'In grace period — renewal is overdue. Ask them to renew today.',
+    memberExpiringSoon: 'Expires within a week — good moment to renew.',
     title: 'Attendance',
     checkIn: 'Check in',
     checkedInAt: 'Checked in',
@@ -206,6 +214,10 @@ export const en = {
     allowAnyway: 'Allow entry anyway',
   },
   leads: {
+    markLost: 'Mark as lost',
+    markLostConfirm:
+      'This removes them from the follow-up list. You can still find them with the Lost filter.',
+    showLost: 'Show lost',
     title: 'Leads',
     newLead: 'New enquiry',
     source: 'Source',

@@ -73,12 +73,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 {lang === 'en' ? 'తెలుగు' : 'English'}
               </button>
             </form>
+            {/* The name doubles as the change-password link. It used to be
+                `hidden … sm:inline`, and it was the only link to that page
+                anywhere in the app — so on the phone reception actually works
+                on, a one-time desk password could never be changed. */}
             <a
               href="/account/password"
-              className="hidden text-sm text-slate-500 hover:text-primary sm:inline"
+              className="text-sm text-slate-500 hover:text-primary"
               title={tr.auth.changePassword}
             >
-              {user.displayName}
+              <span className="hidden sm:inline">{user.displayName}</span>
+              <span className="sm:hidden" aria-label={tr.auth.changePassword}>
+                {tr.auth.changePassword}
+              </span>
             </a>
             <form action={logoutAction}>
               <button className="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100">

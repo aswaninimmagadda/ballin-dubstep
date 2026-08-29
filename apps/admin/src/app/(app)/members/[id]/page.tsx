@@ -55,6 +55,20 @@ async function archiveAction(formData: FormData): Promise<void> {
   redirect(`/members/${memberId}?msg=archived`);
 }
 
+async function unarchiveAction(formData: FormData): Promise<void> {
+  'use server';
+  const user = await requirePermission('members.edit');
+  const memberId = String(formData.get('memberId'));
+  const { unarchiveMember } = await import('@/lib/services/members');
+  try {
+    await unarchiveMember(user, memberId);
+  } catch (err) {
+    const { toUserMessage } = await import('@/lib/errors');
+    redirect(`/members/${memberId}?msg=archerror&detail=${encodeURIComponent(toUserMessage(err))}`);
+  }
+  redirect(`/members/${memberId}?msg=unarchived`);
+}
+
 async function logPtAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('pt.manage');
@@ -123,7 +137,9 @@ export default async function MemberDetailPage({
     addon: 'Add-on recorded.',
     edited: 'Member updated.',
     cancelled: 'Membership cancelled.',
-    archived: 'Member archived. Their history is kept; the mobile number is free to re-use.',
+    archived:
+      'Member archived. Their history is kept; the mobile number is free to re-use. Find them again with the "Archived only" filter on the members list.',
+    unarchived: tr.members.unarchived,
     archerror: errorDetail ?? tr.common.error,
   };
 
@@ -304,6 +320,15 @@ export default async function MemberDetailPage({
               >
                 Cancel membership…
               </a>
+            ) : null}
+            {/* Archiving used to be a one-way door: the members list and the
+                search both filter archived_at IS NULL, so the member was
+                unreachable in the product afterwards. */}
+            {user.permissions.has('members.edit') && member.archived_at ? (
+              <form action={unarchiveAction}>
+                <input type="hidden" name="memberId" value={id} />
+                <Button variant="secondary">{tr.members.unarchive}</Button>
+              </form>
             ) : null}
             {user.permissions.has('members.edit') && !member.archived_at && !currentMembership ? (
               <details>

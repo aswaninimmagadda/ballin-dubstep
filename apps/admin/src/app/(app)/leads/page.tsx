@@ -53,13 +53,15 @@ async function statusAction(formData: FormData): Promise<void> {
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; all?: string }>;
+  searchParams: Promise<{ error?: string; all?: string; status?: string }>;
 }) {
   const user = await requirePermission('leads.view');
   await requireFeature(user, 'leads');
-  const { error } = await searchParams;
+  const { error, status: statusFilter } = await searchParams;
   const tr = await t();
-  const leads = await listLeads(user);
+  // listLeads already supported a status argument; the page never passed one,
+  // so a lead marked lost left the only view of leads permanently.
+  const leads = await listLeads(user, statusFilter || undefined);
   const branches = await asPrincipal(user.claims, async (tx) => {
     const r = await tx.query(`SELECT id, name FROM branches WHERE is_active ORDER BY name`);
     return r.rows as { id: string; name: string }[];
@@ -69,6 +71,26 @@ export default async function LeadsPage({
     <>
       <PageHeader title={`${tr.leads.title} (${leads.length})`} />
       <ErrorBanner message={error ?? null} />
+      {/* Without this a lost lead was gone for good: the default list excludes
+          'won' and 'lost', and nothing offered another view. */}
+      <div className="mb-4 flex gap-2 text-sm">
+        <a
+          href="/leads"
+          className={`rounded-lg px-3 py-1.5 font-semibold ${
+            statusFilter ? 'text-slate-500 hover:bg-slate-100' : 'bg-primary text-white'
+          }`}
+        >
+          {tr.leads.title}
+        </a>
+        <a
+          href="/leads?status=lost"
+          className={`rounded-lg px-3 py-1.5 font-semibold ${
+            statusFilter === 'lost' ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-100'
+          }`}
+        >
+          {tr.leads.showLost}
+        </a>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card>
@@ -160,16 +182,28 @@ export default async function LeadsPage({
                     >
                       {tr.leads.convert}
                     </a>
-                    <form action={statusAction}>
-                      <input type="hidden" name="id" value={lead.id} />
-                      <input type="hidden" name="status" value="lost" />
-                      <button
-                        className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-100"
-                        title="Mark lost"
+                    {/* A bare ✕ next to Convert, one mis-tap from removing
+                        the lead from the only view of leads there is. Now it
+                        opens rather than fires, and says what it does. */}
+                    <details className="relative">
+                      <summary
+                        className="cursor-pointer rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-100"
+                        title={tr.leads.markLost}
                       >
                         ✕
-                      </button>
-                    </form>
+                      </summary>
+                      <form
+                        action={statusAction}
+                        className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-slate-200 bg-white p-3 shadow-lg"
+                      >
+                        <input type="hidden" name="id" value={lead.id} />
+                        <input type="hidden" name="status" value="lost" />
+                        <p className="mb-2 text-xs text-slate-500">{tr.leads.markLostConfirm}</p>
+                        <button className="w-full rounded bg-red-600 px-2 py-1.5 text-xs font-semibold text-white">
+                          {tr.leads.markLost}
+                        </button>
+                      </form>
+                    </details>
                   </div>
                 </td>
               </tr>

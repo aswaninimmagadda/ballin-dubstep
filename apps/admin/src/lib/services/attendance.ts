@@ -1,6 +1,6 @@
 import 'server-only';
 import { deriveMembershipStatus, allowsCheckin, verifyMemberPassToken } from '@gymflow/core';
-import { todayInTz } from '@gymflow/utils';
+import { addDays, todayInTz } from '@gymflow/utils';
 import { PLATFORM_DEFAULTS } from '@gymflow/config';
 import { asPrincipal } from '../db';
 import { writeAudit } from '../audit';
@@ -34,6 +34,9 @@ const RELEVANT_MEMBERSHIP_ORDER = (todayParam: string) => `
     WHEN state IN ('active','frozen') THEN 2
     ELSE 3
   END, end_date DESC`;
+
+/** How close to expiry a check-in should prompt a renewal conversation. */
+const EXPIRY_NUDGE_DAYS = 7;
 
 export async function previewCheckin(user: SessionUser, memberId: string): Promise<CheckinPreview> {
   const today = todayInTz();
@@ -70,6 +73,16 @@ export async function previewCheckin(user: SessionUser, memberId: string): Promi
       if (derived === 'frozen') warning = 'frozen';
       else if (derived === 'grace_period') warning = 'grace';
       else if (!allowed) warning = 'expired';
+      else if (
+        derived === 'active' &&
+        typeof row.end_date === 'string' &&
+        row.end_date <= addDays(today, EXPIRY_NUDGE_DAYS)
+      ) {
+        // The desk is the only place the gym reliably meets a member, and the
+        // week before expiry is when a renewal costs one sentence instead of
+        // a phone campaign.
+        warning = 'expiring_soon';
+      }
     } else {
       // check most recent membership of any state for context
       const last = await tx.query(

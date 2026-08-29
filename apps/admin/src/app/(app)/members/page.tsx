@@ -18,19 +18,30 @@ export const dynamic = 'force-dynamic';
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; page?: string; dues?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    page?: string;
+    dues?: string;
+    archived?: string;
+  }>;
 }) {
   const user = await requirePermission('members.view');
-  const { q = '', status, page = '1', dues } = await searchParams;
+  const { q = '', status, page = '1', dues, archived } = await searchParams;
   const duesOnly = dues === '1';
+  // Archiving had no reverse anywhere in the product; this is how an archived
+  // member is found again. `status=archived` used to be an option in the
+  // filter that could never match, because the list always excluded them.
+  const showArchived = archived === '1';
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const pageSize = 25;
   const [tr, { rows, total }] = await Promise.all([
     t(),
     searchMembers(user, {
       q,
-      status,
+      status: showArchived ? undefined : status,
       duesOnly,
+      archived: showArchived,
       limit: pageSize,
       offset: (pageNum - 1) * pageSize,
     }),
@@ -41,6 +52,7 @@ export default async function MembersPage({
       q,
       status: status ?? '',
       ...(duesOnly ? { dues: '1' } : {}),
+      ...(showArchived ? { archived: '1' } : {}),
       ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [k, String(v)])),
     }).toString();
 
@@ -78,11 +90,18 @@ export default async function MembersPage({
           <input type="checkbox" name="dues" value="1" defaultChecked={duesOnly} />
           {tr.members.duesOnly}
         </label>
+        <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-600">
+          <input type="checkbox" name="archived" value="1" defaultChecked={showArchived} />
+          {tr.members.showArchived}
+        </label>
         <Button variant="secondary">{tr.common.search}</Button>
       </form>
 
       {rows.length === 0 ? (
-        <EmptyState title="No members found." hint="Try a different search or add a new member." />
+        <EmptyState
+          title={showArchived ? tr.members.noArchived : 'No members found.'}
+          hint={showArchived ? undefined : 'Try a different search or add a new member.'}
+        />
       ) : (
         <Table
           headers={[

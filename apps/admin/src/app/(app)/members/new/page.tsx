@@ -133,12 +133,25 @@ export default async function NewMemberPage({
     dupInfo = dups.find((d) => d.id === dup) ?? null;
   }
 
-  // Restore whatever was typed before a validation slip (see DRAFT_COOKIE).
+  // Restore whatever was typed before a validation slip (see DRAFT_COOKIE) —
+  // but ONLY for the member it was typed for.
+  //
+  // The draft used to be applied to whoever came next: abandon a form after a
+  // validation error, start the next walk-in, and their form arrived carrying
+  // the previous person's mobile number, emergency contact and notes. Worse,
+  // the cookie's mobile won over the one step 1 had just checked for
+  // duplicates, so the member could be created under the wrong number
+  // entirely. Binding the draft to its mobile makes it useful for the person
+  // it belongs to and inert for everyone else.
   let draft: Record<string, string> = {};
   const draftRaw = (await cookies()).get(DRAFT_COOKIE)?.value;
   if (draftRaw) {
     try {
-      draft = JSON.parse(draftRaw) as Record<string, string>;
+      const parsedDraft = JSON.parse(draftRaw) as Record<string, string>;
+      const intendedMobile = mobile ?? leadData?.mobile;
+      if (!intendedMobile || parsedDraft.mobile === intendedMobile) {
+        draft = parsedDraft;
+      }
     } catch {
       draft = {};
     }
@@ -148,7 +161,8 @@ export default async function NewMemberPage({
   // A duplicate mobile cannot be created — the unique index refuses it — so
   // don't invite the receptionist to fill the form and lose the entry.
   const showForm = (step === '2' || leadData) && !dupInfo;
-  const effectiveMobile = draft.mobile ?? leadData?.mobile ?? mobile ?? '';
+  // Step 1's duplicate check ran against this number, so it is authoritative.
+  const effectiveMobile = mobile ?? leadData?.mobile ?? draft.mobile ?? '';
 
   return (
     <>

@@ -145,6 +145,18 @@ export default async function AttendancePage({
                     <p className="mt-1 text-sm font-medium text-amber-600">
                       {tr.attendance.memberFrozen}
                     </p>
+                  ) : previewData.warning === 'grace' ? (
+                    // The service has always computed this and the screen had
+                    // no branch for it, so a member inside their grace period
+                    // — the one moment a renewal conversation is easy — was
+                    // waved through looking exactly like everyone else.
+                    <p className="mt-1 text-sm font-medium text-amber-600">
+                      {tr.attendance.memberGrace}
+                    </p>
+                  ) : previewData.warning === 'expiring_soon' ? (
+                    <p className="mt-1 text-sm font-medium text-amber-600">
+                      {tr.attendance.memberExpiringSoon}
+                    </p>
                   ) : null}
                 </div>
                 <form action={checkinAction} className="flex flex-col gap-2">

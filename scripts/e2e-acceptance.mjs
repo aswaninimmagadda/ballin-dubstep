@@ -51,9 +51,17 @@ async function getFollow(path) {
   }
   return res;
 }
-function extractForm(html, markerField) {
+/**
+ * Pull a server action's id and hidden fields out of a rendered form.
+ *
+ * `contains` disambiguates when a page has several forms carrying the same
+ * hidden field — the member page has half a dozen that all post `memberId`,
+ * and picking the first one silently drives a different action.
+ */
+function extractForm(html, markerField, contains) {
   for (const f of html.split('<form').slice(1)) {
     if (!f.includes(`name="${markerField}"`)) continue;
+    if (contains && !f.slice(0, f.indexOf('</form>') + 1).includes(contains)) continue;
     const actionId = f.match(/\$ACTION_ID_([a-f0-9]+)/)?.[1];
     const hidden = {};
     for (const m of f.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g)) {
@@ -61,7 +69,7 @@ function extractForm(html, markerField) {
     }
     return { actionId, hidden };
   }
-  throw new Error(`No form with field ${markerField}`);
+  throw new Error(`No form with field ${markerField}${contains ? ` containing ${contains}` : ''}`);
 }
 async function postAction(path, form, fields) {
   const fd = new FormData();
@@ -393,10 +401,16 @@ async function main() {
     amount: '',
     method: 'cash',
   });
+  const unpaidMessage = decodeURIComponent(target(unpaidRes));
   check(
     'unpaid renewal refused while part payments are off',
-    decodeURIComponent(target(unpaidRes)).includes('Partial payments are not enabled'),
-    target(unpaidRes),
+    unpaidMessage.includes('does not allow part payments'),
+    unpaidMessage.slice(-160),
+  );
+  check(
+    'and the refusal names the amount and who can change the setting',
+    /₹|Rs/.test(unpaidMessage) && /owner/i.test(unpaidMessage),
+    unpaidMessage.slice(-160),
   );
 
   check('owner relogin', await loginAs(`owner@${SLUG}.test`, ownerPw));
@@ -778,6 +792,9 @@ async function main() {
     gracePeriodDays: '5',
     maxFreezes: '2',
     maxFreezeDays: '30',
+    // A browser submits every checkbox on the form; omitting this one here
+    // would turn part payments back off as a side effect of saving GST.
+    allowPartial: 'on',
     gstin: '37ABCDE1234F1Z5',
     taxStateName: 'Andhra Pradesh',
   });
@@ -901,6 +918,60 @@ async function main() {
     check('an unregistered gym prints no tax invoice', !plainReceipt.includes('TAX INVOICE'));
     check('and no CGST line', !plainReceipt.includes('CGST'));
   }
+
+  // ---- the receptionist's day: reversible actions ------------------------
+  console.log('\n[reception: nothing is a one-way door]');
+  check('reception relogin for reversibility', await loginAs(`reception@${SLUG}.test`, recepPw));
+
+  // The archived member from earlier in this run must be findable again.
+  const archivedList = await (await getFollow('/members?archived=1')).text();
+  check('archived members can be listed', /Archived only/.test(archivedList));
+  const [archivedRow] = await q(
+    `SELECT m.id, m.membership_number FROM members m JOIN tenants t ON t.id = m.tenant_id
+      WHERE t.slug = $1 AND m.archived_at IS NOT NULL LIMIT 1`,
+    [SLUG],
+  );
+  if (archivedRow) {
+    check(
+      'and the archived member appears in that list',
+      archivedList.includes(archivedRow.membership_number),
+      archivedRow.membership_number,
+    );
+    const archivedPage = await (await getFollow(`/members/${archivedRow.id}`)).text();
+    check('their page offers a restore', /Restore member/.test(archivedPage));
+    const restoreForm = extractForm(archivedPage, 'memberId', 'Restore member');
+    const restoreRes = await postAction(`/members/${archivedRow.id}`, restoreForm, {
+      memberId: archivedRow.id,
+    });
+    check(
+      'restoring works',
+      decodeURIComponent(target(restoreRes)).includes('unarchived'),
+      decodeURIComponent(target(restoreRes)).slice(-100),
+    );
+    const [restored] = await q(`SELECT archived_at FROM members WHERE id = $1`, [archivedRow.id]);
+    check('and the member is back on the books', restored.archived_at === null);
+  }
+
+  // A lost lead must still be reachable.
+  const lostList = await (await getFollow('/leads?status=lost')).text();
+  check(
+    'lost leads have their own view',
+    lostList.includes('Show lost') || lostList.includes('కోల్పోయిన'),
+  );
+
+  // The sell form must not invite a part payment the gym refuses. Part
+  // payments were switched ON for this gym earlier in the run.
+  const [sellMember] = await q(
+    `SELECT m.id FROM members m JOIN tenants t ON t.id = m.tenant_id
+      WHERE t.slug = $1 AND m.archived_at IS NULL ORDER BY m.created_at DESC LIMIT 1`,
+    [SLUG],
+  );
+  const sellFormHtml = await (await getFollow(`/members/${sellMember.id}/sell`)).text();
+  check(
+    "the payment hint matches the gym's part-payment setting",
+    /this gym allows part payments/i.test(sellFormHtml),
+    sellFormHtml.match(/[^<>]*part payments[^<>]*/i)?.[0] ?? 'hint not found',
+  );
 
   // ---- receivables must not leak out of the books ------------------------
   console.log('\n[receivables]');

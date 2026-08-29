@@ -8,6 +8,7 @@ import { requirePermission } from '@/lib/session';
 import { getMemberDetail } from '@/lib/services/members';
 import { sellMembership } from '@/lib/services/memberships';
 import { listPlans } from '@/lib/services/plans';
+import { getSettings } from '@/lib/services/settings';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
@@ -89,7 +90,15 @@ export default async function SellPage({
     hasPermission(user.permissions, 'discounts.approve');
   const { id } = await params;
   const { error, new: isNew } = await searchParams;
-  const [detail, plans, tr] = await Promise.all([getMemberDetail(user, id), listPlans(user), t()]);
+  const [detail, plans, tr, settings] = await Promise.all([
+    getMemberDetail(user, id),
+    listPlans(user),
+    t(),
+    getSettings(user),
+  ]);
+  // The hint used to invite the exact action the service refuses when a
+  // gym has not switched part payments on, which is every gym on day one.
+  const partPaymentsOn = settings?.allow_partial_payments ?? false;
   if (!detail) notFound();
   const today = todayInTz();
 
@@ -176,7 +185,10 @@ export default async function SellPage({
               {tr.members.recordPayment}
             </legend>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label={`${tr.payments.amount} (₹)`} hint="Leave empty to record payment later">
+              <Field
+                label={`${tr.payments.amount} (₹)`}
+                hint={partPaymentsOn ? tr.membership.payLaterHint : tr.membership.payFullHint}
+              >
                 <input name="amount" inputMode="decimal" placeholder="2500" className={inputCls} />
               </Field>
               <Field label={tr.payments.method}>

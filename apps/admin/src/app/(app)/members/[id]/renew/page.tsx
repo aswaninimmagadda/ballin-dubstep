@@ -9,6 +9,7 @@ import { getMemberDetail } from '@/lib/services/members';
 import { renewMembership } from '@/lib/services/memberships';
 import { listPlans } from '@/lib/services/plans';
 import { toUserMessage } from '@/lib/errors';
+import { getSettings } from '@/lib/services/settings';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -87,7 +88,14 @@ export default async function RenewPage({
     hasPermission(user.permissions, 'discounts.approve');
   const { id } = await params;
   const { error } = await searchParams;
-  const [detail, plans, tr] = await Promise.all([getMemberDetail(user, id), listPlans(user), t()]);
+  const [detail, plans, tr, settings] = await Promise.all([
+    getMemberDetail(user, id),
+    listPlans(user),
+    t(),
+    getSettings(user),
+  ]);
+  // Same reason as the sell form: do not invite an action the service refuses.
+  const partPaymentsOn = settings?.allow_partial_payments ?? false;
   if (!detail) notFound();
   const today = todayInTz();
 
@@ -175,7 +183,10 @@ export default async function RenewPage({
               {tr.members.recordPayment}
             </legend>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label={`${tr.payments.amount} (₹)`} hint="Leave empty to collect later">
+              <Field
+                label={`${tr.payments.amount} (₹)`}
+                hint={partPaymentsOn ? tr.membership.payLaterHint : tr.membership.payFullHint}
+              >
                 <input name="amount" inputMode="decimal" className={inputCls} />
               </Field>
               <Field label={tr.payments.method}>
