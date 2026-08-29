@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { asPrincipal } from '@/lib/db';
-import { isErrorResponse, memberAuth } from '@/lib/member-api';
+import { isErrorResponse, memberAuth, withApiLogging } from '@/lib/member-api';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest): Promise<NextResponse> {
+async function handleGet(req: NextRequest): Promise<NextResponse> {
   const auth = memberAuth(req);
   if (isErrorResponse(auth)) return auth;
   const rows = await asPrincipal(auth.claims, async (tx) => {
@@ -26,3 +26,5 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   });
   return NextResponse.json({ offers: rows });
 }
+
+export const GET = withApiLogging('/api/member/v1/offers', handleGet);

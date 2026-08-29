@@ -8,3 +8,4 @@ export * from './member-pass';
 export * from './pricing';
 export * from './password';
 export * from './forwarded-for';
+export * from './log';

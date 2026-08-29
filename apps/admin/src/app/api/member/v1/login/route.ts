@@ -3,12 +3,12 @@ import { verifyPassword, verifyPasswordDecoy } from '@gymflow/core';
 import { memberLoginSchema } from '@gymflow/validation';
 import { clientIpFromHeaders } from '@/lib/client-ip';
 import { asAnonymous } from '@/lib/db';
-import { issueRefreshToken, signAccessToken } from '@/lib/member-api';
+import { issueRefreshToken, signAccessToken, withApiLogging } from '@/lib/member-api';
 import { isThrottled } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+async function handlePost(req: NextRequest): Promise<NextResponse> {
   let body: unknown;
   try {
     body = await req.json();
@@ -71,3 +71,5 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     language: row.language,
   });
 }
+
+export const POST = withApiLogging('/api/member/v1/login', handlePost);

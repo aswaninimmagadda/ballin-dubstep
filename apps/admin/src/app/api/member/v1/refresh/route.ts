@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { asAnonymous } from '@/lib/db';
-import { rotateRefreshToken, signAccessToken } from '@/lib/member-api';
+import { rotateRefreshToken, signAccessToken, withApiLogging } from '@/lib/member-api';
 
 export const dynamic = 'force-dynamic';
 
 const schema = z.object({ refreshToken: z.string().min(20).max(200) });
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+async function handlePost(req: NextRequest): Promise<NextResponse> {
   let body: unknown;
   try {
     body = await req.json();
@@ -35,3 +35,5 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // one, so there is no half-rotated state to recover from.
   return NextResponse.json({ accessToken, refreshToken: rotated.refreshToken });
 }
+
+export const POST = withApiLogging('/api/member/v1/refresh', handlePost);

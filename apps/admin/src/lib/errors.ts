@@ -2,6 +2,8 @@
  * Convert internal failures into user-safe messages. Raw driver errors
  * (PostgREST/pg codes) must never reach the UI.
  */
+import { randomBytes } from 'node:crypto';
+import { log, logWithRequest } from './log';
 
 export class UserFacingError extends Error {
   constructor(message: string) {
@@ -34,7 +36,24 @@ export function toUserMessage(err: unknown): string {
   if (/append-only|immutable/.test(message)) {
     return 'Financial records cannot be edited. Record a refund or adjustment instead.';
   }
-  // Log the technical detail server-side; show a generic message.
-  console.error('[gymflow] unexpected error:', message);
-  return 'Something went wrong. Please try again.';
+  // Anything left is a real fault. The staff member gets a generic message —
+  // driver text tells an attacker about the schema — but it carries a
+  // reference, and that reference is in the log line with the request id, the
+  // route and the gym. "It said something went wrong" used to be the end of
+  // the investigation; now it is the start of one.
+  const ref = randomBytes(4).toString('hex');
+  logWithRequest('error', 'unhandled_error', { ref, error: message });
+  return `Something went wrong. Please try again. Reference: ${ref}`;
+}
+
+/**
+ * Record a fault that never reaches a screen — a background job, a webhook, a
+ * route that answers with a status code instead of a message.
+ */
+export function logFailure(
+  event: string,
+  err: unknown,
+  fields: Record<string, unknown> = {},
+): void {
+  log.error(event, { ...fields, error: err instanceof Error ? err.message : String(err) });
 }

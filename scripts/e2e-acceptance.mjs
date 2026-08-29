@@ -1288,6 +1288,36 @@ async function main() {
     exportRes.headers.get('cache-control') ?? 'none',
   );
 
+  // ---- a support call has something to go on -----------------------------
+  // There was no application logging at all: a member ringing to say "it told
+  // me something went wrong" left nothing behind to look at.
+  console.log('\n[traceability]');
+  const healthRes = await fetch(`${BASE}/api/health`);
+  const rid = healthRes.headers.get('x-request-id');
+  check(
+    'every response carries a request id',
+    /^[A-Za-z0-9_-]{8,64}$/.test(rid ?? ''),
+    String(rid),
+  );
+  const pageRid = (await get('/login')).headers.get('x-request-id');
+  check('including HTML pages', Boolean(pageRid) && pageRid !== rid, String(pageRid));
+  const proxied = await fetch(`${BASE}/api/health`, {
+    headers: { 'x-request-id': 'proxy-assigned-1234' },
+  });
+  check(
+    "a proxy's own id is kept so the two logs line up",
+    proxied.headers.get('x-request-id') === 'proxy-assigned-1234',
+    String(proxied.headers.get('x-request-id')),
+  );
+  const forged = await fetch(`${BASE}/api/health`, {
+    headers: { 'x-request-id': 'bad id\twith junk' },
+  });
+  check(
+    'but a junk id is replaced, not written into the logs',
+    forged.headers.get('x-request-id') !== 'bad id\twith junk',
+    String(forged.headers.get('x-request-id')),
+  );
+
   // ---- platform admin: one gym at a time ---------------------------------
   // platform_all was USING (app.is_platform_admin()) on every table, with no
   // tenant term. A platform admin who opened /members saw every gym's members

@@ -7,6 +7,7 @@ import { verifyPassword, verifyPasswordDecoy, hasPermission } from '@gymflow/cor
 import type { Permission } from '@gymflow/types';
 import { asAnonymous, asPrincipal, type Claims } from './db';
 import { clientIpFromHeaders } from './client-ip';
+import { logWithRequest } from './log';
 
 export const SESSION_COOKIE = 'gymflow_session';
 /**
@@ -72,7 +73,13 @@ export type LoginResult =
 
 export async function loginStaff(email: string, password: string): Promise<LoginResult> {
   const ip = await clientIp();
-  if (await isThrottled(email, ip)) return { ok: false, reason: 'locked' };
+  if (await isThrottled(email, ip)) {
+    // The one auth event that is worth waking someone for: either an account
+    // is under attack, or a receptionist is locked out mid-shift and about to
+    // ring support. Both need a name in the log — never the email itself.
+    logWithRequest('warn', 'auth.throttled', { emailHash: sha256(email).slice(0, 12) });
+    return { ok: false, reason: 'locked' };
+  }
 
   const row = await asAnonymous(async (tx) => {
     const r = await tx.query(`SELECT * FROM app.auth_staff_lookup($1)`, [email]);
@@ -89,10 +96,15 @@ export async function loginStaff(email: string, password: string): Promise<Login
     : await verifyPasswordDecoy(password);
   if (!row || !passwordOk) {
     await recordAttempt(false);
+    logWithRequest('info', 'auth.login_failed', {
+      reason: 'invalid',
+      emailHash: sha256(email).slice(0, 12),
+    });
     return { ok: false, reason: 'invalid' };
   }
   if (!row.is_active) {
     await recordAttempt(false);
+    logWithRequest('info', 'auth.login_failed', { reason: 'inactive', userId: row.user_id });
     return { ok: false, reason: 'inactive' };
   }
   if (
@@ -102,6 +114,10 @@ export async function loginStaff(email: string, password: string): Promise<Login
     row.tenant_status !== 'trial'
   ) {
     await recordAttempt(false);
+    logWithRequest('info', 'auth.login_failed', {
+      reason: 'tenant_suspended',
+      tenantId: row.tenant_id,
+    });
     return { ok: false, reason: 'tenant_suspended' };
   }
   await recordAttempt(true);
@@ -125,6 +141,11 @@ export async function loginStaff(email: string, password: string): Promise<Login
     sameSite: 'lax',
     path: '/',
     expires,
+  });
+  logWithRequest('info', 'auth.login', {
+    userId: row.user_id,
+    tenantId: row.tenant_id,
+    kind: row.kind,
   });
   return { ok: true };
 }

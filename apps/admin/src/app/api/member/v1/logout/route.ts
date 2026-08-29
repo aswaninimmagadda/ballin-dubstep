@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { revokeRefreshToken } from '@/lib/member-api';
+import { revokeRefreshToken, withApiLogging } from '@/lib/member-api';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +15,7 @@ const schema = z.object({ refreshToken: z.string().min(20).max(200) });
  * Answers 204 either way: whether a token existed is not something an
  * unauthenticated caller should be able to probe.
  */
-export async function POST(req: NextRequest): Promise<NextResponse> {
+async function handlePost(req: NextRequest): Promise<NextResponse> {
   let body: unknown;
   try {
     body = await req.json();
@@ -26,3 +26,5 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (parsed.success) await revokeRefreshToken(parsed.data.refreshToken);
   return new NextResponse(null, { status: 204 });
 }
+
+export const POST = withApiLogging('/api/member/v1/logout', handlePost);

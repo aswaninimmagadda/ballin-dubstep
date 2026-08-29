@@ -3,6 +3,7 @@ import { createHmac, createHash, randomBytes, timingSafeEqual } from 'node:crypt
 import { NextResponse, type NextRequest } from 'next/server';
 import { env } from './env';
 import { asAnonymous, type Claims } from './db';
+import { log } from './log';
 
 /**
  * Member app tokens. Access tokens are short-lived HMAC-signed payloads
@@ -128,4 +129,55 @@ export function memberAuth(req: NextRequest): MemberAuth | NextResponse {
 
 export function isErrorResponse(x: MemberAuth | NextResponse): x is NextResponse {
   return x instanceof NextResponse;
+}
+
+/**
+ * Wrap a member API handler so every call leaves one log line: the route, the
+ * status, how long it took, and the request id the phone can be told to quote.
+ * A member ringing to say "the app says my membership expired" is otherwise
+ * untraceable — the API answers in JSON and nothing anywhere records that the
+ * call happened.
+ *
+ * A handler that throws is turned into a 500 with a reference rather than a
+ * Next.js error page: the app is talking to JSON, and a stack trace on the
+ * wire tells an attacker about the schema.
+ */
+export function withApiLogging(
+  route: string,
+  handler: (req: NextRequest) => Promise<NextResponse>,
+): (req: NextRequest) => Promise<NextResponse> {
+  return async (req: NextRequest): Promise<NextResponse> => {
+    const started = Date.now();
+    const requestId = req.headers.get('x-request-id');
+    // The token identifies who is calling without a database round trip, and
+    // an unverifiable token simply yields nothing to log.
+    const bearer = req.headers.get('authorization') ?? '';
+    const payload = bearer.startsWith('Bearer ') ? verifyAccessToken(bearer.slice(7)) : null;
+    const who = payload ? { memberUserId: payload.sub, tenantId: payload.tid } : {};
+    try {
+      const res = await handler(req);
+      log[res.status >= 500 ? 'error' : 'info']('api.request', {
+        requestId,
+        route,
+        method: req.method,
+        status: res.status,
+        ms: Date.now() - started,
+        ...who,
+      });
+      return res;
+    } catch (err) {
+      const ref = randomBytes(4).toString('hex');
+      log.error('api.request', {
+        requestId,
+        route,
+        method: req.method,
+        status: 500,
+        ms: Date.now() - started,
+        ref,
+        error: err instanceof Error ? err.message : String(err),
+        ...who,
+      });
+      return NextResponse.json({ error: 'server_error', reference: ref }, { status: 500 });
+    }
+  };
 }

@@ -94,7 +94,8 @@ Start with [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md) and
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Operations:
 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md),
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md),
-[`docs/DISASTER_RECOVERY.md`](docs/DISASTER_RECOVERY.md). Security:
+[`docs/DISASTER_RECOVERY.md`](docs/DISASTER_RECOVERY.md),
+[`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md). Security:
 [`docs/SECURITY.md`](docs/SECURITY.md),
 [`docs/MULTI_TENANCY.md`](docs/MULTI_TENANCY.md),
 [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md). Store releases:
