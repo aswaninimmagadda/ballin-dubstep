@@ -93,7 +93,7 @@ DB with the **owner** URL — these are maintenance jobs, not app traffic):
 # 02:00 IST daily — verified pg_dump + prune (ops/backup.sh in this repo).
 # It refuses to keep a dump it cannot read back, and warns when OFFSITE_CMD
 # is unset — set it, or the only copy lives on the database host.
-0 2 * * * PROD_OWNER_URL=$OWNER_DB_URL BACKUP_DIR=/srv/backups OFFSITE_CMD="rclone copyto" /srv/gymflow/ops/backup.sh
+0 2 * * * PROD_OWNER_URL=$OWNER_DB_URL BACKUP_DIR=/srv/backups OFFSITE_CMD="rclone copyto remote:gymflow-backups" /srv/gymflow/ops/backup.sh
 ```
 
 ## Member app distribution

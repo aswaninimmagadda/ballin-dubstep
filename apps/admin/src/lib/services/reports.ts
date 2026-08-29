@@ -1,5 +1,6 @@
 import 'server-only';
 import { asPrincipal } from '../db';
+import { betweenTenantDays } from './tz-sql';
 import {
   COLLECTABLE_ADDON_STATES,
   COLLECTABLE_MEMBERSHIP_STATES,
@@ -65,7 +66,7 @@ export async function collectionsReport(
     // Refunds over the same window, matched on the branch/method of the
     // payment they reverse so the filters mean the same thing on both sides.
     const refundParams: unknown[] = [opts.from, opts.to];
-    let refundWhere = `(r.created_at AT TIME ZONE t.default_timezone)::date BETWEEN $1 AND $2`;
+    let refundWhere = betweenTenantDays('r.created_at', '$1', '$2');
     if (opts.branchId) {
       refundParams.push(opts.branchId);
       refundWhere += ` AND p.branch_id = $${refundParams.length}`;

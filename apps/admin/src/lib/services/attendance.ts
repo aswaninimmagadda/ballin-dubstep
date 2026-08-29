@@ -5,6 +5,7 @@ import { PLATFORM_DEFAULTS } from '@gymflow/config';
 import { asPrincipal } from '../db';
 import { writeAudit } from '../audit';
 import { UserFacingError } from '../errors';
+import { onTenantDay } from './tz-sql';
 import { env } from '../env';
 import type { SessionUser } from '../session';
 
@@ -190,8 +191,7 @@ export async function todayCheckins(
               m.membership_number, a.checked_in_at::text AS checked_in_at, a.method
        FROM attendance a
        JOIN members m ON m.id = a.member_id
-       JOIN tenants t ON t.id = a.tenant_id
-       WHERE (a.checked_in_at AT TIME ZONE t.default_timezone)::date = $1::date
+       WHERE ${onTenantDay('a.checked_in_at', '$1')}
        ORDER BY a.checked_in_at DESC LIMIT 100`,
       [today],
     );

@@ -39,4 +39,31 @@ export const env = {
 export function assertEnv(): void {
   void env.databaseAppUrl;
   void env.memberTokenSecret;
+
+  // TRUSTED_PROXY_HOPS decides whether per-address login throttling works at
+  // all, and every unparseable value ("one", "true", "yes", an unexpanded
+  // "$HOPS") parses to NaN and takes the same silent path as "unset" — the
+  // limiter off, and audit_logs.ip NULL for every action. A number typed
+  // wrongly should stop the boot, not quietly disable a control.
+  const hops = process.env.TRUSTED_PROXY_HOPS;
+  if (hops !== undefined && hops.trim() !== '') {
+    if (!/^\d+$/.test(hops.trim())) {
+      throw new Error(
+        `TRUSTED_PROXY_HOPS must be a whole number (got "${hops}"). It is the count of ` +
+          'reverse proxies in front of this app; leave it unset if there are none.',
+      );
+    }
+    if (Number(hops) > 5) {
+      throw new Error(
+        `TRUSTED_PROXY_HOPS is ${hops}, which is more proxies than any real deployment ` +
+          'has. Count only the proxies that append to X-Forwarded-For.',
+      );
+    }
+  } else if (env.isProduction) {
+    console.warn(
+      '[gymflow] TRUSTED_PROXY_HOPS is unset: per-address login throttling is OFF and ' +
+        'audit entries will carry no IP. Set it to the number of reverse proxies in ' +
+        'front of this app (Caddy or nginx = 1). See docs/DEPLOYMENT.md.',
+    );
+  }
 }

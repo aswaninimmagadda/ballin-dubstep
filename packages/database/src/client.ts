@@ -21,7 +21,24 @@ export interface Claims {
 export type Queryable = Pick<pg.ClientBase, 'query'>;
 
 export function createPool(connectionString: string, max = 10): pg.Pool {
-  return new pg.Pool({ connectionString, max, idleTimeoutMillis: 30_000 });
+  return new pg.Pool({
+    connectionString,
+    max,
+    idleTimeoutMillis: 30_000,
+    // Without these, one slow query does not fail — it hangs. The pool has no
+    // acquisition timeout by default (pg-pool only arms one when the option is
+    // set), so once all 10 connections are busy every further request waits
+    // indefinitely: reception sees a spinner that never resolves and no error
+    // anywhere. A request that cannot get a connection in 5s is already a
+    // failed request; say so.
+    connectionTimeoutMillis: 5_000,
+    // And a query that is still running after 15s will not become useful.
+    // Setting it on the connection covers every statement, including ones
+    // inside SECURITY DEFINER functions.
+    statement_timeout: 15_000,
+    // A transaction left open by a crashed handler holds its locks forever.
+    idle_in_transaction_session_timeout: 30_000,
+  });
 }
 
 /**

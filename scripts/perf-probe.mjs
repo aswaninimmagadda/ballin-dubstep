@@ -29,6 +29,9 @@ const APP_ROLE = process.env.DATABASE_APP_ROLE ?? 'gymflow_app';
 const SLUG = 'perfprobe';
 const N = Number(process.env.PERF_MEMBERS ?? 5000);
 const BUDGET_MS = Number(process.env.PERF_BUDGET_MS ?? 250);
+// Check-ins per member. 468 x 5,000 = ~2.3M attendance rows, i.e. three years
+// of a busy gym — the scale the customer asked about.
+const VISITS_PER_MEMBER = Number(process.env.PERF_VISITS ?? 468);
 
 if (!ADMIN_URL) {
   console.error('DATABASE_URL is required');
@@ -111,6 +114,19 @@ async function buildFixture(admin) {
      WHERE pay.tenant_id = $1`,
     [tenant],
   );
+  // Attendance is the biggest table a gym accumulates and the probe used to
+  // ignore it entirely, so "5,000 members" measured nothing about the two
+  // screens reception actually looks at all day. ~3 visits a week for three
+  // years is the shape a mature gym has.
+  await admin.query(
+    `INSERT INTO attendance (tenant_id, branch_id, member_id, checked_in_at, method)
+     SELECT $1, $2, m.id,
+            (CURRENT_DATE - (d * 2))::timestamp + time '07:00' + (m.id::text ~ '[0-9]')::int * interval '1 hour',
+            'qr'
+     FROM members m, generate_series(0, $3::int) d
+     WHERE m.tenant_id = $1`,
+    [tenant, branch, VISITS_PER_MEMBER - 1],
+  );
   await admin.query('ANALYZE');
   return { tenant, user };
 }
@@ -127,7 +143,9 @@ async function main() {
   let results;
   try {
     await db.query('BEGIN');
-    console.log(`building ${N}-member fixture tenant "${SLUG}" (rolled back at the end) …`);
+    console.log(
+      `building ${N}-member fixture tenant "${SLUG}" with ${(N * VISITS_PER_MEMBER).toLocaleString()} check-ins (rolled back at the end) …`,
+    );
     const { tenant, user } = await buildFixture(db);
 
     // From here on, act as the restricted runtime role so the RLS policies
@@ -205,6 +223,30 @@ async function main() {
     results.push(
       await timed(
         db,
+        "today's check-in list (reception screen)",
+        `SELECT a.id, m.first_name, m.membership_number, a.checked_in_at::text, a.method
+           FROM attendance a JOIN members m ON m.id = a.member_id
+          WHERE a.checked_in_at >= (SELECT CURRENT_DATE::timestamp AT TIME ZONE t.default_timezone
+                                      FROM tenants t WHERE t.id = (SELECT app.current_tenant_id()))
+            AND a.checked_in_at < (SELECT (CURRENT_DATE + 1)::timestamp AT TIME ZONE t.default_timezone
+                                     FROM tenants t WHERE t.id = (SELECT app.current_tenant_id()))
+          ORDER BY a.checked_in_at DESC LIMIT 100`,
+      ),
+    );
+    results.push(
+      await timed(
+        db,
+        "today's check-in count (dashboard tile)",
+        `SELECT count(*)::int FROM attendance a
+          WHERE a.checked_in_at >= (SELECT CURRENT_DATE::timestamp AT TIME ZONE t.default_timezone
+                                      FROM tenants t WHERE t.id = (SELECT app.current_tenant_id()))
+            AND a.checked_in_at < (SELECT (CURRENT_DATE + 1)::timestamp AT TIME ZONE t.default_timezone
+                                     FROM tenants t WHERE t.id = (SELECT app.current_tenant_id()))`,
+      ),
+    );
+    results.push(
+      await timed(
+        db,
         'expiring-soon queue (next 7 days)',
         `SELECT count(*)::int FROM memberships ms
           WHERE ms.state IN ('active','frozen')
@@ -231,7 +273,9 @@ async function main() {
   }
 
   const width = Math.max(...results.map((r) => r.label.length));
-  console.log(`\n${N} members, runtime role, RLS on — budget ${BUDGET_MS} ms per query\n`);
+  console.log(
+    `\n${N} members, ${(N * VISITS_PER_MEMBER).toLocaleString()} check-ins, runtime role, RLS on — budget ${BUDGET_MS} ms per query\n`,
+  );
   let worst = 0;
   for (const r of results) {
     worst = Math.max(worst, r.ms);

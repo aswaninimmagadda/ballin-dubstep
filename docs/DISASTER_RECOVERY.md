@@ -28,24 +28,45 @@ On Supabase free tier there are **no usable managed backups** — the
 self-run pg_dump above is mandatory, not optional. Paid tiers add PITR;
 still keep the off-provider dumps.
 
-## Restore procedure (tested)
+## Restore procedure
+
+**The roles come first.** Roles are cluster-level objects and `pg_dump` never
+emits them, while the schema contains roughly seventy `GRANT … TO gymflow_app`
+statements. Restore the dump alone into a fresh cluster and you get a database
+with every row intact that the application cannot read a single row from:
+every GRANT fails, and the app role does not exist. That is precisely the
+scenario this runbook exists for. `ops/backup.sh` therefore writes a
+`.roles.sql` file beside each dump; keep them together.
 
 ```bash
+# 1. Roles (cluster-level; skip only if restoring beside an existing install)
+psql "$ADMIN_URL" -f gymflow-YYYY-MM-DD-HHMM.roles.sql
+# Passwords are deliberately NOT in the backup — set it from your secret store:
+psql "$ADMIN_URL" -c "ALTER ROLE gymflow_app LOGIN PASSWORD '<from DATABASE_APP_URL>'"
+
+# 2. The database
 createdb gymflow_restore
-pg_restore -d "$RESTORE_URL" --no-owner --role=gymflow gymflow-YYYY-MM-DD.dump
-# verify: row counts on tenants/members/payments; run the integration
-# suite's read checks; then repoint DATABASE_APP_URL (ALTER ROLE gymflow_app
-# PASSWORD on the new instance first).
+pg_restore -d "$RESTORE_URL" --no-owner gymflow-YYYY-MM-DD-HHMM.dump
+
+# 3. Prove the application can actually use it, before repointing anything
+PROD_OWNER_URL="$ADMIN_URL" ops/restore-test.sh gymflow-YYYY-MM-DD-HHMM.dump
 ```
 
-**Restore test performed during development:** a full `pg_dump -Fc` of the
-seeded dev database (1 tenant, 35 members, 40 memberships, 39 payments +
-receipts, 42 attendance rows) was restored into a fresh database; all row
-counts matched, and RLS remained enforced on the restored database (the
-runtime role with no claims sees zero rows). The integration suite
-additionally rebuilds the schema from migrations on every run. Repeat this
-drill quarterly against a production dump — a backup that has never been
-restored is not a backup.
+`ops/restore-test.sh` does the whole cycle into a scratch database and then
+connects **as the application role, with tenant claims**, and reads real rows
+through RLS — the assertion that actually matters. It refuses a dump with no
+roles file beside it, and it never alters the `gymflow_app` password: roles are
+cluster-wide, so a verification job that reset one would log the live
+application out of production.
+
+**Drill performed:** `ops/backup.sh` was run against the seeded database and
+the resulting dump restored with `ops/restore-test.sh`, which reported the app
+role reading the expected member count for the tenant through RLS. The same
+script was then pointed at a dump with no roles file — the shape every backup
+taken before this change has — and correctly refused it. Repeat the drill
+quarterly against a production dump: a backup that has never been restored is
+not a backup, and a restore that has never been used by the application is not
+a restore.
 
 ## Scenario runbook
 

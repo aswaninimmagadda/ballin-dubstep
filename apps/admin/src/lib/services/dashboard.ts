@@ -1,6 +1,7 @@
 import 'server-only';
 import { todayInTz, addDays } from '@gymflow/utils';
 import { asPrincipal } from '../db';
+import { fromTenantDay, onTenantDay } from './tz-sql';
 import {
   COLLECTABLE_ADDON_STATES,
   COLLECTABLE_MEMBERSHIP_STATES,
@@ -63,19 +64,19 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
         -- money left the drawer (tenant calendar day), so the figure staff
         -- reconcile against actually balances.
         ((SELECT coalesce(sum(amount),0) FROM payments WHERE payment_date = $1 AND status <> 'failed')
-         - (SELECT coalesce(sum(r.amount),0) FROM refunds r JOIN tenants t ON t.id = r.tenant_id
-            WHERE (r.created_at AT TIME ZONE t.default_timezone)::date = $1::date))::bigint AS today_collections,
+         - (SELECT coalesce(sum(r.amount),0) FROM refunds r
+            WHERE ${onTenantDay('r.created_at', '$1')}))::bigint AS today_collections,
         ((SELECT coalesce(sum(amount),0) FROM payments WHERE payment_date >= $5 AND status <> 'failed')
-         - (SELECT coalesce(sum(r.amount),0) FROM refunds r JOIN tenants t ON t.id = r.tenant_id
-            WHERE (r.created_at AT TIME ZONE t.default_timezone)::date >= $5::date))::bigint AS month_collections,
+         - (SELECT coalesce(sum(r.amount),0) FROM refunds r
+            WHERE ${fromTenantDay('r.created_at', '$5')}))::bigint AS month_collections,
         ((SELECT coalesce(sum(GREATEST(${DUE_ON_MEMBERSHIP}, 0)), 0)
           FROM memberships ms WHERE ms.state IN ${COLLECTABLE_MEMBERSHIP_STATES})
          + (SELECT coalesce(sum(GREATEST(${DUE_ON_ADDON}, 0)), 0)
             FROM member_addons ma WHERE ma.state IN ${COLLECTABLE_ADDON_STATES})
         )::bigint AS dues_outstanding,
         (SELECT count(*) FROM members WHERE join_date >= $5 AND status NOT IN ('lead','archived'))::int AS new_members_month,
-        (SELECT count(*) FROM attendance a JOIN tenants t ON t.id = a.tenant_id
-          WHERE (a.checked_in_at AT TIME ZONE t.default_timezone)::date = $1::date)::int AS today_attendance,
+        (SELECT count(*) FROM attendance a
+          WHERE ${onTenantDay('a.checked_in_at', '$1')})::int AS today_attendance,
         (SELECT count(*) FROM leads WHERE status NOT IN ('won','lost') AND (follow_up_date IS NULL OR follow_up_date <= $1))::int AS leads_follow_up
       `,
       [today, in7, back7, addDays(today, -1), monthStart],

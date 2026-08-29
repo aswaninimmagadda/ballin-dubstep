@@ -122,6 +122,17 @@ any query exceeds `PERF_BUDGET_MS` (250 ms), so it works as a regression
 gate. Current slowest: 69 ms. See docs/PERFORMANCE.md for what it found and
 why the numbers used to be 15-45x worse.
 
+### 3b-2. Backup restore drill — `ops/restore-test.sh`
+
+Restores a dump into a scratch database, then connects **as the application
+role with tenant claims** and reads real rows through RLS. That last step is
+the point: the previous check ran `pg_restore --list`, which parses the archive
+header and proves nothing about whether the application can use the result.
+Roles are cluster-level and `pg_dump` never emits them, so a restore that
+"succeeded" left ~70 GRANTs failing and no `gymflow_app` role — every row
+present, none readable. The script refuses a dump with no roles file beside it,
+and never alters the live role's password.
+
 ### 3c. Android release check — `scripts/check-android-manifest.mjs`
 
 17 assertions about the binary rather than the source, run in CI. `expo
@@ -137,6 +148,10 @@ that a production build is **refused** when `GYMFLOW_API_URL` is still the
 eas.json placeholder or is plain http.
 
 It does not replace a run on a real device — see `docs/KNOWN_LIMITATIONS.md`.
+
+The performance probe also builds three years of check-ins (2.34M attendance
+rows at the 5,000-member scale), because the two screens reception looks at all
+day read that table and the probe previously never touched it.
 
 ### 4. Manual smoke script
 
