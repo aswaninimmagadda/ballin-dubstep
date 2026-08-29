@@ -79,6 +79,36 @@ Checklist per environment:
 - [ ] Smoke: login, dashboard, member API login (see scripts/e2e-admin.mjs)
 - [ ] Daily sweep scheduled (below)
 
+### Tenant lifecycle
+
+Provisioning is `create-tenant`; everything after it is `manage-tenant`:
+
+```bash
+DATABASE_URL=$OWNER_DB_URL pnpm --filter @gymflow/database manage-tenant -- list
+DATABASE_URL=$OWNER_DB_URL pnpm --filter @gymflow/database manage-tenant -- \
+  suspend --slug harshagym --reason "unpaid Q3"
+DATABASE_URL=$OWNER_DB_URL pnpm --filter @gymflow/database manage-tenant -- \
+  export --slug harshagym --out ./harshagym-handover
+DATABASE_URL=$OWNER_DB_URL pnpm --filter @gymflow/database manage-tenant -- \
+  reactivate --slug harshagym
+```
+
+`suspend` is the commercial lever: staff sign-in is refused, member sign-in is
+refused, member refresh tokens stop rotating, and every open session is revoked
+immediately rather than at the next page load. It is reversible; `archive` is
+the same lockout meant as permanent. Both write to the gym's audit log.
+
+**A tenant cannot be deleted, by design.** `create-tenant` writes a
+`tenant.create` row into the append-only audit log and `audit_logs.tenant_id`
+is a foreign key, so the delete fails on the constraint and removing the audit
+row fails on the append-only trigger. Financial history outranks tidiness;
+`archive` is how a gym leaves.
+
+`export` writes the gym's own data as CSV (members, memberships, payments,
+refunds, attendance, plans) with a UTF-8 BOM so Telugu names open correctly in
+Excel. Run it **before** suspending: offboarding without handing back the data
+is confiscation, not suspension.
+
 ### Scheduled jobs
 
 Two cron entries on the operator box (or any scheduler that can reach the

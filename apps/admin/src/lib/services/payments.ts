@@ -248,7 +248,9 @@ export async function getReceipt(
               p.payment_date::text AS payment_date, p.amount::bigint::text AS amount, p.method,
               p.external_reference,
               m.first_name || coalesce(' ' || m.last_name, '') AS member_name,
-              m.membership_number, b.name AS branch_name, t.name AS gym_name,
+              m.membership_number, b.name AS branch_name,
+              -- Same as the member API: the receipt shows the name the owner set.
+              coalesce(br.name, t.name) AS gym_name,
               gs.receipt_footer, u.display_name AS received_by_name,
               coalesce(ms.plan_name_snapshot, ma.name_snapshot) AS plan_name,
               p.status,
@@ -279,6 +281,7 @@ export async function getReceipt(
        JOIN members m ON m.id = p.member_id
        JOIN branches b ON b.id = r.branch_id
        JOIN tenants t ON t.id = r.tenant_id
+       LEFT JOIN brands br ON br.tenant_id = r.tenant_id
        LEFT JOIN gym_settings gs ON gs.tenant_id = r.tenant_id
        LEFT JOIN users u ON u.id = p.received_by
        LEFT JOIN payment_allocations pa ON pa.payment_id = p.id

@@ -16,7 +16,8 @@
     "sweep": "tsx scripts/sweep-memberships.ts",
     "create-tenant": "tsx scripts/create-tenant.mjs",
     "test": "vitest run --pool=forks --poolOptions.forks.singleFork",
-    "reset-staff-password": "tsx scripts/reset-staff-password.mjs"
+    "reset-staff-password": "tsx scripts/reset-staff-password.mjs",
+    "manage-tenant": "tsx scripts/manage-tenant.mjs"
   },
   "dependencies": {
     "@gymflow/core": "workspace:*",

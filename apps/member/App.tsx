@@ -15,7 +15,7 @@ import { theme } from './src/lib/theme';
 type Tab = 'home' | 'payments' | 'attendance' | 'pt' | 'profile';
 
 function Shell() {
-  const { ready, signedIn, t } = useAuth();
+  const { ready, signedIn, t, brandColor } = useAuth();
   const [tab, setTab] = useState<Tab>('home');
   // Android 15+ draws edge-to-edge and there is no opt-out, so the app is
   // laid out under the status bar and the gesture/navigation bar. Real insets
@@ -80,7 +80,16 @@ function Shell() {
             onPress={() => setTab(key)}
             style={styles.tabItem}
           >
-            <Text style={[styles.tabLabel, tab === key && styles.tabLabelActive]} numberOfLines={1}>
+            <Text
+              style={[
+                styles.tabLabel,
+                tab === key && styles.tabLabelActive,
+                // The active tab picks up the gym's colour too, so the whole
+                // shell reads as the gym's app rather than GymFlow's.
+                tab === key && { color: brandColor },
+              ]}
+              numberOfLines={1}
+            >
               {label}
             </Text>
           </Pressable>

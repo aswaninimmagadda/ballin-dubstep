@@ -15,7 +15,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const member = await tx.query(
       `SELECT m.id, m.membership_number, m.first_name, m.last_name, m.photo_path,
               m.mobile, m.email, m.emergency_contact_name, m.emergency_contact_phone,
-              b.name AS branch_name, t.name AS gym_name,
+              b.name AS branch_name,
+              -- The brand name is the one the owner can edit in Settings; the
+              -- tenant name is fixed at provisioning. Showing the tenant name
+              -- meant renaming the gym changed nothing a member ever saw.
+              coalesce(br.name, t.name) AS gym_name,
               br.logo_path, br.primary_color, br.support_phone, br.support_whatsapp
        FROM members m
        JOIN branches b ON b.id = m.branch_id

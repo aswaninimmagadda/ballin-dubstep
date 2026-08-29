@@ -16,6 +16,7 @@
  */
 import pg from 'pg';
 import { execFileSync } from 'node:child_process';
+import { readFileSync, rmSync } from 'node:fs';
 
 const BASE = process.argv[2] ?? 'http://localhost:3000';
 const DB =
@@ -1128,6 +1129,68 @@ async function main() {
     'and are not cached',
     /no-store/.test(exportRes.headers.get('cache-control') ?? ''),
     exportRes.headers.get('cache-control') ?? 'none',
+  );
+
+  // ---- tenant lifecycle: the commercial levers ---------------------------
+  // create-tenant could bring a gym into existence and nothing could do
+  // anything to it afterwards — no way to suspend a customer who stopped
+  // paying, and no way to hand back their data.
+  console.log('\n[platform: tenant lifecycle]');
+  const cli = (...args) =>
+    execFileSync('pnpm', ['--filter', '@gymflow/database', 'manage-tenant', '--', ...args], {
+      env: { ...process.env, DATABASE_URL: DB },
+      encoding: 'utf8',
+    });
+
+  check('the gym appears in the platform list', cli('list').includes(SLUG));
+
+  const suspendOut = cli('suspend', '--slug', SLUG, '--reason', 'acceptance test');
+  check(
+    'suspend reports the transition',
+    /active → suspended/.test(suspendOut),
+    suspendOut.slice(-120),
+  );
+  const [suspended] = await q(`SELECT status FROM tenants WHERE slug = $1`, [SLUG]);
+  check('the gym is suspended in the database', suspended.status === 'suspended');
+  check('and its staff can no longer sign in', !(await loginAs(`owner@${SLUG}.test`, ownerPw)));
+  const [liveSessions] = await q(
+    `SELECT count(*)::int AS n FROM sessions s JOIN users u ON u.id = s.user_id
+      JOIN tenants t ON t.id = u.tenant_id
+      WHERE t.slug = $1 AND s.revoked_at IS NULL`,
+    [SLUG],
+  );
+  check(
+    'every open session was revoked, not just future ones',
+    liveSessions.n === 0,
+    String(liveSessions.n),
+  );
+
+  // Offboarding without an export would be confiscation, not suspension.
+  const exportDir = `/tmp/gymflow-acceptance-${SLUG}`;
+  const exportOut = cli('export', '--slug', SLUG, '--out', exportDir);
+  check('the gym can be handed its own data', /Exported/.test(exportOut), exportOut.slice(-120));
+  const membersCsvFile = readFileSync(`${exportDir}/members.csv`, 'utf8');
+  check('the export contains its members', membersCsvFile.split('\n').length > 2);
+  check('with dates humans and Excel can read', /\d{4}-\d{2}-\d{2}/.test(membersCsvFile));
+  check('and a BOM so Telugu names survive Excel', membersCsvFile.charCodeAt(0) === 0xfeff);
+  rmSync(exportDir, { recursive: true, force: true });
+
+  const reactivateOut = cli('reactivate', '--slug', SLUG);
+  check(
+    'reactivate restores the gym',
+    /suspended → active/.test(reactivateOut),
+    reactivateOut.slice(-120),
+  );
+  check('and its owner can sign in again', await loginAs(`owner@${SLUG}.test`, ownerPw));
+  const [lifecycleAudit] = await q(
+    `SELECT count(*)::int AS n FROM audit_logs a JOIN tenants t ON t.id = a.tenant_id
+      WHERE t.slug = $1 AND a.action IN ('tenant.suspend','tenant.reactivate')`,
+    [SLUG],
+  );
+  check(
+    'both transitions are in the gym audit log',
+    lifecycleAudit.n === 2,
+    String(lifecycleAudit.n),
   );
 
   // ---- support recovery: a locked-out owner ------------------------------

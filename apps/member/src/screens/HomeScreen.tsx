@@ -27,7 +27,7 @@ function formatDate(iso: string): string {
 }
 
 export function HomeScreen() {
-  const { t } = useAuth();
+  const { t, setBrandColor } = useAuth();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [stale, setStale] = useState(false);
   const [pass, setPass] = useState<string | null>(null);
@@ -42,6 +42,10 @@ export function HomeScreen() {
       setMe(result.data);
       setStale(result.stale);
       setFailed(false);
+      // The gym's own colour, which the API has always sent and the app has
+      // never used. Cached by the provider so it is on screen at first paint
+      // next time.
+      setBrandColor(result.data.gym?.primaryColor ?? null);
     } catch {
       // Only fatal when there is nothing to show. A refresh that fails must
       // not blank out the membership card the member is holding up at the desk
@@ -56,7 +60,7 @@ export function HomeScreen() {
     }
     const p = await getPass();
     setPass(p?.token ?? null);
-  }, []);
+  }, [setBrandColor]);
 
   // Keep the displayed pass inside its validity window. The timer only runs
   // while the app is awake, and Android freezes backgrounded processes — so

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useAuth } from '../lib/auth';
 import { theme, statusColors } from '../lib/theme';
 
 export function Screen({ children }: { children: ReactNode }) {
@@ -36,6 +37,7 @@ export function PrimaryButton({
   onPress: () => void;
   disabled?: boolean;
 }) {
+  const { brandColor } = useAuth();
   return (
     <Pressable
       onPress={onPress}
@@ -43,6 +45,9 @@ export function PrimaryButton({
       accessibilityRole="button"
       style={({ pressed }) => [
         styles.button,
+        // The gym's own colour, not GymFlow's. Falls back to the product
+        // green when the gym has not set one.
+        { backgroundColor: brandColor },
         pressed && { opacity: 0.85 },
         disabled && { opacity: 0.5 },
       ]}
