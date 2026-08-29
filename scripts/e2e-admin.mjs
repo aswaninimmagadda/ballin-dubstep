@@ -34,8 +34,30 @@ function check(name, cond, detail = '') {
   }
 }
 
+/**
+ * Absorb any cookies a response sets, the way a browser would.
+ *
+ * The harness used to keep only the session cookie captured at login, so any
+ * flow that relies on a second cookie could not be tested at all — including
+ * the onboarding step now that the member's phone number is carried in a
+ * short-lived cookie instead of the query string.
+ */
+function absorbCookies(res) {
+  for (const raw of res.headers.getSetCookie?.() ?? []) {
+    const [pair] = raw.split(';');
+    const [name] = pair.split('=');
+    const others = cookie
+      .split('; ')
+      .filter((c) => c && !c.startsWith(`${name}=`))
+      .join('; ');
+    // A deletion sets an empty value; drop it rather than sending an empty one.
+    cookie = pair.endsWith('=') ? others : [others, pair].filter(Boolean).join('; ');
+  }
+}
+
 async function get(path) {
   const res = await fetch(BASE + path, { headers: { cookie }, redirect: 'manual' });
+  absorbCookies(res);
   return res;
 }
 
@@ -76,6 +98,7 @@ async function postAction(path, form, fields) {
     body: fd,
     redirect: 'manual',
   });
+  absorbCookies(res);
   return res;
 }
 
@@ -93,10 +116,9 @@ async function loginAs(email, password = PASSWORD) {
   cookie = '';
   const loginPage = await (await get('/login')).text();
   const loginForm = extractForm(loginPage, 'email');
-  const loginRes = await postAction('/login', loginForm, { email, password });
-  const setCookie = loginRes.headers.get('set-cookie') ?? '';
-  cookie = setCookie.split(';')[0];
-  return cookie.startsWith('gymflow_session=');
+  // postAction absorbs Set-Cookie, so the session lands in `cookie` already.
+  await postAction('/login', loginForm, { email, password });
+  return cookie.includes('gymflow_session=');
 }
 
 async function main() {
@@ -926,6 +948,34 @@ async function main() {
     });
     check('deleted member can no longer sign in', relogin.status !== 200, String(relogin.status));
   }
+
+  // ---- member data must not travel in URLs -------------------------------
+  console.log('\n[no member data in URLs]');
+  const newMobile = `9${String(Math.floor(100000000 + Math.random() * 899999999))}`;
+  const urlStep1Form = extractForm(await (await getFollow('/members/new')).text(), 'mobile');
+  const step1Res = await postAction('/members/new', urlStep1Form, { mobile: newMobile });
+  const step1Target = redirectTarget(step1Res);
+  check(
+    'step 1 does not put the phone number in the redirect URL',
+    !step1Target.includes(newMobile) && !decodeURIComponent(step1Target).includes(newMobile),
+    step1Target,
+  );
+  // …and it still reaches step 2 with the right number pre-filled.
+  const urlStep2Html = await (await getFollow(step1Target.replace(/^https?:\/\/[^/]+/, ''))).text();
+  check(
+    'and step 2 still knows which number it is',
+    urlStep2Html.includes(newMobile) || urlStep2Html.includes(`+91${newMobile}`),
+  );
+
+  // Exports must not mangle the column the gym cares about most.
+  const membersCsvRes = await getFollow('/api/export/members');
+  const membersCsv = await membersCsvRes.text();
+  check(
+    'exported phone numbers are not prefixed with an apostrophe',
+    !/,'\+91/.test(membersCsv),
+    membersCsv.split('\n')[1]?.slice(0, 90) ?? '',
+  );
+  check('and are still present', /\+91\d{10}/.test(membersCsv));
 
   // ---- public store-required pages ---------------------------------------
   // Both stores need these reachable with no login and actually useful — a

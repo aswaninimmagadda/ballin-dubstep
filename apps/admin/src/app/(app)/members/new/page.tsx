@@ -26,9 +26,15 @@ async function checkMobileAction(formData: FormData): Promise<void> {
   const mobile = normalizeIndianMobile(raw).e164;
   const user = await requirePermission('members.create');
   const dups = await findDuplicates(user, mobile);
-  if (dups.length > 0)
-    redirect(`/members/new?mobile=${encodeURIComponent(mobile)}&dup=${dups[0]!.id}`);
-  redirect(`/members/new?mobile=${encodeURIComponent(mobile)}&step=2`);
+  const jar = await cookies();
+  jar.set(STEP_COOKIE, mobile, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/members/new',
+    maxAge: 900,
+  });
+  if (dups.length > 0) redirect(`/members/new?dup=${dups[0]!.id}`);
+  redirect('/members/new?step=2');
 }
 
 /** Field labels for validation messages, so the error names what to fix. */
@@ -52,6 +58,20 @@ const FIELD_LABELS: Record<string, string> = {
  * member's personal details) and restored into the form.
  */
 const DRAFT_COOKIE = 'gymflow_member_draft';
+
+/**
+ * The number step 1 checked for duplicates, carried to step 2.
+ *
+ * It used to travel in the query string — `?mobile=%2B919876543210` — which
+ * puts a member's phone number in the server access log, the browser history
+ * and the Referer of anything the page loads. The product's own rule is that
+ * member data does not go in URLs, and this was the main onboarding path.
+ *
+ * Separate from DRAFT_COOKIE on purpose: starting a new member overwrites this
+ * one, which is what stops an abandoned draft being replayed into the next
+ * person's form.
+ */
+const STEP_COOKIE = 'gymflow_member_step_mobile';
 
 async function createMemberAction(formData: FormData): Promise<void> {
   'use server';
@@ -87,7 +107,9 @@ async function createMemberAction(formData: FormData): Promise<void> {
     await keepDraft();
     redirect(`/members/new?step=2&error=${encodeURIComponent(toUserMessage(err))}`);
   }
-  (await cookies()).delete({ name: DRAFT_COOKIE, path: '/members/new' });
+  const doneJar = await cookies();
+  doneJar.delete({ name: DRAFT_COOKIE, path: '/members/new' });
+  doneJar.delete({ name: STEP_COOKIE, path: '/members/new' });
   redirect(`/members/${id!}/sell?new=1`);
 }
 
@@ -95,7 +117,6 @@ export default async function NewMemberPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    mobile?: string;
     step?: string;
     dup?: string;
     error?: string;
@@ -103,7 +124,8 @@ export default async function NewMemberPage({
   }>;
 }) {
   const user = await requirePermission('members.create');
-  const { mobile, step, dup, error, lead } = await searchParams;
+  const { step, dup, error, lead } = await searchParams;
+  const mobile = (await cookies()).get(STEP_COOKIE)?.value;
   const tr = await t();
 
   const branches = await asPrincipal(user.claims, async (tx) => {

@@ -115,6 +115,52 @@ describe('member app credential issuance cannot be aimed at a staff account', ()
   });
 });
 
+describe('tenant-scoped references cannot point at another gym', () => {
+  it('a role from another tenant cannot be attached to a user', async () => {
+    // user_roles_manage constrained the target USER's tenant and said nothing
+    // about role_id, and app.has_permission honours whatever role is attached
+    // — so a foreign role's permissions would have been granted verbatim.
+    const owner = new pg.Client({ connectionString: OWNER_URL });
+    await owner.connect();
+    try {
+      const { rows } = await owner.query(
+        `SELECT id FROM roles WHERE tenant_id = $1 AND key = 'owner'`,
+        [fx.b.tenantId],
+      );
+      const foreignRole = rows[0].id;
+      await expect(
+        withClaims(appPool(), staffClaims(fx.a, 'owner'), (tx) =>
+          tx.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [
+            fx.a.receptionistUserId,
+            foreignRole,
+          ]),
+        ),
+      ).rejects.toThrow(/row-level security/);
+    } finally {
+      await owner.end();
+    }
+  });
+
+  it('a member cannot be moved to a branch belonging to another gym', async () => {
+    await expect(
+      withClaims(appPool(), staffClaims(fx.a, 'owner'), (tx) =>
+        tx.query(`UPDATE members SET branch_id = $2 WHERE id = $1`, [fx.a.memberId, fx.b.branchId]),
+      ),
+    ).rejects.toThrow(/branch does not belong to this gym|row-level security/);
+  });
+
+  it('a member can still be moved between branches of their own gym', async () => {
+    const n = await withClaims(appPool(), staffClaims(fx.a, 'owner'), async (tx) => {
+      const r = await tx.query(`UPDATE members SET branch_id = $2 WHERE id = $1`, [
+        fx.a.memberId,
+        fx.a.branchId,
+      ]);
+      return r.rowCount;
+    });
+    expect(n).toBe(1);
+  });
+});
+
 describe('tenant suspension reaches the member app', () => {
   it('a refresh token stops rotating once the gym is suspended', async () => {
     const owner = new pg.Client({ connectionString: OWNER_URL });

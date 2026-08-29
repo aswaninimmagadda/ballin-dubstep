@@ -5,16 +5,16 @@ actually-executed runs (CI re-runs them on every PR).
 
 ## Layers
 
-### 1. Unit tests — 114 passing (vitest, no DB)
+### 1. Unit tests — 121 passing (vitest, no DB)
 
 | Package             | Tests | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| @gymflow/utils      | 35    | Integer money (rounding, overflow, discount clamps, inclusive/exclusive GST splits, INR formatting/parsing), calendar dates (leap years, end-of-month clamping, timezone boundaries incl. IST-vs-UTC midnight), Indian phone normalization/masking, WhatsApp links                                                                                                                                                                                              |
+| @gymflow/utils      | 42    | Integer money (rounding, overflow, discount clamps, inclusive/exclusive GST splits, INR formatting/parsing), calendar dates (leap years, end-of-month clamping, timezone boundaries incl. IST-vs-UTC midnight), Indian phone normalization/masking, WhatsApp links                                                                                                                                                                                              |
 | @gymflow/core       | 64    | Expiry calculation (1/3/6/12-month, Jan-31 starts, leap Februarys, day-based trials), grace, freeze extension (incl. the 15-day scenario), renewal proposals (seamless/lapsed/override/end-of-month), derived status + check-in gating, pricing quotes (promo kinds, over-discount clamps, tax), promotion eligibility (all rejection reasons), receipt/fiscal-year formatting, QR pass tokens (rotation, replay, tamper, wrong secret, no PII), scrypt hashing |
 | @gymflow/validation | 10    | Member/sale/payment/import/login schemas, E.164 transforms, idempotency-key requirement, float rejection                                                                                                                                                                                                                                                                                                                                                        |
 | @gymflow/i18n       | 5     | Telugu/English key parity (fails the build if a key is missed), template rendering                                                                                                                                                                                                                                                                                                                                                                              |
 
-### 2. Integration tests — 57 passing (vitest + real Postgres, as the runtime role)
+### 2. Integration tests — 60 passing (vitest + real Postgres, as the runtime role)
 
 `packages/database/test/`:
 
@@ -33,7 +33,7 @@ actually-executed runs (CI re-runs them on every PR).
   cannot lock everyone out.
 - **branch-scoping** (4) — staff restricted via `staff_branch_access` see
   only their branch's members/payments; unrestricted staff see all.
-- **privilege-escalation** (8) — the paths found in the pre-release security
+- **privilege-escalation** (11) — the paths found in the pre-release security
   review, each of which worked before it was fixed: a user rewriting their own
   `kind`/`tenant_id`, a member promoting itself to staff through the OR'd
   `WITH CHECK` of a second permissive policy, a receptionist aiming member-app
@@ -44,9 +44,9 @@ actually-executed runs (CI re-runs them on every PR).
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 254 checks passing (three HTTP suites)
+### 3. End-to-end — 258 checks passing (three HTTP suites)
 
-`scripts/e2e-admin.mjs` (108 checks) drives the real HTTP surface (server
+`scripts/e2e-admin.mjs` (112 checks) drives the real HTTP surface (server
 actions via progressive-enhancement form posts) against a running server +
 seeded DB, then verifies database effects:
 

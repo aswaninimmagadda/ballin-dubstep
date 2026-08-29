@@ -1,4 +1,5 @@
 import 'server-only';
+import { toCsv } from '@gymflow/utils';
 import { asPrincipal } from '../db';
 import { betweenTenantDays } from './tz-sql';
 import {
@@ -195,17 +196,9 @@ export async function exportCsv(
   return asPrincipal(user.claims, async (tx) => {
     const r = await tx.query(queries[kind]!);
     const rows = r.rows as Record<string, unknown>[];
-    if (rows.length === 0) return '';
-    const headers = Object.keys(rows[0]!);
-    const escape = (v: unknown) => {
-      let s = v == null ? '' : String(v);
-      // Spreadsheet formula-injection guard: neutralize leading =,+,-,@
-      if (/^[=+\-@]/.test(s)) s = `'${s}`;
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    return [
-      headers.join(','),
-      ...rows.map((row) => headers.map((h) => escape(row[h])).join(',')),
-    ].join('\n');
+    // Escaping and the formula-injection guard live in @gymflow/utils, with
+    // tests: the previous inline version prefixed an apostrophe to every value
+    // starting with + or -, which mangled every phone number in every export.
+    return toCsv(rows);
   });
 }
