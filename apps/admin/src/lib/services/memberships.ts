@@ -11,6 +11,7 @@ import {
   type MembershipQuote,
 } from '@gymflow/core';
 import { todayInTz, maxDate, formatMoney } from '@gymflow/utils';
+import { PAID_AGAINST_MEMBERSHIP } from './money-sql';
 import type { SellMembershipInput, RenewMembershipInput } from '@gymflow/validation';
 import { asPrincipal, type Queryable } from '../db';
 import { writeAudit } from '../audit';
@@ -577,6 +578,135 @@ export async function renewMembership(
       after: { plan: pv.plan_name, ...proposal, total: quote.total },
     });
     return { membershipId, ...proposal, quote, receiptNumber };
+  });
+}
+
+/**
+ * Correct a membership that was sold on the wrong plan or the wrong start date.
+ *
+ * `memberships.override` has been in the permission list and honoured by RLS
+ * since the first migration, and nothing ever used it — so the most ordinary
+ * mistake at a busy desk had no fix. The only tool was to cancel and re-sell,
+ * which strands the money: cancelMembership does not touch
+ * payment_allocations, so the payment stays attached to a membership nobody
+ * counts and the member reads as owing the full amount again.
+ *
+ * Correcting keeps the same row, so the payments, the receipt and the
+ * allocations all stay pointed at it. The price is recomputed from the plan
+ * being corrected TO, preserving any discount that was applied, and the dues
+ * fall out of that automatically.
+ */
+export async function correctMembership(
+  user: SessionUser,
+  input: { membershipId: string; planId?: string; startDate?: string; reason: string },
+): Promise<void> {
+  const reason = input.reason.trim();
+  if (reason.length < 3) throw new UserFacingError('Give a reason for the correction.');
+  return asPrincipal(user.claims, async (tx) => {
+    const msR = await tx.query(
+      `SELECT id, member_id, branch_id, plan_id, plan_version_id, plan_name_snapshot,
+              start_date::text AS start_date, end_date::text AS end_date, state,
+              total_amount::bigint AS total_amount, discount_amount::bigint AS discount_amount,
+              tax_amount::bigint AS tax_amount, tax_rate_bps
+         FROM memberships WHERE id = $1 FOR UPDATE`,
+      [input.membershipId],
+    );
+    const ms = msR.rows[0] as Record<string, unknown> | undefined;
+    if (!ms) throw new UserFacingError('Membership not found.');
+    // History is history. A membership that has ended or been cancelled is
+    // part of the record; correcting it would rewrite a period the gym has
+    // already reported on.
+    if (!['pending', 'active', 'frozen'].includes(ms.state as string)) {
+      throw new UserFacingError(
+        `Only a live membership can be corrected — this one is ${String(ms.state)}. ` +
+          'Sell a new membership instead.',
+      );
+    }
+
+    const planId = input.planId ?? (ms.plan_id as string);
+    const startDate = input.startDate ?? (ms.start_date as string);
+    const pv = await latestPlanVersion(tx, planId);
+    const endDate = computeEndDate({
+      startDate,
+      durationUnit: pv.duration_unit,
+      durationValue: pv.duration_value,
+    });
+
+    // Same arithmetic as the sale, with the discount that was actually given
+    // carried across so a correction is not a silent re-pricing.
+    const discount = Number(ms.discount_amount);
+    const quote = quoteMembership({
+      planVersion: {
+        basePrice: pv.base_price,
+        joiningFee: pv.joining_fee,
+        taxRateBps: pv.tax_rate_bps,
+        taxInclusive: pv.tax_inclusive,
+      },
+      planName: pv.plan_name,
+      includeJoiningFee: false,
+      manualDiscount: discount > 0 ? discount : undefined,
+    });
+
+    const paidR = await tx.query(
+      `SELECT ${PAID_AGAINST_MEMBERSHIP}::bigint::text AS paid FROM memberships ms WHERE ms.id = $1`,
+      [input.membershipId],
+    );
+    const paid = Number((paidR.rows[0] as { paid: string }).paid);
+    if (quote.total < paid) {
+      // Correcting downwards would leave the member in credit, and credit is
+      // not something this product models — it would surface as a negative
+      // balance the screens deliberately hide. Refund first, deliberately.
+      throw new UserFacingError(
+        `They have already paid ${formatMoney(paid)} and the corrected membership costs ` +
+          `${formatMoney(quote.total)}. Record a refund of ${formatMoney(paid - quote.total)} first.`,
+      );
+    }
+
+    await tx.query(
+      `UPDATE memberships
+          SET plan_id = $2, plan_version_id = $3, plan_name_snapshot = $4,
+              start_date = $5, base_end_date = $6, end_date = $6,
+              grace_period_days = $7, total_amount = $8, tax_amount = $9, tax_rate_bps = $10,
+              updated_at = now()
+        WHERE id = $1`,
+      [
+        input.membershipId,
+        planId,
+        pv.id,
+        pv.plan_name,
+        startDate,
+        endDate,
+        pv.grace_period_days,
+        quote.total,
+        quote.tax,
+        pv.tax_rate_bps,
+      ],
+    );
+
+    const before = {
+      plan: ms.plan_name_snapshot,
+      startDate: ms.start_date,
+      endDate: ms.end_date,
+      total: Number(ms.total_amount),
+    };
+    const after = {
+      plan: pv.plan_name,
+      startDate,
+      endDate,
+      total: quote.total,
+    };
+    await tx.query(
+      `INSERT INTO membership_events (tenant_id, membership_id, type, data, actor_id)
+       VALUES ($1,$2,'corrected',$3,$4)`,
+      [user.tenantId, input.membershipId, JSON.stringify({ before, after, reason }), user.userId],
+    );
+    await writeAudit(tx, user, {
+      action: 'membership.correct',
+      entityType: 'membership',
+      entityId: input.membershipId,
+      before,
+      after: { ...after, reason },
+    });
   });
 }
 

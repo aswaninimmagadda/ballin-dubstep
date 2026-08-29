@@ -62,11 +62,27 @@ export async function issueRefreshToken(userId: string): Promise<string> {
   return token;
 }
 
+/**
+ * Rotate a refresh token, returning the new one.
+ *
+ * One atomic call: the old token is consumed and the new one created in the
+ * same transaction, so there is no window where the member holds a spent token
+ * and no replacement exists. app.refresh_rotate also tolerates the old token
+ * being presented again within a short grace window when its successor was
+ * never used — which is what a dropped response looks like, and used to
+ * revoke the whole family and strand the member.
+ */
 export async function rotateRefreshToken(
   token: string,
-): Promise<{ userId: string; tenantId: string } | null> {
+): Promise<{ userId: string; tenantId: string; refreshToken: string } | null> {
+  const next = randomBytes(32).toString('base64url');
+  const expires = new Date(Date.now() + REFRESH_TTL_DAYS * 86400_000);
   const row = await asAnonymous(async (tx) => {
-    const r = await tx.query(`SELECT * FROM app.refresh_consume($1)`, [sha256hex(token)]);
+    const r = await tx.query(`SELECT * FROM app.refresh_rotate($1, $2, $3)`, [
+      sha256hex(token),
+      sha256hex(next),
+      expires.toISOString(),
+    ]);
     return (r as { rows: Record<string, unknown>[] }).rows[0];
   });
   if (!row || row.kind !== 'member' || !row.is_active) return null;
@@ -75,7 +91,11 @@ export async function rotateRefreshToken(
   // rotating a fresh 30-day token forever, and the suspension meant nothing.
   const status = row.tenant_status as string | null;
   if (status && status !== 'active' && status !== 'trial') return null;
-  return { userId: row.user_id as string, tenantId: row.tenant_id as string };
+  return {
+    userId: row.user_id as string,
+    tenantId: row.tenant_id as string,
+    refreshToken: next,
+  };
 }
 
 /**

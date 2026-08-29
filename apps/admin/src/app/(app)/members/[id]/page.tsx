@@ -140,6 +140,7 @@ export default async function MemberDetailPage({
     archived:
       'Member archived. Their history is kept; the mobile number is free to re-use. Find them again with the "Archived only" filter on the members list.',
     unarchived: tr.members.unarchived,
+    corrected: 'Membership corrected. The payments and receipt stay attached to it.',
     archerror: errorDetail ?? tr.common.error,
   };
 
@@ -313,6 +314,16 @@ export default async function MemberDetailPage({
                 </p>
               ) : null}
             </form>
+            {currentMembership && user.permissions.has('memberships.override') ? (
+              /* Cancel-and-resell was the only tool for a wrong plan or date,
+                 and it strands the payment on the cancelled row. */
+              <a
+                href={`/members/${id}/correct`}
+                className="text-sm font-semibold text-primary hover:underline"
+              >
+                {tr.membership.correct}…
+              </a>
+            ) : null}
             {currentMembership ? (
               <a
                 href={`/members/${id}/cancel`}

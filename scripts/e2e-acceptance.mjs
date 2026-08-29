@@ -1029,6 +1029,163 @@ async function main() {
     sellFormHtml.match(/[^<>]*part payments[^<>]*/i)?.[0] ?? 'hint not found',
   );
 
+  // ---- correcting a mis-sold membership ----------------------------------
+  // memberships.override has been in the permission list and honoured by RLS
+  // since the first migration with nothing using it, so the most ordinary desk
+  // mistake had no fix — only cancel-and-resell, which strands the payment on
+  // the cancelled row.
+  console.log('\n[correcting a mis-sold membership]');
+  check('owner relogin for correction', await loginAs(`owner@${SLUG}.test`, ownerPw));
+  const corrMobile = `9${String(Math.floor(100000000 + Math.random() * 899999999))}`;
+  const cStep1 = extractForm(await (await get('/members/new')).text(), 'mobile');
+  const cDup = await postAction('/members/new', cStep1, { mobile: corrMobile });
+  const cStep2Path = target(cDup).replace(/^https?:\/\/[^/]+/, '');
+  const cStep2Html = await (await get(cStep2Path)).text();
+  const cCreate = await postAction(cStep2Path, extractForm(cStep2Html, 'firstName'), {
+    mobile: corrMobile,
+    branchId: cStep2Html.match(/<option[^>]*value="([a-f0-9-]{36})"/)?.[1],
+    firstName: 'Miss',
+    lastName: 'Sold',
+    referralSource: 'walk_in',
+  });
+  const cSellPath = target(cCreate).replace(/^https?:\/\/[^/]+/, '');
+  const corrMemberId = cSellPath.match(/members\/([a-f0-9-]+)\/sell/)?.[1];
+  // Sold on the WRONG plan: the annual GST plan instead of the quarterly one.
+  const cSell = await postAction(
+    cSellPath,
+    extractForm(await (await get(cSellPath)).text(), 'planId'),
+    {
+      planId: gstPlan.id,
+      startDate: istToday,
+      amount: '2000',
+      method: 'cash',
+    },
+  );
+  check('membership sold on the wrong plan', target(cSell).includes('msg=sold'), target(cSell));
+  const [beforeCorrection] = await q(
+    `SELECT id, plan_id, plan_name_snapshot, total_amount::bigint::text AS total,
+            start_date::text AS start_date, end_date::text AS end_date
+       FROM memberships WHERE member_id = $1`,
+    [corrMemberId],
+  );
+  const [paymentBefore] = await q(
+    `SELECT p.id, pa.membership_id FROM payments p
+       JOIN payment_allocations pa ON pa.payment_id = p.id
+      WHERE p.member_id = $1`,
+    [corrMemberId],
+  );
+
+  const correctPage = await (await getFollow(`/members/${corrMemberId}/correct`)).text();
+  check('the member page offers a correction', correctPage.includes('name="reason"'));
+  const correctRes = await postAction(
+    `/members/${corrMemberId}/correct`,
+    extractForm(correctPage, 'reason'),
+    {
+      memberId: corrMemberId,
+      membershipId: beforeCorrection.id,
+      planId: qPlan.id,
+      startDate: istToday,
+      reason: 'sold on the wrong plan',
+    },
+  );
+  check(
+    'correction accepted',
+    decodeURIComponent(target(correctRes)).includes('corrected'),
+    decodeURIComponent(target(correctRes)).slice(-140),
+  );
+
+  const [afterCorrection] = await q(
+    `SELECT id, plan_id, plan_name_snapshot, total_amount::bigint::text AS total,
+            end_date::text AS end_date
+       FROM memberships WHERE member_id = $1`,
+    [corrMemberId],
+  );
+  check(
+    'it is the SAME membership row, not a new one',
+    afterCorrection.id === beforeCorrection.id,
+    `${beforeCorrection.id} vs ${afterCorrection.id}`,
+  );
+  check('the plan changed', afterCorrection.plan_id === qPlan.id);
+  check(
+    'the price was recalculated',
+    afterCorrection.total !== beforeCorrection.total,
+    `${beforeCorrection.total} -> ${afterCorrection.total}`,
+  );
+  check(
+    'the expiry moved with the plan',
+    afterCorrection.end_date !== beforeCorrection.end_date,
+    `${beforeCorrection.end_date} -> ${afterCorrection.end_date}`,
+  );
+  const [paymentAfter] = await q(
+    `SELECT pa.membership_id FROM payment_allocations pa WHERE pa.payment_id = $1`,
+    [paymentBefore.id],
+  );
+  check(
+    'the payment is still attached to it — nothing stranded',
+    paymentAfter.membership_id === beforeCorrection.id,
+  );
+  const [corrEvent] = await q(
+    `SELECT count(*)::int AS n FROM membership_events
+      WHERE membership_id = $1 AND type = 'corrected'`,
+    [beforeCorrection.id],
+  );
+  check("the correction is on the member's timeline", corrEvent.n === 1);
+  const [corrAudit] = await q(
+    `SELECT count(*)::int AS n FROM audit_logs a JOIN tenants t ON t.id = a.tenant_id
+      WHERE t.slug = $1 AND a.action = 'membership.correct'`,
+    [SLUG],
+  );
+  check('and in the audit log', corrAudit.n === 1);
+
+  // Correcting downwards past what has been paid must be refused, not silently
+  // leave the member in credit the screens deliberately hide.
+  const cheapRes = await postAction(
+    '/plans',
+    extractForm(await (await get('/plans')).text(), 'durationValue'),
+    {
+      name: 'Day Pass',
+      durationValue: '7',
+      durationUnit: 'days',
+      basePrice: '500',
+      joiningFee: '0',
+      gracePeriodDays: '0',
+      freezeAllowanceDays: '0',
+      maxFreezes: '0',
+    },
+  );
+  check('a cheaper plan exists to correct down to', !target(cheapRes).includes('error'));
+  const [cheapPlan] = await q(
+    `SELECT p.id FROM membership_plans p JOIN tenants t ON t.id = p.tenant_id
+      WHERE t.slug = $1 AND p.name = 'Day Pass'`,
+    [SLUG],
+  );
+  const downRes = await postAction(
+    `/members/${corrMemberId}/correct`,
+    extractForm(await (await getFollow(`/members/${corrMemberId}/correct`)).text(), 'reason'),
+    {
+      memberId: corrMemberId,
+      membershipId: beforeCorrection.id,
+      planId: cheapPlan.id,
+      startDate: istToday,
+      reason: 'trying to under-price below what was paid',
+    },
+  );
+  const downMsg = decodeURIComponent(target(downRes));
+  check(
+    'correcting below what was paid is refused, naming the refund',
+    downMsg.includes('error') && /Record a refund of .*500/.test(downMsg),
+    downMsg.slice(-160),
+  );
+  const [stillCorrect] = await q(
+    `SELECT plan_id, total_amount::bigint::text AS total FROM memberships WHERE id = $1`,
+    [beforeCorrection.id],
+  );
+  check(
+    'and the refused correction changed nothing',
+    stillCorrect.plan_id === qPlan.id && stillCorrect.total === afterCorrection.total,
+    `${stillCorrect.plan_id} / ${stillCorrect.total}`,
+  );
+
   // ---- receivables must not leak out of the books ------------------------
   console.log('\n[receivables]');
   check('owner relogin for receivables', await loginAs(`owner@${SLUG}.test`, ownerPw));

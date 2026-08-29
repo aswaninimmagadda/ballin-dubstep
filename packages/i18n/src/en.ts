@@ -149,6 +149,15 @@ export const en = {
     },
   },
   membership: {
+    correct: 'Correct membership',
+    correctSubtitle:
+      'Fixes the plan or start date on the same membership, so the payments and receipt stay attached to it.',
+    correctNoLive:
+      'This member has no live membership to correct. A membership that has ended or been cancelled is part of the record — sell a new one instead.',
+    correctPlanHint:
+      'The price is recalculated from this plan; any discount already given is kept.',
+    correctDateHint: 'The expiry moves with it.',
+    correctReasonHint: 'e.g. sold on the wrong plan',
     payLaterHint: 'Leave empty to collect later — this gym allows part payments.',
     payFullHint: 'Collect the full amount: this gym does not allow part payments.',
     manualDiscount: 'Discount',

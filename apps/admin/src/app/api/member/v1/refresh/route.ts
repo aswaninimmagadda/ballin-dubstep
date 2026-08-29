@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { asAnonymous } from '@/lib/db';
-import { issueRefreshToken, rotateRefreshToken, signAccessToken } from '@/lib/member-api';
+import { rotateRefreshToken, signAccessToken } from '@/lib/member-api';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     tid: rotated.tenantId,
     mid: member.member_id,
   });
-  const refreshToken = await issueRefreshToken(rotated.userId);
-  return NextResponse.json({ accessToken, refreshToken });
+  // The replacement was minted inside the same transaction that spent the old
+  // one, so there is no half-rotated state to recover from.
+  return NextResponse.json({ accessToken, refreshToken: rotated.refreshToken });
 }
