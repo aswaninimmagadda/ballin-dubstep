@@ -1288,6 +1288,106 @@ async function main() {
     exportRes.headers.get('cache-control') ?? 'none',
   );
 
+  // ---- platform admin: one gym at a time ---------------------------------
+  // platform_all was USING (app.is_platform_admin()) on every table, with no
+  // tenant term. A platform admin who opened /members saw every gym's members
+  // merged into one list with no column saying whose was whose — and every
+  // action on that screen was live. Migration 0022 makes the console the only
+  // unscoped view; entering a gym is a database boundary.
+  console.log('\n[platform admin: one gym at a time]');
+  const PLATFORM_PW = process.env.SEED_PASSWORD ?? 'gymflow-dev-password';
+  check('platform admin signs in', await loginAs('admin@gymflow.local', PLATFORM_PW));
+
+  const unscopedHome = await get('/');
+  check(
+    'an unscoped platform admin cannot open a gym screen',
+    target(unscopedHome).includes('/platform'),
+    `${unscopedHome.status} ${target(unscopedHome)}`,
+  );
+  const console1 = await (await getFollow('/platform')).text();
+  check('the console lists every gym', console1.includes(GYM_B_NAME) && console1.includes(SLUG));
+  const [demoTenant] = await q(`SELECT id, name FROM tenants WHERE slug = 'apfitness'`);
+  check('including the demo gym, named', console1.includes(demoTenant.name));
+
+  const [gymB] = await q(`SELECT id FROM tenants WHERE slug = $1`, [SLUG]);
+  const enterForm = extractForm(console1, 'tenantId', gymB.id);
+  const enterRes = await postAction('/platform', enterForm, { tenantId: gymB.id });
+  const scopeCookie = enterRes.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0].trim())
+    .find((c) => c.startsWith('gymflow_scope='));
+  check('opening a gym scopes the session', Boolean(scopeCookie), String(scopeCookie));
+  cookie = `${cookie}; ${scopeCookie}`;
+
+  const scopedMembers = await (await getFollow('/members')).text();
+  check(
+    'and the gym screens open',
+    scopedMembers.includes('Miss') || scopedMembers.includes('Sold'),
+  );
+  check(
+    'the banner says which gym they are inside',
+    scopedMembers.includes(GYM_B_NAME),
+    'no gym banner',
+  );
+  const [demoMember] = await q(
+    `SELECT m.first_name, m.last_name FROM members m JOIN tenants t ON t.id = m.tenant_id
+      WHERE t.slug = 'apfitness' ORDER BY m.created_at LIMIT 1`,
+  );
+  check(
+    'and no other gym’s members are in the list',
+    !scopedMembers.includes(`${demoMember.first_name} ${demoMember.last_name}`),
+    `${demoMember.first_name} ${demoMember.last_name} leaked`,
+  );
+  const consoleWhileIn = await get('/platform');
+  check(
+    'the console is out of reach until they leave',
+    target(consoleWhileIn).endsWith('/') || target(consoleWhileIn).includes('://'),
+    target(consoleWhileIn),
+  );
+
+  // The boundary must be the database, not the page. Same claims, straight at
+  // the runtime role: the other gym's rows are unreadable, not merely unshown.
+  const [platformUser] = await q(`SELECT id FROM users WHERE email = 'admin@gymflow.local'`);
+  const scopedClaims = JSON.stringify({
+    sub: platformUser.id,
+    tenant_id: gymB.id,
+    kind: 'platform_admin',
+  });
+  await db.query('BEGIN');
+  await db.query('SET LOCAL ROLE gymflow_app');
+  await db.query(`SELECT set_config('request.jwt.claims', $1, true)`, [scopedClaims]);
+  const [seen] = (
+    await db.query(
+      `SELECT count(*) FILTER (WHERE t.slug = $1)::int AS mine,
+              count(*) FILTER (WHERE t.slug <> $1)::int AS others
+         FROM members m JOIN tenants t ON t.id = m.tenant_id`,
+      [SLUG],
+    )
+  ).rows;
+  const [payRows] = (
+    await db.query(
+      `SELECT count(*)::int AS n FROM payments p
+                     WHERE p.tenant_id <> $1`,
+      [gymB.id],
+    )
+  ).rows;
+  await db.query('ROLLBACK');
+  check('RLS shows a scoped platform admin their gym’s members', seen.mine > 0);
+  check('and zero rows from any other gym', seen.others === 0, String(seen.others));
+  check('and no other gym’s payments either', payRows.n === 0, String(payRows.n));
+
+  const leaveRes = await postAction('/members', extractForm(scopedMembers, 'leaveGym'), {});
+  const cleared = leaveRes.headers
+    .getSetCookie()
+    .some((c) => /^gymflow_scope=;|^gymflow_scope=(?:$|;)/.test(c.trim()));
+  check('leaving the gym clears the scope', cleared, leaveRes.headers.getSetCookie().join(' | '));
+  check('and lands back on the console', target(leaveRes).includes('/platform'), target(leaveRes));
+  cookie = cookie.split(';')[0];
+  check(
+    'once out, the gym screens are closed again',
+    target(await get('/members')).includes('/platform'),
+  );
+
   // ---- tenant lifecycle: the commercial levers ---------------------------
   // create-tenant could bring a gym into existence and nothing could do
   // anything to it afterwards — no way to suspend a customer who stopped

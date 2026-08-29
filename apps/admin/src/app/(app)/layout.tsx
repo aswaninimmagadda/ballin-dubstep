@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { PRODUCT } from '@gymflow/config';
-import { logout, requireUser } from '@/lib/session';
+import { logout, requireUser, PLATFORM_SCOPE_COOKIE } from '@/lib/session';
+import { scopedTenant } from '@/lib/services/platform';
 import { t, LANG_COOKIE, currentLanguage } from '@/lib/i18n';
 import { PwaSetup } from '@/components/pwa';
 import { tenantFlags } from '@/lib/flags';
@@ -13,6 +14,12 @@ async function logoutAction(): Promise<void> {
   'use server';
   await logout();
   redirect('/login');
+}
+
+async function leaveTenantAction(): Promise<void> {
+  'use server';
+  (await cookies()).delete(PLATFORM_SCOPE_COOKIE);
+  redirect('/platform');
 }
 
 async function setLanguageAction(formData: FormData): Promise<void> {
@@ -28,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const tr = await t();
   const lang = await currentLanguage();
   const flags = await tenantFlags(user);
+  const scoped = await scopedTenant(user);
 
   const nav = [
     { href: '/', label: tr.nav.dashboard },
@@ -47,11 +55,35 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen">
       <PwaSetup offlineText={tr.common.offline} />
+      {/* A platform admin working inside a gym must never be able to forget
+          which gym. Every screen below this bar is that gym's, and only that
+          gym's — the scope is enforced in RLS, not here. */}
+      {scoped ? (
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900">
+          <span>
+            Platform admin — working inside <strong>{scoped.name}</strong> ({scoped.slug})
+            {scoped.status !== 'active' ? ` · this gym is ${scoped.status}` : ''}
+          </span>
+          <form action={leaveTenantAction}>
+            <input type="hidden" name="leaveGym" value="1" />
+            <button className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800">
+              Leave this gym
+            </button>
+          </form>
+        </div>
+      ) : null}
       <header className="no-print sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
-          <Link href="/" className="text-lg font-bold text-primary">
-            {PRODUCT.name}
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/" className="text-lg font-bold text-primary">
+              {PRODUCT.name}
+            </Link>
+            {scoped ? (
+              <span className="rounded bg-amber-400 px-2 py-0.5 text-xs font-bold text-slate-900">
+                {scoped.name}
+              </span>
+            ) : null}
+          </div>
           <nav className="hidden gap-1 overflow-x-auto md:flex" aria-label={tr.ui.main}>
             {nav.map((item) => (
               <Link

@@ -13,6 +13,7 @@ import {
   staffClaims,
   memberClaims,
   platformClaims,
+  type Claims,
   type Fixtures,
 } from './helpers';
 
@@ -215,5 +216,119 @@ describe('platform admin', () => {
       return r.rows as { slug: string }[];
     });
     expect(rows.map((r) => r.slug)).toEqual(['tenant-a', 'tenant-b']);
+  });
+
+  /**
+   * A platform admin who has entered one gym is confined to it. Until 0022
+   * `platform_all` carried no tenant term at all, so support opened /members
+   * and got every gym's members in one list — and every button on that screen
+   * was live against whichever row they happened to click.
+   */
+  const scoped = (): Claims => ({
+    sub: fx.platformAdminId,
+    tenant_id: fx.a.tenantId,
+    kind: 'platform_admin',
+  });
+
+  const SCOPED_TABLES = [
+    'members',
+    'memberships',
+    'payments',
+    'payment_allocations',
+    'receipts',
+    'attendance',
+    'leads',
+    'promotions',
+    'membership_plans',
+    'trainers',
+    'audit_logs',
+    'gym_settings',
+    'feature_flags',
+    'branches',
+    'roles',
+  ];
+
+  it('scoped into one gym, reads that gym’s rows and no others in every table', async () => {
+    for (const table of SCOPED_TABLES) {
+      const [scopedRows, unscopedA] = await Promise.all([
+        withClaims(appPool(), scoped(), async (tx) => {
+          const r = await tx.query(`SELECT tenant_id FROM ${table}`);
+          return r.rows as { tenant_id: string }[];
+        }),
+        withClaims(appPool(), platformClaims(fx), async (tx) => {
+          const r = await tx.query(`SELECT count(*)::int AS n FROM ${table} WHERE tenant_id = $1`, [
+            fx.a.tenantId,
+          ]);
+          return (r.rows[0] as { n: number }).n;
+        }),
+      ]);
+      // Nothing of tenant A's is hidden from them...
+      expect(scopedRows.length, `${table}: the scope hid rows of the gym they are in`).toBe(
+        unscopedA,
+      );
+      // ...and nothing of anyone else's is visible.
+      for (const row of scopedRows) {
+        expect(row.tenant_id, `${table} leaked a foreign tenant row`).toBe(fx.a.tenantId);
+      }
+    }
+  });
+
+  it('scoped into one gym, cannot fetch the other gym’s member by exact id', async () => {
+    const rows = await withClaims(appPool(), scoped(), async (tx) => {
+      const r = await tx.query(`SELECT * FROM members WHERE id = $1`, [fx.b.memberId]);
+      return r.rows;
+    });
+    expect(rows).toHaveLength(0);
+  });
+
+  it('scoped into one gym, sees only that gym in the tenants table', async () => {
+    const rows = await withClaims(appPool(), scoped(), async (tx) => {
+      const r = await tx.query(`SELECT id FROM tenants`);
+      return r.rows as { id: string }[];
+    });
+    expect(rows.map((r) => r.id)).toEqual([fx.a.tenantId]);
+  });
+
+  it('scoped into one gym, still sees their own user row', async () => {
+    const rows = await withClaims(appPool(), scoped(), async (tx) => {
+      const r = await tx.query(`SELECT id FROM users WHERE id = $1`, [fx.platformAdminId]);
+      return r.rows;
+    });
+    expect(rows).toHaveLength(1);
+  });
+
+  it('scoped into one gym, cannot write a row into the other gym', async () => {
+    // Permissive policies OR the USING and WITH CHECK halves separately, so a
+    // WITH CHECK that forgot the scope would let a write land where no read
+    // can reach. That is the shape this asserts against.
+    await expect(
+      withClaims(appPool(), scoped(), (tx) =>
+        tx.query(
+          `INSERT INTO leads (tenant_id, branch_id, name, mobile, source, status)
+           VALUES ($1, $2, 'Scope Breach', '+919876500011', 'walk_in', 'new')`,
+          [fx.b.tenantId, fx.b.branchId],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/i);
+  });
+
+  it('scoped into one gym, cannot read the other gym’s role assignments', async () => {
+    const rows = await withClaims(appPool(), scoped(), async (tx) => {
+      const r = await tx.query(
+        `SELECT ur.user_id FROM user_roles ur JOIN users u ON u.id = ur.user_id
+          WHERE u.tenant_id = $1`,
+        [fx.b.tenantId],
+      );
+      return r.rows;
+    });
+    expect(rows).toHaveLength(0);
+  });
+
+  it('unscoped again, is cross-tenant once more', async () => {
+    const rows = await withClaims(appPool(), platformClaims(fx), async (tx) => {
+      const r = await tx.query(`SELECT DISTINCT tenant_id FROM members`);
+      return r.rows as { tenant_id: string }[];
+    });
+    expect(rows.map((r) => r.tenant_id).sort()).toEqual([fx.a.tenantId, fx.b.tenantId].sort());
   });
 });

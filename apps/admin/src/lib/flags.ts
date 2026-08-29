@@ -21,7 +21,11 @@ const DEFAULTS: Record<string, boolean> = {
 };
 
 export const tenantFlags = cache(async (user: SessionUser): Promise<Record<string, boolean>> => {
-  if (user.kind === 'platform_admin') return { ...DEFAULTS };
+  // A platform admin who has not entered a gym has no flags to read. Inside
+  // one, they see that gym's flags — otherwise the nav would offer them tabs
+  // the gym has switched off, and support would be looking at a product the
+  // owner does not have.
+  if (!user.tenantId) return { ...DEFAULTS };
   const rows = await asPrincipal(user.claims, async (tx) => {
     const r = await tx.query(`SELECT key, enabled FROM feature_flags WHERE tenant_id = $1`, [
       user.tenantId,

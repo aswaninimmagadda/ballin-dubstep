@@ -64,6 +64,7 @@ export function platformClaims(fx: Fixtures): Claims {
 }
 
 export { withClaims, withoutClaims };
+export type { Claims };
 
 /** Reset the test database and create two fully-populated tenants. */
 export function setupOnce(): Promise<Fixtures> {
