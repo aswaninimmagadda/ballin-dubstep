@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { api } from '../lib/api';
+import { useResource } from '../lib/use-resource';
+import { ErrorState } from '../components/ErrorState';
 import { useAuth } from '../lib/auth';
 import { Card, Loading, Muted, OfflineBanner, StatusBadge } from '../components/ui';
 import { theme } from '../lib/theme';
@@ -9,20 +11,19 @@ type PtData = Awaited<ReturnType<typeof api.pt>>['data'];
 
 export function PtScreen() {
   const { t } = useAuth();
-  const [data, setData] = useState<PtData | null>(null);
-  const [stale, setStale] = useState(false);
+  const { data, stale, failed, loading, reload } = useResource<PtData>(
+    useCallback(async () => {
+      const r = await api.pt();
+      return { data: r.data, stale: r.stale };
+    }, []),
+  );
 
-  useEffect(() => {
-    api
-      .pt()
-      .then((r) => {
-        setData(r.data);
-        setStale(r.stale);
-      })
-      .catch(() => setData({ addons: [], sessions: [] }));
-  }, []);
-
-  if (!data) return <Loading />;
+  if (loading && !data) return <Loading />;
+  if (failed || !data) {
+    return (
+      <ErrorState message={t.common.loadFailed} retryLabel={t.common.retry} onRetry={reload} />
+    );
+  }
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>

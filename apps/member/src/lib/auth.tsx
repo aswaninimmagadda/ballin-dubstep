@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTranslations, type Language, type TranslationTree } from '@gymflow/i18n';
-import { loadTokens, login as apiLogin, signOutEverywhere } from './api';
+import { loadTokens, login as apiLogin, setSessionEndedHandler, signOutEverywhere } from './api';
 
 interface AuthState {
   ready: boolean;
@@ -32,6 +32,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (storedLang === 'en' || storedLang === 'te') setLanguageState(storedLang);
       setReady(true);
     })();
+  }, []);
+
+  // When the server definitively rejects the session (the gym deactivated the
+  // member, the account was deleted, the gym was suspended), send the member
+  // back to the sign-in screen. Clearing the tokens alone left the UI still
+  // believing it was signed in, every request 401'ing behind a spinner.
+  useEffect(() => {
+    setSessionEndedHandler(() => setSignedIn(false));
+    return () => setSessionEndedHandler(null);
   }, []);
 
   const signIn = useCallback(async (gymCode: string, mobile: string, password: string) => {

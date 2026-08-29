@@ -90,8 +90,12 @@ jobs:
           DATABASE_APP_URL: postgres://gymflow_app:gymflow_app_dev_pw@localhost:5432/gymflow_test
           MEMBER_TOKEN_SECRET: ci-build-secret-0123456789abcdef0123456789abcdef
 
-      - name: Bundle member app (Metro export)
-        run: npx expo export --platform android --output-dir /tmp/expo-export
+      - name: Bundle member app (Metro export, both platforms)
+        # iOS as well as Android: the runbook claims the project is
+        # "iOS-ready" and nothing in CI used to check that claim.
+        run: |
+          npx expo export --platform android --output-dir /tmp/expo-export-android
+          npx expo export --platform ios --output-dir /tmp/expo-export-ios
         working-directory: apps/member
         env:
           CI: '1'

@@ -27,8 +27,11 @@ product impact — budget the $99/yr only when there's real iPhone demand.
    (`eas credentials -p ios`) — it creates the distribution certificate and
    provisioning profile against your Apple account; no manual Keychain
    work.
-3. **Build:** set the production `apiBaseUrl`, then
-   `eas build --platform ios --profile production` → produces an `.ipa`.
+3. **Build:** set `env.GYMFLOW_API_URL` in `eas.json`'s production profile
+   (EAS does not inherit your shell environment), then
+   `eas build --platform ios --profile production` → produces an `.ipa`. The
+   build **fails** if that value is still the placeholder or is plain http —
+   see `app.config.js`.
 4. **App Store Connect:** create the app (bundle id above, name, primary
    language en-IN or en-US, SKU e.g. `gymflow-member`).
 5. **TestFlight:** `eas submit -p ios` uploads the build; internal testers
@@ -54,6 +57,19 @@ product impact — budget the $99/yr only when there's real iPhone demand.
    it valid until review completes.
 9. **Release:** manual release after approval recommended for the first
    version; then phased automatic releases.
+
+## Give the reviewer TWO demo logins
+
+Guideline 5.1.1(v) requires in-app account deletion, so the reviewer will test
+it — and testing it destroys the login they were given. There is no
+self-service sign-up to make another, so a single demo account leaves the
+review dead in the water on the very screen Apple asked you to provide.
+
+Create two demo members in the demo tenant, hand over both, and say in the
+review notes: "The second login is provided because testing account deletion
+removes the first." If they get stuck anyway, reception can reissue a password
+from the member page (_Reset app password_) — but do not rely on a round trip
+through App Review to find that out.
 
 ## Account deletion (guideline 5.1.1(v)) — required
 
@@ -84,6 +100,24 @@ environment: set `env.GYMFLOW_API_URL` inside the profile before building,
 or the binary keeps the placeholder origin. The production origin must be
 `https`; App Transport Security blocks plain HTTP, and the local-network
 exception in `app.config.js` is only applied for `http` (LAN testing) builds.
+
+## What CI verifies
+
+`scripts/check-android-manifest.mjs` also asserts the iOS release settings
+that are cheap to get wrong and expensive to discover at submission:
+`ITSAppUsesNonExemptEncryption` is declared (otherwise every upload stalls on
+Missing Compliance), both `en` and `te` are declared as bundle localizations so
+the product page advertises Telugu, and an https build carries no App Transport
+Security exception. CI also runs `expo export --platform ios`, so the
+"iOS-ready" claim below has a guard behind it.
+
+One correction worth recording: the LAN-testing ATS exception used to be
+`NSAllowsLocalNetworking` alone, described in both the code and this document
+as the equivalent of Android's `usesCleartextTraffic`. It is not —
+`NSAllowsLocalNetworking` covers `.local` names and link-local addresses, not
+`http://192.168.x.x`, so a LAN build would have had every request blocked. It
+now sets `NSAllowsArbitraryLoads` too, and the production guard makes it
+impossible for that branch to reach a release build.
 
 ## Current status in this repository
 

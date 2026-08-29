@@ -133,6 +133,35 @@ for (const [label, url] of [
   check(`a production build is refused for ${label}`, threw);
 }
 
+console.log('\n[iOS release configuration]');
+// Cheap to assert from the config and each one is a submission blocker or a
+// stalled upload, so they are checked here rather than left to a manual pass.
+// app.config.js reads GYMFLOW_API_URL at module load, and its default is the
+// local http dev origin — which legitimately turns the ATS exception on. Set a
+// production-shaped origin before importing so this checks a release build.
+process.env.GYMFLOW_API_URL = 'https://admin.example-ci.test';
+const iosConfig = (await import(join(APP, 'app.config.js'))).default;
+const httpsExpo = iosConfig().expo;
+check(
+  'ITSAppUsesNonExemptEncryption is declared',
+  httpsExpo.ios?.infoPlist?.ITSAppUsesNonExemptEncryption === false,
+  'every upload otherwise stalls on Missing Compliance',
+);
+check(
+  'both shipped languages are declared for the store listing',
+  JSON.stringify(httpsExpo.ios?.infoPlist?.CFBundleLocalizations ?? []) === '["en","te"]',
+);
+check(
+  'an https build carries no App Transport Security exception',
+  !('NSAppTransportSecurity' in (httpsExpo.ios?.infoPlist ?? {})),
+  JSON.stringify(httpsExpo.ios?.infoPlist?.NSAppTransportSecurity),
+);
+check(
+  'app identity is environment-driven, not hard-coded',
+  httpsExpo.ios?.bundleIdentifier === 'app.gymflow.member' &&
+    httpsExpo.android?.package === 'app.gymflow.member',
+);
+
 rmSync(ANDROID, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {

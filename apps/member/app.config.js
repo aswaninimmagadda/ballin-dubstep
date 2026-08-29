@@ -63,10 +63,34 @@ module.exports = () => ({
     ios: {
       supportsTablet: false,
       bundleIdentifier: IOS_BUNDLE_ID,
-      // The iOS equivalent of the Android cleartext switch.
-      infoPlist: NEEDS_CLEARTEXT
-        ? { NSAppTransportSecurity: { NSAllowsLocalNetworking: true } }
-        : undefined,
+      infoPlist: {
+        // Without this every upload stalls on "Missing Compliance" in App
+        // Store Connect and waits for a human to answer the question. The app
+        // uses only HTTPS and the platform keychain, which is the standard
+        // exempt case.
+        ITSAppUsesNonExemptEncryption: false,
+        // Declared so the App Store product page actually advertises Telugu —
+        // the app ships both languages and the listing would otherwise show
+        // English only.
+        CFBundleLocalizations: ['en', 'te'],
+        // The iOS half of the cleartext switch, for LAN testing builds only.
+        //
+        // NSAllowsLocalNetworking alone is NOT the equivalent of Android's
+        // usesCleartextTraffic, which is what this used to claim: it covers
+        // .local names and link-local addresses, not http://192.168.x.x. A
+        // build pointed at a LAN IP would still have had every request
+        // blocked by App Transport Security. NSAllowsArbitraryLoads is what
+        // actually permits it, and the production guard above makes it
+        // impossible for this branch to reach a release build.
+        ...(NEEDS_CLEARTEXT
+          ? {
+              NSAppTransportSecurity: {
+                NSAllowsArbitraryLoads: true,
+                NSAllowsLocalNetworking: true,
+              },
+            }
+          : {}),
+      },
     },
     android: {
       package: ANDROID_PACKAGE,

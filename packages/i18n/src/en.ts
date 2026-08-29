@@ -4,6 +4,8 @@
  */
 export const en = {
   common: {
+    loadFailed: 'Could not load this. Check your connection and try again.',
+    retry: 'Try again',
     appName: 'GymFlow',
     save: 'Save',
     cancel: 'Cancel',
@@ -12,7 +14,6 @@ export const en = {
     next: 'Next',
     search: 'Search',
     loading: 'Loading…',
-    retry: 'Retry',
     offline: 'You are offline. Some information may be out of date.',
     required: 'Required',
     optional: 'Optional',

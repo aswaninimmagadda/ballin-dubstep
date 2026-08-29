@@ -3,6 +3,7 @@ import { AppState, RefreshControl, ScrollView, StyleSheet, Text, View } from 're
 import QRCode from 'react-native-qrcode-svg';
 import { api, getPass, type MeResponse } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { ErrorState } from '../components/ErrorState';
 import { Card, Loading, Muted, OfflineBanner, StatusBadge, Title } from '../components/ui';
 import { theme } from '../lib/theme';
 
@@ -31,14 +32,27 @@ export function HomeScreen() {
   const [stale, setStale] = useState(false);
   const [pass, setPass] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const result = await api.me();
       setMe(result.data);
       setStale(result.stale);
+      setFailed(false);
     } catch {
-      /* keep whatever we have */
+      // Only fatal when there is nothing to show. A refresh that fails must
+      // not blank out the membership card the member is holding up at the desk
+      // — but a FIRST load that fails used to leave `me` null forever behind
+      // an endless spinner, with no error and no way out.
+      setMe((current) => {
+        if (current === null) setFailed(true);
+        return current;
+      });
+    } finally {
+      setLoading(false);
     }
     const p = await getPass();
     setPass(p?.token ?? null);
@@ -79,7 +93,10 @@ export function HomeScreen() {
     setRefreshing(false);
   }, [load]);
 
-  if (!me) return <Loading />;
+  if (loading && !me) return <Loading />;
+  if (failed || !me) {
+    return <ErrorState message={t.common.loadFailed} retryLabel={t.common.retry} onRetry={load} />;
+  }
   const membership = me.membership;
   const statusLabel = membership
     ? (t.membership.statuses[membership.status as keyof typeof t.membership.statuses] ??

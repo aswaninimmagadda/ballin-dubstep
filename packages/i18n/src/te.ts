@@ -3,6 +3,8 @@ import type { TranslationTree } from './en';
 /** Telugu translation resource. Same shape as `en` — enforced by the type. */
 export const te: TranslationTree = {
   common: {
+    loadFailed: 'లోడ్ కాలేదు. మీ కనెక్షన్ చూసి మళ్లీ ప్రయత్నించండి.',
+    retry: 'మళ్లీ ప్రయత్నించండి',
     appName: 'GymFlow',
     save: 'సేవ్ చేయండి',
     cancel: 'రద్దు చేయండి',
@@ -11,7 +13,6 @@ export const te: TranslationTree = {
     next: 'తదుపరి',
     search: 'వెతకండి',
     loading: 'లోడ్ అవుతోంది…',
-    retry: 'మళ్లీ ప్రయత్నించండి',
     offline: 'మీరు ఆఫ్‌లైన్‌లో ఉన్నారు. కొంత సమాచారం పాతదిగా ఉండవచ్చు.',
     required: 'తప్పనిసరి',
     optional: 'ఐచ్ఛికం',

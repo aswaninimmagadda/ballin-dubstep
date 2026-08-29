@@ -12,7 +12,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       `SELECT code, name, discount_kind, discount_value::bigint::text AS discount_value,
               valid_to::text AS valid_to
        FROM promotions
-       WHERE is_active AND CURRENT_DATE BETWEEN valid_from AND valid_to
+       -- The gym's calendar day, not the server's: an offer valid "until the
+       -- 31st" must still show at 11pm IST on the 31st, which is already the
+       -- 1st in UTC.
+       WHERE is_active
+         AND (now() AT TIME ZONE (
+               SELECT t.default_timezone FROM tenants t
+                WHERE t.id = (SELECT app.current_tenant_id())
+             ))::date BETWEEN valid_from AND valid_to
        ORDER BY valid_to ASC`,
     );
     return r.rows;

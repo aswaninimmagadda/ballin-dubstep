@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { api } from '../lib/api';
+import { useResource } from '../lib/use-resource';
+import { ErrorState } from '../components/ErrorState';
 import { useAuth } from '../lib/auth';
 import { Card, Loading, Muted, OfflineBanner, Screen } from '../components/ui';
 import { theme } from '../lib/theme';
@@ -26,20 +28,25 @@ function rupees(minor: string): string {
 
 export function PaymentsScreen() {
   const { t } = useAuth();
-  const [rows, setRows] = useState<PaymentRow[] | null>(null);
-  const [stale, setStale] = useState(false);
+  const {
+    data: rows,
+    stale,
+    failed,
+    loading,
+    reload,
+  } = useResource<PaymentRow[]>(
+    useCallback(async () => {
+      const r = await api.payments();
+      return { data: r.data.payments, stale: r.stale };
+    }, []),
+  );
 
-  useEffect(() => {
-    api
-      .payments()
-      .then((r) => {
-        setRows(r.data.payments);
-        setStale(r.stale);
-      })
-      .catch(() => setRows([]));
-  }, []);
-
-  if (!rows) return <Loading />;
+  if (loading && !rows) return <Loading />;
+  if (failed || !rows) {
+    return (
+      <ErrorState message={t.common.loadFailed} retryLabel={t.common.retry} onRetry={reload} />
+    );
+  }
 
   return (
     <Screen>

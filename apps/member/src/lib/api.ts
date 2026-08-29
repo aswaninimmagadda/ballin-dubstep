@@ -44,6 +44,19 @@ async function storeTokens(access: string, refresh: string): Promise<void> {
   await SecureStore.setItemAsync(REFRESH_KEY, refresh);
 }
 
+/**
+ * Called when the server has definitively rejected this session, so the app
+ * can return to the sign-in screen.
+ *
+ * Without it, clearing the tokens changed nothing on screen: the UI still
+ * believed it was signed in, every request 401'd, and the member sat on a
+ * spinner with no way back to the login form short of reinstalling.
+ */
+let onSessionEnded: (() => void) | null = null;
+export function setSessionEndedHandler(fn: (() => void) | null): void {
+  onSessionEnded = fn;
+}
+
 export async function clearTokens(): Promise<void> {
   accessToken = null;
   await SecureStore.deleteItemAsync(ACCESS_KEY);
@@ -128,7 +141,10 @@ async function doRefresh(): Promise<boolean> {
   if (!res.ok) {
     // Only a definitive rejection means these credentials are dead. A 500 or
     // a gateway error must not wipe the member's session and offline cache.
-    if (res.status === 401 || res.status === 403) await clearTokens();
+    if (res.status === 401 || res.status === 403) {
+      await clearTokens();
+      onSessionEnded?.();
+    }
     return false;
   }
   const body = (await res.json()) as { accessToken: string; refreshToken: string };

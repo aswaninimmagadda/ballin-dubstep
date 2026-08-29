@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { FlatList, StyleSheet, Text } from 'react-native';
 import { api } from '../lib/api';
+import { useResource } from '../lib/use-resource';
+import { ErrorState } from '../components/ErrorState';
 import { useAuth } from '../lib/auth';
 import { Card, Loading, Muted, OfflineBanner, Screen } from '../components/ui';
 import { theme } from '../lib/theme';
@@ -12,20 +14,26 @@ interface Visit {
 
 export function AttendanceScreen() {
   const { t } = useAuth();
-  const [rows, setRows] = useState<Visit[] | null>(null);
-  const [stale, setStale] = useState(false);
+  const {
+    data: attendance,
+    stale,
+    failed,
+    loading,
+    reload,
+  } = useResource<Visit[]>(
+    useCallback(async () => {
+      const r = await api.attendance();
+      return { data: r.data.attendance, stale: r.stale };
+    }, []),
+  );
 
-  useEffect(() => {
-    api
-      .attendance()
-      .then((r) => {
-        setRows(r.data.attendance);
-        setStale(r.stale);
-      })
-      .catch(() => setRows([]));
-  }, []);
-
-  if (!rows) return <Loading />;
+  if (loading && !attendance) return <Loading />;
+  if (failed || !attendance) {
+    return (
+      <ErrorState message={t.common.loadFailed} retryLabel={t.common.retry} onRetry={reload} />
+    );
+  }
+  const rows = attendance;
 
   const thisMonth = new Date().toISOString().slice(0, 7);
   const monthCount = rows.filter((r) => r.checked_in_at.startsWith(thisMonth)).length;

@@ -44,9 +44,9 @@ actually-executed runs (CI re-runs them on every PR).
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 220 checks passing (three HTTP suites)
+### 3. End-to-end — 237 checks passing (three HTTP suites)
 
-`scripts/e2e-admin.mjs` (91 checks) drives the real HTTP surface (server
+`scripts/e2e-admin.mjs` (108 checks) drives the real HTTP surface (server
 actions via progressive-enhancement form posts) against a running server +
 seeded DB, then verifies database effects:
 
@@ -135,7 +135,7 @@ and never alters the live role's password.
 
 ### 3c. Android release check — `scripts/check-android-manifest.mjs`
 
-17 assertions about the binary rather than the source, run in CI. `expo
+21 assertions about the binary and the release configuration rather than the source, run in CI. `expo
 export` only proves the JavaScript bundles; permissions, the splash screen,
 edge-to-edge and the release-origin guard live in the Android project, which
 nothing in the pipeline used to generate. It runs `expo prebuild` and asserts

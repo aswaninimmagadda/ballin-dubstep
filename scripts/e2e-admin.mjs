@@ -716,6 +716,73 @@ async function main() {
   check('the member can sign in with the new one', (await tryMemberPw(newAppPw)) === 200);
   appPw = newAppPw;
 
+  // ---- every member endpoint the app calls -------------------------------
+  // Four of the nine were exercised by no test at all, including the two the
+  // member reads most (payments, attendance) and the one reception depends on
+  // at the door (pass).
+  console.log('\n[member API surface]');
+  const apiTokens = await (async () => {
+    const r = await fetch(`${BASE}/api/member/v1/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gymCode: 'apfitness',
+        mobile: memberRowDb.mobile.replace('+91', ''),
+        password: appPw,
+      }),
+    });
+    return r.ok ? await r.json() : null;
+  })();
+  check('member signs in for the API sweep', Boolean(apiTokens?.accessToken));
+  const asMember = (path) =>
+    fetch(`${BASE}${path}`, { headers: { Authorization: `Bearer ${apiTokens.accessToken}` } });
+
+  for (const path of [
+    '/api/member/v1/me',
+    '/api/member/v1/payments',
+    '/api/member/v1/attendance',
+    '/api/member/v1/pt',
+    '/api/member/v1/offers',
+    '/api/member/v1/pass',
+    '/api/member/v1/notifications',
+  ]) {
+    const res = await asMember(path);
+    const body = res.ok ? await res.json() : null;
+    check(
+      `GET ${path} answers 200 with JSON`,
+      res.status === 200 && body !== null,
+      String(res.status),
+    );
+    // Every one of these must refuse an unauthenticated caller: they all
+    // return one member's personal data.
+    const anon = await fetch(`${BASE}${path}`);
+    check(`GET ${path} refuses an anonymous caller`, anon.status === 401, String(anon.status));
+  }
+
+  // Attendance timestamps cross the API in the gym's calendar day, like every
+  // other date in the product — not the database's UTC day.
+  const attRes = await asMember('/api/member/v1/attendance');
+  const attBody = await attRes.json();
+  if (attBody.attendance?.length) {
+    const stamp = String(attBody.attendance[0].checked_in_at);
+    check(
+      'check-in timestamps are in the gym timezone, not UTC',
+      !/Z$|\+00$|\+00:00$/.test(stamp),
+      stamp,
+    );
+    const [dbRow] = await q(
+      `SELECT (a.checked_in_at AT TIME ZONE t.default_timezone)::text AS local
+         FROM attendance a JOIN tenants t ON t.id = a.tenant_id
+        WHERE a.member_id = $1 ORDER BY a.checked_in_at DESC LIMIT 1`,
+      [memberId],
+    );
+    check(
+      'and match the tenant-local value in the database',
+      Boolean(dbRow) && stamp.slice(0, 16) === dbRow.local.slice(0, 16),
+      `${stamp} vs ${dbRow?.local}`,
+    );
+  }
+
   // ---- member session security ------------------------------------------
   // Three findings from the pre-release security review, each verified here
   // over real HTTP rather than by reading the code.
