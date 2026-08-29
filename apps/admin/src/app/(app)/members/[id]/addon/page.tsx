@@ -70,7 +70,7 @@ export default async function AddonPage({
           <input type="hidden" name="memberId" value={id} />
           <input type="hidden" name="idempotencyKey" value={randomUUID()} />
 
-          <Field label="Package" required>
+          <Field label={tr.ui.package} required>
             <div className="space-y-2">
               {packages.map((p, i) => (
                 <label
@@ -116,7 +116,7 @@ export default async function AddonPage({
               {tr.members.recordPayment}
             </legend>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label={`${tr.payments.amount} (₹)`} hint="Leave empty to collect later">
+              <Field label={`${tr.payments.amount} (₹)`} hint={tr.ui.leaveEmptyToCollectLater}>
                 <input name="amount" inputMode="decimal" className={inputCls} />
               </Field>
               <Field label={tr.payments.method}>

@@ -275,7 +275,7 @@ export default async function PlansPage({
                     className={inputCls}
                   />
                 </Field>
-                <Field label="Unit">
+                <Field label={tr.ui.unit}>
                   <select name="durationUnit" className={inputCls} defaultValue="months">
                     <option value="months">Months</option>
                     <option value="days">Days</option>
@@ -302,7 +302,7 @@ export default async function PlansPage({
                 </Field>
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <Field label="Grace days">
+                <Field label={tr.ui.graceDays}>
                   <input
                     name="gracePeriodDays"
                     type="number"
@@ -312,7 +312,7 @@ export default async function PlansPage({
                     className={inputCls}
                   />
                 </Field>
-                <Field label="Freeze days">
+                <Field label={tr.ui.freezeDays}>
                   <input
                     name="freezeAllowanceDays"
                     type="number"
@@ -322,7 +322,7 @@ export default async function PlansPage({
                     className={inputCls}
                   />
                 </Field>
-                <Field label="Max freezes">
+                <Field label={tr.ui.maxFreezes}>
                   <input
                     name="maxFreezes"
                     type="number"
@@ -354,10 +354,10 @@ export default async function PlansPage({
                   </select>
                 </Field>
               </div>
-              <Field label="Allowed timings" hint="Optional, e.g. 05:30-10:30 for a morning plan">
+              <Field label={tr.ui.allowedTimings} hint={tr.ui.optionalEG0530}>
                 <input name="allowedTimings" className={inputCls} />
               </Field>
-              <Field label="Public description">
+              <Field label={tr.ui.publicDescription}>
                 <input name="publicDescription" className={inputCls} />
               </Field>
               <Button className="w-full">{tr.common.save}</Button>
@@ -429,9 +429,14 @@ export default async function PlansPage({
               <h3 className="mb-3 text-sm font-semibold text-slate-700">New package</h3>
               <form action={createAddonAction} className="space-y-3">
                 <Field label={tr.members.name} required>
-                  <input name="name" required placeholder="PT 10 Sessions" className={inputCls} />
+                  <input
+                    name="name"
+                    required
+                    placeholder={tr.ui.pt10Sessions}
+                    className={inputCls}
+                  />
                 </Field>
-                <Field label="Type" required>
+                <Field label={tr.ui.type} required>
                   <select name="kind" className={inputCls} defaultValue="personal_training">
                     <option value="personal_training">Personal training</option>
                     <option value="group_class">Group class</option>
@@ -442,7 +447,7 @@ export default async function PlansPage({
                   </select>
                 </Field>
                 <div className="grid grid-cols-3 gap-3">
-                  <Field label="Sessions" hint="Empty = unlimited">
+                  <Field label={tr.ui.sessions} hint={tr.ui.emptyUnlimited}>
                     <input
                       name="sessionCount"
                       type="number"
@@ -451,7 +456,7 @@ export default async function PlansPage({
                       className={inputCls}
                     />
                   </Field>
-                  <Field label="Validity days" required>
+                  <Field label={tr.ui.validityDays} required>
                     <input
                       name="validityDays"
                       type="number"

@@ -90,7 +90,7 @@ export default async function ImportPage({
   return (
     <>
       <PageHeader
-        title="Import members from CSV"
+        title={tr.ui.importMembersFromCsv}
         subtitle="Migrate from notebooks/Excel. Nothing imports until every row is valid."
         actions={
           <Button href="/api/import/template" variant="secondary">

@@ -24,7 +24,7 @@ export default async function AuditPage() {
         subtitle="Append-only — entries can never be edited or deleted."
       />
       {rows.length === 0 ? (
-        <EmptyState title="No activity yet." />
+        <EmptyState title={tr.ui.noActivityYet} />
       ) : (
         <Table headers={['When', 'Who', 'Action', 'Entity', 'Details']}>
           {rows.map((row) => (

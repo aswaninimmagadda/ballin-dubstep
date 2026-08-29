@@ -60,7 +60,7 @@ export default async function CancelPage({
         <form action={cancelAction} className="space-y-4">
           <input type="hidden" name="memberId" value={id} />
           {cancellable.length > 1 ? (
-            <Field label="Which membership" required>
+            <Field label={tr.ui.whichMembership} required>
               <select name="membershipId" className={inputCls} required>
                 {cancellable.map((m) => (
                   <option key={String(m.id)} value={String(m.id)}>
@@ -73,14 +73,14 @@ export default async function CancelPage({
           ) : (
             <input type="hidden" name="membershipId" value={String(detail.currentMembership.id)} />
           )}
-          <Field label="Reason" required>
+          <Field label={tr.ui.reason} required>
             <input
               name="reason"
               required
               minLength={3}
               maxLength={500}
               className={inputCls}
-              placeholder="Moving away / medical / dissatisfied…"
+              placeholder={tr.ui.movingAwayMedicalDissatisfied}
             />
           </Field>
           <div className="flex gap-2">

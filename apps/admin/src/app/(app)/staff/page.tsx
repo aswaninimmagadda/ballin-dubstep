@@ -40,7 +40,7 @@ export default async function StaffPage({
   return (
     <>
       <PageHeader
-        title="Staff"
+        title={tr.ui.staff}
         subtitle="Accounts, roles and access. Deactivation cuts access instantly."
       />
       <ErrorBanner message={error ?? null} />
@@ -95,7 +95,7 @@ export default async function StaffPage({
             <Field label={tr.auth.email} required>
               <input name="email" type="email" required className={inputCls} />
             </Field>
-            <Field label="Role" required>
+            <Field label={tr.ui.role} required>
               <select name="roleId" required className={inputCls}>
                 {roles.map((r) => (
                   <option key={r.id} value={r.id}>

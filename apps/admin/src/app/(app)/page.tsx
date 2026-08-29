@@ -70,7 +70,7 @@ export default async function DashboardPage() {
         <section>
           <h2 className="mb-3 text-lg font-semibold text-slate-900">{tr.dashboard.expiryQueue}</h2>
           {data.expiryQueue.length === 0 ? (
-            <EmptyState title="No memberships expiring in the next 7 days." />
+            <EmptyState title={tr.ui.noMembershipsExpiringInThe} />
           ) : (
             <div className="space-y-2">
               {data.expiryQueue.map((row) => {
@@ -139,7 +139,7 @@ export default async function DashboardPage() {
             {tr.dashboard.recentPayments}
           </h2>
           {data.recentPayments.length === 0 ? (
-            <EmptyState title="No payments yet." />
+            <EmptyState title={tr.ui.noPaymentsYet} />
           ) : (
             <Table
               headers={[

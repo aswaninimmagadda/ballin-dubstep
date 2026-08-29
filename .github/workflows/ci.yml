@@ -104,6 +104,11 @@ jobs:
       # `expo export` only proves the JavaScript bundles. Permissions, the
       # splash screen, edge-to-edge and the release-origin guard are properties
       # of the Android project, which nothing in CI used to generate.
+      # The en/te parity test compares resource files; it cannot see a string
+      # that never reached one. This catches the other half.
+      - name: Check no user-visible string is hard-coded
+        run: node scripts/check-i18n-coverage.mjs
+
       - name: Check the Android manifest the build would ship
         run: node scripts/check-android-manifest.mjs
         env:

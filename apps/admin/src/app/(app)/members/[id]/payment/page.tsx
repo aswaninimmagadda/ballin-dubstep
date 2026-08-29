@@ -97,7 +97,7 @@ export default async function PaymentPage({
                 ))}
               </select>
             </Field>
-            <Field label={tr.payments.reference} hint="UPI/UTR reference for non-cash payments">
+            <Field label={tr.payments.reference} hint={tr.ui.upiUtrReferenceForNon}>
               <input name="externalReference" className={inputCls} />
             </Field>
             {/* Bounded in the browser as well as the server: the receipt's

@@ -159,11 +159,11 @@ export default async function PromotionsPage({
           <Card>
             <h2 className="mb-3 text-sm font-semibold text-slate-700">New promotion</h2>
             <form action={createPromotionAction} className="space-y-3">
-              <Field label="Code" required>
+              <Field label={tr.ui.code} required>
                 <input
                   name="code"
                   required
-                  placeholder="SANKRANTI27"
+                  placeholder={tr.ui.sankranti27}
                   pattern="[A-Za-z0-9-]{2,40}"
                   className={inputCls}
                 />
@@ -171,7 +171,7 @@ export default async function PromotionsPage({
               <Field label={tr.members.name} required>
                 <input name="name" required className={inputCls} />
               </Field>
-              <Field label="Type" required>
+              <Field label={tr.ui.type} required>
                 <select name="discountKind" className={inputCls} defaultValue="percentage">
                   <option value="percentage">Percentage</option>
                   <option value="flat">Flat ₹</option>
@@ -179,7 +179,7 @@ export default async function PromotionsPage({
                 </select>
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Percent %">
+                <Field label={tr.ui.percent}>
                   <input
                     name="percent"
                     type="number"
@@ -190,19 +190,19 @@ export default async function PromotionsPage({
                     className={inputCls}
                   />
                 </Field>
-                <Field label="Flat ₹">
+                <Field label={tr.ui.flat}>
                   <input name="flat" inputMode="decimal" placeholder="500" className={inputCls} />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="From" required>
+                <Field label={tr.ui.from} required>
                   <input name="validFrom" type="date" required className={inputCls} />
                 </Field>
                 <Field label="To" required>
                   <input name="validTo" type="date" required className={inputCls} />
                 </Field>
               </div>
-              <Field label="Audience">
+              <Field label={tr.ui.audience}>
                 <select name="audience" className={inputCls} defaultValue="all">
                   <option value="all">Everyone</option>
                   <option value="new_members">New members only</option>

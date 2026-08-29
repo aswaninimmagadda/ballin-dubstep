@@ -158,7 +158,7 @@ export default async function RenewPage({
             </div>
           </Field>
 
-          <Field label={tr.membership.promotion} hint="Optional promo code">
+          <Field label={tr.membership.promotion} hint={tr.ui.optionalPromoCode}>
             <input
               name="promotionCode"
               placeholder="e.g. WINBACK15"

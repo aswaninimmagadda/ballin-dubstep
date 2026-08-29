@@ -69,10 +69,19 @@ create-tenant -- --slug … --name … --owner-email …`) with zero source
     authorization is real — following a link you shouldn't have gives the "no
     permission" page — but the link is still shown. Cosmetic, and in the safe
     direction: enforcement never depends on hiding.
-17. **Confirmation and error text is English-only.** Labels, navigation and
-    the member app are fully bilingual (parity enforced by a test), but banner
-    messages raised from server actions are literal English strings, so
-    Telugu-speaking staff see Telugu screens with English confirmations.
+17. **Confirmation and error text is English-only.** Labels, navigation,
+    form fields, hints, placeholders and the member app are bilingual —
+    en/te parity is enforced by a test, and `scripts/check-i18n-coverage.mjs`
+    (run in CI) fails the build if a user-visible string is hard-coded in a
+    page instead of going through the translations. That second check exists
+    because the parity test cannot see a string that never reached a resource
+    file, which is how 65 labels and hints stayed English through an earlier
+    release that claimed full coverage.
+
+    What remains English: banner messages raised from server actions
+    ("Payment recorded.", "Member archived.") and the UserFacingError strings
+    behind them, which are literals in the service layer. A Telugu-speaking
+    receptionist gets Telugu screens with English confirmations.
 
 ## Technical
 

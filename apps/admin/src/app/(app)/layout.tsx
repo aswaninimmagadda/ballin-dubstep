@@ -52,7 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Link href="/" className="text-lg font-bold text-primary">
             {PRODUCT.name}
           </Link>
-          <nav className="hidden gap-1 overflow-x-auto md:flex" aria-label="Main">
+          <nav className="hidden gap-1 overflow-x-auto md:flex" aria-label={tr.ui.main}>
             {nav.map((item) => (
               <Link
                 key={item.href}
@@ -97,7 +97,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* Mobile nav */}
         <nav
           className="flex gap-1 overflow-x-auto border-t border-slate-100 px-2 py-1 md:hidden"
-          aria-label="Main mobile"
+          aria-label={tr.ui.mainMobile}
         >
           {nav.map((item) => (
             <Link

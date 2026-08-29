@@ -156,7 +156,7 @@ export default async function SellPage({
                 className={inputCls}
               />
             </Field>
-            <Field label={tr.membership.promotion} hint="Optional promo code">
+            <Field label={tr.membership.promotion} hint={tr.ui.optionalPromoCode}>
               <input name="promotionCode" placeholder="e.g. NEWYEAR26" className={inputCls} />
             </Field>
             {/* A promo code and a hand-written discount are mutually exclusive;
@@ -201,7 +201,11 @@ export default async function SellPage({
                 </select>
               </Field>
               <Field label={tr.payments.reference}>
-                <input name="externalReference" placeholder="UPI ref / UTR" className={inputCls} />
+                <input
+                  name="externalReference"
+                  placeholder={tr.ui.upiRefUtr}
+                  className={inputCls}
+                />
               </Field>
             </div>
           </fieldset>

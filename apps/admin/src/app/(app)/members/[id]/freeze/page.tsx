@@ -84,7 +84,7 @@ export default async function FreezePage({
               name="reason"
               required
               minLength={2}
-              placeholder="Medical / travel / personal"
+              placeholder={tr.ui.medicalTravelPersonal}
               className={inputCls}
             />
           </Field>

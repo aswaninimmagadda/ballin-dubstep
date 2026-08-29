@@ -102,7 +102,7 @@ export default async function LeadsPage({
             <Field label={tr.members.mobile} required>
               <input name="mobile" type="tel" required className={inputCls} />
             </Field>
-            <Field label="Branch" required>
+            <Field label={tr.ui.branch} required>
               <select name="branchId" className={inputCls}>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>

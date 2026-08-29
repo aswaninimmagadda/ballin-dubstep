@@ -217,7 +217,7 @@ export default async function NewMemberPage({
       {!showForm ? (
         <Card className="max-w-md">
           <form action={checkMobileAction} className="space-y-4">
-            <Field label={tr.members.mobile} required hint="We check for existing members first.">
+            <Field label={tr.members.mobile} required hint={tr.ui.weCheckForExistingMembers}>
               <input
                 name="mobile"
                 type="tel"
@@ -238,7 +238,7 @@ export default async function NewMemberPage({
             <Field label={tr.members.mobile} required>
               <input name="mobile" defaultValue={effectiveMobile} required className={inputCls} />
             </Field>
-            <Field label="Branch" required>
+            <Field label={tr.ui.branch} required>
               <select name="branchId" required defaultValue={prev('branchId')} className={inputCls}>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -265,7 +265,7 @@ export default async function NewMemberPage({
                 }
               />
             </Field>
-            <Field label="Gender">
+            <Field label={tr.ui.gender}>
               <select name="gender" className={inputCls} defaultValue={prev('gender') ?? ''}>
                 <option value="">—</option>
                 <option value="male">Male</option>
@@ -274,7 +274,7 @@ export default async function NewMemberPage({
                 <option value="undisclosed">Prefer not to say</option>
               </select>
             </Field>
-            <Field label="Date of birth">
+            <Field label={tr.ui.dateOfBirth}>
               <input
                 name="dateOfBirth"
                 defaultValue={prev('dateOfBirth')}
@@ -304,7 +304,7 @@ export default async function NewMemberPage({
                 ))}
               </select>
             </Field>
-            <Field label="Referral source">
+            <Field label={tr.ui.referralSource}>
               <select
                 name="referralSource"
                 className={inputCls}
@@ -321,11 +321,11 @@ export default async function NewMemberPage({
               <input
                 name="emergencyContactName"
                 defaultValue={prev('emergencyContactName')}
-                placeholder="Name"
+                placeholder={tr.ui.name}
                 className={inputCls}
               />
             </Field>
-            <Field label="Emergency phone">
+            <Field label={tr.ui.emergencyPhone}>
               <input
                 name="emergencyContactPhone"
                 defaultValue={prev('emergencyContactPhone')}

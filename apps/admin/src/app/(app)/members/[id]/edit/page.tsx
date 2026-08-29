@@ -122,7 +122,7 @@ export default async function EditMemberPage({
               className={inputCls}
             />
           </Field>
-          <Field label="Branch (transfer)" required>
+          <Field label={tr.ui.branchTransfer} required>
             <select name="branchId" defaultValue={String(m.branch_id)} className={inputCls}>
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -182,7 +182,7 @@ export default async function EditMemberPage({
               className={inputCls}
             />
           </Field>
-          <Field label="Emergency phone">
+          <Field label={tr.ui.emergencyPhone}>
             <input
               name="emergencyContactPhone"
               defaultValue={

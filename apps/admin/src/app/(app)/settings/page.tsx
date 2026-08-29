@@ -113,7 +113,7 @@ export default async function SettingsPage({
         <form action={saveSettingsAction} className="space-y-4">
           <fieldset disabled={!canManage} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Receipt prefix" hint="e.g. SVF → SVF-2026-000123">
+              <Field label={tr.ui.receiptPrefix} hint="e.g. SVF → SVF-2026-000123">
                 <input
                   name="receiptPrefix"
                   defaultValue={settings.receipt_prefix}
@@ -121,7 +121,7 @@ export default async function SettingsPage({
                   className={inputCls}
                 />
               </Field>
-              <Field label="Default grace period (days)">
+              <Field label={tr.ui.defaultGracePeriodDays}>
                 <input
                   name="gracePeriodDays"
                   type="number"
@@ -131,7 +131,7 @@ export default async function SettingsPage({
                   className={inputCls}
                 />
               </Field>
-              <Field label="Max freezes per year">
+              <Field label={tr.ui.maxFreezesPerYear}>
                 <input
                   name="maxFreezes"
                   type="number"
@@ -141,7 +141,7 @@ export default async function SettingsPage({
                   className={inputCls}
                 />
               </Field>
-              <Field label="Max freeze days per year">
+              <Field label={tr.ui.maxFreezeDaysPerYear}>
                 <input
                   name="maxFreezeDays"
                   type="number"
@@ -162,8 +162,8 @@ export default async function SettingsPage({
               Allow partial payments
             </label>
             <Field
-              label="WhatsApp renewal template (English)"
-              hint="Placeholders: {{member_first_name}}, {{gym_name}}, {{expiry_date}}"
+              label={tr.ui.whatsappRenewalTemplateEnglish}
+              hint={tr.ui.placeholdersMemberFirstNameGym}
             >
               <textarea
                 name="waTemplateEn"
@@ -172,7 +172,7 @@ export default async function SettingsPage({
                 className={inputCls}
               />
             </Field>
-            <Field label="WhatsApp renewal template (Telugu)">
+            <Field label={tr.ui.whatsappRenewalTemplateTelugu}>
               <textarea
                 name="waTemplateTe"
                 rows={3}
@@ -180,7 +180,7 @@ export default async function SettingsPage({
                 className={inputCls}
               />
             </Field>
-            <Field label="Receipt footer">
+            <Field label={tr.ui.receiptFooter}>
               <input
                 name="receiptFooter"
                 defaultValue={settings.receipt_footer ?? ''}
@@ -193,7 +193,7 @@ export default async function SettingsPage({
                 payment acknowledgement. */}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
-                label="GSTIN"
+                label={tr.ui.gstin}
                 hint="15 characters, e.g. 37ABCDE1234F1Z5. Empty = not registered, plain receipts."
               >
                 <input
@@ -204,11 +204,11 @@ export default async function SettingsPage({
                   className={`${inputCls} font-mono uppercase`}
                 />
               </Field>
-              <Field label="State (place of supply)" hint="Printed on the tax invoice">
+              <Field label={tr.ui.statePlaceOfSupply} hint={tr.ui.printedOnTheTaxInvoice}>
                 <input
                   name="taxStateName"
                   defaultValue={settings.tax_state_name ?? ''}
-                  placeholder="Andhra Pradesh"
+                  placeholder={tr.ui.andhraPradesh}
                   className={inputCls}
                 />
               </Field>
@@ -223,31 +223,31 @@ export default async function SettingsPage({
           <h2 className="mb-3 text-sm font-semibold text-slate-700">Brand & member app identity</h2>
           <form action={saveBrandAction} className="space-y-4">
             <fieldset disabled={!canManage} className="grid gap-4 sm:grid-cols-2">
-              <Field label="Brand name" hint="Shown in the member app">
+              <Field label={tr.ui.brandName} hint={tr.ui.shownInTheMemberApp}>
                 <input name="brandName" defaultValue={brand.name} className={inputCls} />
               </Field>
-              <Field label="Primary color" hint="#16a34a">
+              <Field label={tr.ui.primaryColor} hint="#16a34a">
                 <input
                   name="primaryColor"
                   defaultValue={brand.primary_color ?? ''}
                   className={inputCls}
                 />
               </Field>
-              <Field label="Support phone">
+              <Field label={tr.ui.supportPhone}>
                 <input
                   name="supportPhone"
                   defaultValue={brand.support_phone ?? ''}
                   className={inputCls}
                 />
               </Field>
-              <Field label="Support WhatsApp">
+              <Field label={tr.ui.supportWhatsapp}>
                 <input
                   name="supportWhatsapp"
                   defaultValue={brand.support_whatsapp ?? ''}
                   className={inputCls}
                 />
               </Field>
-              <Field label="Terms URL">
+              <Field label={tr.ui.termsUrl}>
                 <input
                   name="termsUrl"
                   type="url"
@@ -255,7 +255,7 @@ export default async function SettingsPage({
                   className={inputCls}
                 />
               </Field>
-              <Field label="Privacy URL">
+              <Field label={tr.ui.privacyUrl}>
                 <input
                   name="privacyUrl"
                   type="url"

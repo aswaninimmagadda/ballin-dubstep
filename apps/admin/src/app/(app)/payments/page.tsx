@@ -59,7 +59,7 @@ export default async function PaymentsPage({
         <Button variant="secondary">{tr.common.search}</Button>
       </form>
       {rows.length === 0 ? (
-        <EmptyState title="No payments recorded yet." />
+        <EmptyState title={tr.ui.noPaymentsRecordedYet} />
       ) : (
         <Table
           headers={[
