@@ -41,6 +41,8 @@ export const en = {
     audit: 'Activity log',
   },
   auth: {
+    mustChangePassword:
+      'You are still using the one-time password you were given. Choose your own before continuing.',
     signIn: 'Sign in',
     email: 'Email',
     password: 'Password',

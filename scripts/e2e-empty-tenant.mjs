@@ -66,6 +66,38 @@ const login = async (email, password) => {
   return cookie.startsWith('gymflow_session=');
 };
 check('owner can sign in to the empty gym', await login(`owner@${SLUG}.test`, PW));
+
+// The provisioning password is one-time, so nothing opens until the owner
+// picks their own. Do that first — otherwise every page below just redirects
+// to the change-password screen and this suite would be testing that instead.
+const CHOSEN_PW = 'empty-tenant-chosen-pw-1';
+{
+  const res = await fetch(BASE + '/account/password', { headers: { cookie } });
+  const html = await res.text();
+  if (html.includes('currentPassword')) {
+    const form = extractForm(html, 'currentPassword');
+    const fd = new FormData();
+    fd.set(`$ACTION_ID_${form.actionId}`, '');
+    for (const [k, v] of Object.entries({
+      ...form.hidden,
+      currentPassword: PW,
+      newPassword: CHOSEN_PW,
+      confirmPassword: CHOSEN_PW,
+    })) {
+      fd.set(k, v);
+    }
+    await fetch(BASE + '/account/password', {
+      method: 'POST',
+      headers: { cookie },
+      body: fd,
+      redirect: 'manual',
+    });
+    check(
+      'the one-time provisioning password can be replaced on a brand-new gym',
+      await login(`owner@${SLUG}.test`, CHOSEN_PW),
+    );
+  }
+}
 // Assert POSITIVELY: the page must contain its own heading text. Next's RSC
 // payload always contains the string "digest", so scanning for it is useless.
 const PAGES = [

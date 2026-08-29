@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { PRODUCT } from '@gymflow/config';
-import { requireUser, logout } from '@/lib/session';
+import { logout, requireUser } from '@/lib/session';
 import { t, LANG_COOKIE, currentLanguage } from '@/lib/i18n';
 import { PwaSetup } from '@/components/pwa';
 import { tenantFlags } from '@/lib/flags';

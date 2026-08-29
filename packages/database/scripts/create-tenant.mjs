@@ -112,10 +112,12 @@ async function main() {
       [tenant, ownerEmail, ownerName],
     )
   ).rows[0].id;
-  await client.query(`INSERT INTO user_credentials (user_id, password_hash) VALUES ($1, $2)`, [
-    owner,
-    hash,
-  ]);
+  // must_change: the owner's password is printed to a terminal and handed over
+  // by whoever provisioned the gym. It has to be replaced on first sign-in.
+  await client.query(
+    `INSERT INTO user_credentials (user_id, password_hash, must_change) VALUES ($1, $2, true)`,
+    [owner, hash],
+  );
   await client.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [
     owner,
     roleIds.owner,
@@ -131,6 +133,7 @@ async function main() {
   console.log(`  Branch: ${branchName} (${branchCode}) · Receipt prefix: ${receiptPrefix}`);
   console.log(`  Owner login: ${ownerEmail}`);
   console.log(`  One-time owner password (share securely, shown once): ${ownerPassword}`);
+  console.log('  The owner must choose their own password on first sign-in.');
   console.log('  Next: owner signs in and configures plans, staff, trainers, promotions.');
 }
 

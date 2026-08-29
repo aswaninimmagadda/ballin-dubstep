@@ -48,6 +48,12 @@ export interface SessionUser {
   language: 'en' | 'te';
   permissions: Set<string>;
   claims: Claims;
+  /**
+   * They are still on the password that was generated for them and read out
+   * across the counter. The layout sends them to change it before anything
+   * else, so a spoken credential does not become a permanent one.
+   */
+  mustChangePassword: boolean;
 }
 
 export type LoginResult =
@@ -152,6 +158,7 @@ export const currentUser = cache(async (): Promise<SessionUser | null> => {
     language: (row.language as 'en' | 'te') ?? 'en',
     permissions,
     claims,
+    mustChangePassword: row.must_change === true,
   };
 });
 
@@ -179,6 +186,15 @@ export async function requireUser(): Promise<SessionUser> {
 /** Require a specific permission or render the 403 page. */
 export async function requirePermission(perm: Permission): Promise<SessionUser> {
   const user = await requireUser();
+  // A one-time desk password can do exactly one thing: replace itself.
+  //
+  // user_credentials.must_change has existed since the first migration and
+  // nothing read it, so every password generated at the desk — spoken aloud,
+  // sometimes written down, always seen by whoever issued it — stayed valid
+  // indefinitely. The gate lives here rather than in the layout because the
+  // change-password page is inside the same route group and a layout redirect
+  // would loop; that page needs no permission, so it stays reachable.
+  if (user.mustChangePassword) redirect('/account/password?msg=must_change');
   if (user.kind === 'platform_admin') return user;
   if (!hasPermission(user.permissions, perm)) redirect('/forbidden');
   return user;

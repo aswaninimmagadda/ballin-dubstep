@@ -44,7 +44,7 @@ actually-executed runs (CI re-runs them on every PR).
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 246 checks passing (three HTTP suites)
+### 3. End-to-end — 254 checks passing (three HTTP suites)
 
 `scripts/e2e-admin.mjs` (108 checks) drives the real HTTP surface (server
 actions via progressive-enhancement form posts) against a running server +
@@ -75,7 +75,7 @@ seeded DB, then verifies database effects:
 - **Own password:** wrong current password refused; a successful change ends
   every session, the old password stops working and the new one works.
 
-`scripts/e2e-acceptance.mjs` (118 checks) executes the brief's **final
+`scripts/e2e-acceptance.mjs` (125 checks) executes the brief's **final
 acceptance test (§82)** end to end: a second gym is provisioned purely via
 platform tooling (`create-tenant` CLI — zero source changes), its owner
 configures settings/plan/PT package/trainer/staff/promotion over HTTP, a
@@ -106,7 +106,7 @@ plain acknowledgement with no CGST line), and **support recovery** of a gym
 whose only owner is locked out (the operator CLI issues a new password, the
 old one stops working, and the reset lands in that gym's audit log).
 
-`scripts/e2e-empty-tenant.mjs` (20 checks) is the day-one test: a
+`scripts/e2e-empty-tenant.mjs` (21 checks) is the day-one test: a
 freshly-provisioned gym with no members, no plans and no payments. Every page
 and every export must render rather than divide by zero or 500.
 

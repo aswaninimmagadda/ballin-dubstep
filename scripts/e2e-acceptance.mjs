@@ -124,12 +124,42 @@ async function main() {
     ],
     { env: { ...process.env, DATABASE_URL: DB }, encoding: 'utf8' },
   );
-  const ownerPw = cliOut.match(/One-time owner password [^:]*: (\S+)/)?.[1];
+  let ownerPw = cliOut.match(/One-time owner password [^:]*: (\S+)/)?.[1];
   check('tenant provisioned by CLI with owner password', Boolean(ownerPw));
 
   // ---- 1-3. Owner configures the gym over HTTP ----------------------------
   console.log('\n[Gym B owner configures]');
   check('owner login', await loginAs(`owner@${SLUG}.test`, ownerPw));
+
+  // The provisioning password is one-time: it was printed to a terminal and
+  // handed over. Every page redirects here until the owner picks their own.
+  const forcedPage = await getFollow('/');
+  const forcedHtml = await forcedPage.text();
+  check(
+    'the one-time provisioning password forces a change before anything else',
+    forcedPage.url.includes('/account/password') || forcedHtml.includes('one-time password'),
+    forcedPage.url,
+  );
+  const firstPwForm = extractForm(forcedHtml, 'currentPassword');
+  const chosenOwnerPw = 'owner-chosen-password-1';
+  const firstPwRes = await postAction('/account/password', firstPwForm, {
+    currentPassword: ownerPw,
+    newPassword: chosenOwnerPw,
+    confirmPassword: chosenOwnerPw,
+  });
+  check(
+    'the owner can choose their own password',
+    target(firstPwRes).includes('password_changed'),
+    target(firstPwRes),
+  );
+  ownerPw = chosenOwnerPw;
+  check('and sign in with it', await loginAs(`owner@${SLUG}.test`, ownerPw));
+  const afterChange = await getFollow('/');
+  check(
+    'after which the app is reachable',
+    !afterChange.url.includes('/account/password'),
+    afterChange.url,
+  );
 
   // Settings: custom WhatsApp template (branding/config independence)
   const settingsHtml = await (await get('/settings')).text();
@@ -209,7 +239,7 @@ async function main() {
     headers: { cookie },
     body: staffFd,
   });
-  const recepPw = (await stRes.text()).match(/<code>([^<]+)<\/code>/)?.[1] ?? '';
+  let recepPw = (await stRes.text()).match(/<code>([^<]+)<\/code>/)?.[1] ?? '';
   check(
     'receptionist account created with one-time password',
     recepPw.length >= 8,
@@ -233,6 +263,31 @@ async function main() {
   // ---- 4-10. Receptionist runs the business flow --------------------------
   console.log('\n[Gym B reception: onboard → sell+promo → PT → pay → receipt → check-in]');
   check('receptionist login', await loginAs(`reception@${SLUG}.test`, recepPw));
+
+  // Same rule as the owner: the password the owner read out at the desk is
+  // one-time, and nothing in the product opens until it is replaced.
+  const recepForcedHtml = await (await getFollow('/')).text();
+  check(
+    "reception's one-time password forces a change too",
+    recepForcedHtml.includes('one-time password'),
+  );
+  const chosenRecepPw = 'reception-chosen-password-1';
+  const recepPwRes = await postAction(
+    '/account/password',
+    extractForm(recepForcedHtml, 'currentPassword'),
+    {
+      currentPassword: recepPw,
+      newPassword: chosenRecepPw,
+      confirmPassword: chosenRecepPw,
+    },
+  );
+  check(
+    'reception can choose their own password',
+    target(recepPwRes).includes('password_changed'),
+    target(recepPwRes),
+  );
+  recepPw = chosenRecepPw;
+  check('and sign in with it', await loginAs(`reception@${SLUG}.test`, recepPw));
 
   const mobile = `9${String(Math.floor(100000000 + Math.random() * 899999999))}`;
   const step1 = extractForm(await (await get('/members/new')).text(), 'mobile');

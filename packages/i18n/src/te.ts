@@ -40,6 +40,8 @@ export const te: TranslationTree = {
     audit: 'కార్యకలాపాల లాగ్',
   },
   auth: {
+    mustChangePassword:
+      'మీకు ఇచ్చిన వన్-టైమ్ పాస్‌వర్డ్ ఇంకా వాడుతున్నారు. కొనసాగే ముందు మీ సొంత పాస్‌వర్డ్ ఎంచుకోండి.',
     signIn: 'సైన్ ఇన్',
     email: 'ఇమెయిల్',
     password: 'పాస్‌వర్డ్',

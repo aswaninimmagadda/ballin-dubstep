@@ -30,12 +30,13 @@ async function changeAction(formData: FormData): Promise<void> {
 export default async function ChangePasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; msg?: string }>;
 }) {
   const user = await currentUser();
   if (!user || user.kind === 'member') redirect('/login');
-  const { error } = await searchParams;
+  const { error, msg } = await searchParams;
   const tr = await t();
+  const forced = msg === 'must_change' || user.mustChangePassword;
 
   return (
     <>
@@ -44,6 +45,16 @@ export default async function ChangePasswordPage({
         subtitle={`${user.displayName} — you will be signed out and asked to sign in again.`}
       />
       <ErrorBanner message={error ?? null} />
+      {/* Reached by redirect from every other page while the one-time password
+          is still in use, so say why rather than looking like a dead end. */}
+      {forced ? (
+        <p
+          role="status"
+          className="mb-4 max-w-md rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        >
+          {tr.auth.mustChangePassword}
+        </p>
+      ) : null}
       <Card className="max-w-md">
         <form action={changeAction} className="space-y-4">
           <Field label={tr.auth.currentPassword} required>
