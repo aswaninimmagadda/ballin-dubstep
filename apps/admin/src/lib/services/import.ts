@@ -7,9 +7,10 @@ import {
 } from '@gymflow/validation';
 import { computeEndDate, fiscalYearLabel, formatReceiptNumber } from '@gymflow/core';
 import { computeTax, parseMoney, todayInTz } from '@gymflow/utils';
-import { asPrincipal } from '../db';
+import { asPrincipal, type Queryable } from '../db';
 import { writeAudit } from '../audit';
 import { UserFacingError } from '../errors';
+import { log } from '../log';
 import type { SessionUser } from '../session';
 
 /**
@@ -194,8 +195,20 @@ export async function executeImport(
     );
   }
   const today = todayInTz();
+  const startedAt = Date.now();
 
-  return asPrincipal(user.claims, async (tx) => {
+  return asPrincipal(user.claims, async (raw) => {
+    // Count what this import actually costs the database. An import is the
+    // one operation whose statement count scales with the file, so the number
+    // belongs in the log: if it ever tracks the row count again, someone has
+    // put a query back inside a loop.
+    let statements = 0;
+    const tx: Queryable = {
+      query: ((text: never, params: never) => {
+        statements += 1;
+        return raw.query(text, params);
+      }) as Queryable['query'],
+    };
     const branchR = await tx.query(
       `SELECT id FROM branches WHERE is_active ORDER BY created_at LIMIT 1`,
     );
@@ -236,15 +249,16 @@ export async function executeImport(
       receipt_sequence_padding: number;
     };
 
-    let imported = 0;
-    let receipts = 0;
-    for (const row of preview.rows) {
+    // One statement per table, not one per row. The old loop issued up to
+    // eight round trips for every member — a 2,000-row book was ~16,000
+    // sequential queries inside a single transaction, which took minutes on a
+    // gym's ADSL line and held write locks the whole time. Every insert below
+    // is a single set-based statement fed by unnest(), so the cost is a fixed
+    // handful of round trips whatever the file size.
+    const rows = preview.rows.map((row) => {
       const p = row.parsed!;
       const plan = planByName.get(p.membership_plan.toLowerCase())!;
       const nameParts = p.member_name.split(/\s+/);
-      const numR = await tx.query(`SELECT app.next_membership_number($1) AS n`, [user.tenantId]);
-      const membershipNumber = (numR.rows[0] as { n: string }).n;
-
       const endDate =
         p.expiry_date ||
         computeEndDate({
@@ -253,117 +267,224 @@ export async function executeImport(
           durationValue: plan.duration_value,
         });
       const state = endDate < today ? 'expired' : p.start_date > today ? 'pending' : 'active';
-      const memberStatus =
-        state === 'expired' ? 'expired' : state === 'pending' ? 'pending_activation' : 'active';
-
-      const mR = await tx.query(
-        `INSERT INTO members (tenant_id, branch_id, membership_number, first_name, last_name,
-                              mobile, join_date, status, notes, referral_source)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'import') RETURNING id`,
-        [
-          user.tenantId,
-          branchId,
-          membershipNumber,
-          nameParts[0],
-          nameParts.slice(1).join(' ') || null,
-          p.mobile,
-          p.start_date < today ? p.start_date : today,
-          memberStatus,
-          p.notes || null,
-        ],
-      );
-      const memberId = (mR.rows[0] as { id: string }).id;
-
-      const amount = p.amount_paid ? parseMoney(p.amount_paid) : 0;
       // total_amount is what the member CONTRACTED to pay — the plan's price —
       // not what they had already handed over. Writing the paid figure here
       // recorded every part-paid member as fully settled, so a gym migrating
       // its book on day one silently wrote off every outstanding balance it
       // had, with nothing on any screen to show it had happened.
-      const contracted = Number(plan.base_price);
-      const taxSplit = computeTax(contracted, plan.tax_rate_bps, plan.tax_inclusive);
-      const msR = await tx.query(
-        `INSERT INTO memberships
-          (tenant_id, branch_id, member_id, plan_id, plan_version_id, plan_name_snapshot,
-           start_date, base_end_date, end_date, grace_period_days, state, total_amount, sold_by,
-           tax_amount, tax_rate_bps)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+      const taxSplit = computeTax(Number(plan.base_price), plan.tax_rate_bps, plan.tax_inclusive);
+      return {
+        plan,
+        firstName: nameParts[0],
+        lastName: nameParts.slice(1).join(' ') || null,
+        mobile: p.mobile,
+        joinDate: p.start_date < today ? p.start_date : today,
+        memberStatus:
+          state === 'expired' ? 'expired' : state === 'pending' ? 'pending_activation' : 'active',
+        notes: p.notes || null,
+        startDate: p.start_date,
+        endDate,
+        state,
+        total: taxSplit.gross,
+        tax: taxSplit.tax,
+        amount: p.amount_paid ? parseMoney(p.amount_paid) : 0,
+        method: p.payment_method || 'cash',
+      };
+    });
+
+    // Membership numbers come from a VOLATILE sequence function, so one call
+    // per row is still required — but generate_series makes it one round trip.
+    const numsR = await tx.query(
+      `SELECT app.next_membership_number($1) AS n FROM generate_series(1, $2)`,
+      [user.tenantId, rows.length],
+    );
+    const numbers = (numsR.rows as { n: string }[]).map((r) => r.n);
+
+    // RETURNING order is not guaranteed, so every batch maps its results back
+    // by a natural key rather than by position: membership_number for members,
+    // member_id for the per-member rows below.
+    const membersR = await tx.query(
+      `INSERT INTO members (tenant_id, branch_id, membership_number, first_name, last_name,
+                            mobile, join_date, status, notes, referral_source)
+       SELECT $1::uuid, $2::uuid, t.num, t.first, t.last, t.mobile, t.join_date, t.status,
+              t.notes, 'import'
+       FROM unnest($3::text[], $4::text[], $5::text[], $6::text[], $7::date[], $8::text[],
+                   $9::text[]) AS t(num, first, last, mobile, join_date, status, notes)
+       RETURNING id, membership_number`,
+      [
+        user.tenantId,
+        branchId,
+        numbers,
+        rows.map((r) => r.firstName),
+        rows.map((r) => r.lastName),
+        rows.map((r) => r.mobile),
+        rows.map((r) => r.joinDate),
+        rows.map((r) => r.memberStatus),
+        rows.map((r) => r.notes),
+      ],
+    );
+    const memberIdByNumber = new Map(
+      (membersR.rows as { id: string; membership_number: string }[]).map((m) => [
+        m.membership_number,
+        m.id,
+      ]),
+    );
+    const memberIds = numbers.map((n) => memberIdByNumber.get(n)!);
+
+    const membershipsR = await tx.query(
+      `INSERT INTO memberships
+        (tenant_id, branch_id, member_id, plan_id, plan_version_id, plan_name_snapshot,
+         start_date, base_end_date, end_date, grace_period_days, state, total_amount, sold_by,
+         tax_amount, tax_rate_bps)
+       SELECT $1::uuid, $2::uuid, t.member_id, t.plan_id, t.version_id, t.plan_name,
+              t.start_date, t.end_date, t.end_date, t.grace, t.state, t.total, $3::uuid,
+              t.tax, t.tax_bps
+       FROM unnest($4::uuid[], $5::uuid[], $6::uuid[], $7::text[], $8::date[], $9::date[],
+                   $10::int[], $11::text[], $12::bigint[], $13::bigint[], $14::int[])
+         AS t(member_id, plan_id, version_id, plan_name, start_date, end_date, grace, state,
+              total, tax, tax_bps)
+       RETURNING id, member_id`,
+      [
+        user.tenantId,
+        branchId,
+        user.userId,
+        memberIds,
+        rows.map((r) => r.plan.id),
+        rows.map((r) => r.plan.version_id),
+        rows.map((r) => r.plan.name),
+        rows.map((r) => r.startDate),
+        rows.map((r) => r.endDate),
+        rows.map((r) => r.plan.grace_period_days),
+        rows.map((r) => r.state),
+        rows.map((r) => String(r.total)),
+        rows.map((r) => String(r.tax)),
+        rows.map((r) => r.plan.tax_rate_bps),
+      ],
+    );
+    const membershipIdByMember = new Map(
+      (membershipsR.rows as { id: string; member_id: string }[]).map((m) => [m.member_id, m.id]),
+    );
+    const membershipIds = memberIds.map((id) => membershipIdByMember.get(id)!);
+
+    await tx.query(
+      `INSERT INTO membership_events (tenant_id, membership_id, type, data, actor_id)
+       SELECT $1::uuid, t.membership_id, 'sold', $2::jsonb, $3::uuid
+       FROM unnest($4::uuid[]) AS t(membership_id)`,
+      [user.tenantId, JSON.stringify({ source: 'import' }), user.userId, membershipIds],
+    );
+
+    const paying = rows
+      .map((r, i) => ({ ...r, memberId: memberIds[i]!, membershipId: membershipIds[i]! }))
+      .filter((r) => r.amount > 0);
+
+    if (paying.length > 0) {
+      const paymentsR = await tx.query(
+        `INSERT INTO payments (tenant_id, branch_id, member_id, amount, method, payment_date,
+                               received_by, notes)
+         SELECT $1::uuid, $2::uuid, t.member_id, t.amount, t.method, t.paid_on, $3::uuid, 'imported'
+         FROM unnest($4::uuid[], $5::bigint[], $6::text[], $7::date[])
+           AS t(member_id, amount, method, paid_on)
+         RETURNING id, member_id`,
         [
           user.tenantId,
           branchId,
-          memberId,
-          plan.id,
-          plan.version_id,
-          plan.name,
-          p.start_date,
-          endDate,
-          plan.grace_period_days,
-          state,
-          taxSplit.gross,
           user.userId,
-          taxSplit.tax,
-          plan.tax_rate_bps,
+          paying.map((r) => r.memberId),
+          paying.map((r) => String(r.amount)),
+          paying.map((r) => r.method),
+          paying.map((r) => r.startDate),
         ],
       );
-      const membershipId = (msR.rows[0] as { id: string }).id;
+      // One payment per member in an import, and the preview refuses duplicate
+      // mobiles, so member_id identifies a payment uniquely here.
+      const paymentIdByMember = new Map(
+        (paymentsR.rows as { id: string; member_id: string }[]).map((p) => [p.member_id, p.id]),
+      );
+      const paymentIds = paying.map((r) => paymentIdByMember.get(r.memberId)!);
+
       await tx.query(
-        `INSERT INTO membership_events (tenant_id, membership_id, type, data, actor_id)
-         VALUES ($1,$2,'sold',$3,$4)`,
-        [user.tenantId, membershipId, JSON.stringify({ source: 'import' }), user.userId],
+        `INSERT INTO payment_allocations (tenant_id, payment_id, membership_id, amount)
+         SELECT $1::uuid, t.payment_id, t.membership_id, t.amount
+         FROM unnest($2::uuid[], $3::uuid[], $4::bigint[])
+           AS t(payment_id, membership_id, amount)`,
+        [
+          user.tenantId,
+          paymentIds,
+          paying.map((r) => r.membershipId),
+          paying.map((r) => String(r.amount)),
+        ],
       );
 
-      if (amount > 0) {
-        const payR = await tx.query(
-          `INSERT INTO payments (tenant_id, branch_id, member_id, amount, method, payment_date, received_by, notes)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,'imported') RETURNING id`,
-          [
-            user.tenantId,
-            branchId,
-            memberId,
-            amount,
-            p.payment_method || 'cash',
-            p.start_date,
-            user.userId,
-          ],
+      // Receipt numbers are per fiscal year, so draw each year's block in one
+      // call and hand them out in the order the rows appear.
+      const years = [...new Set(paying.map((r) => fiscalYearLabel(r.startDate)))];
+      const seqByYear = new Map<string, number[]>();
+      for (const fy of years) {
+        const wanted = paying.filter((r) => fiscalYearLabel(r.startDate) === fy).length;
+        const seqR = await tx.query(
+          `SELECT app.next_receipt_seq($1, $2) AS seq FROM generate_series(1, $3)`,
+          [user.tenantId, fy, wanted],
         );
-        const paymentId = (payR.rows[0] as { id: string }).id;
-        await tx.query(
-          `INSERT INTO payment_allocations (tenant_id, payment_id, membership_id, amount)
-           VALUES ($1,$2,$3,$4)`,
-          [user.tenantId, paymentId, membershipId, amount],
-        );
-        const fy = fiscalYearLabel(p.start_date);
-        const seqR = await tx.query(`SELECT app.next_receipt_seq($1, $2) AS seq`, [
-          user.tenantId,
+        seqByYear.set(
           fy,
-        ]);
-        const seq = Number((seqR.rows[0] as { seq: string }).seq);
-        await tx.query(
-          `INSERT INTO receipts (tenant_id, branch_id, payment_id, receipt_number, sequence, fiscal_year)
-           VALUES ($1,$2,$3,$4,$5,$6)`,
-          [
-            user.tenantId,
-            branchId,
-            paymentId,
-            formatReceiptNumber({
-              prefix: settings.receipt_prefix,
-              fiscalYear: fy,
-              sequence: seq,
-              padding: settings.receipt_sequence_padding,
-            }),
-            seq,
-            fy,
-          ],
+          (seqR.rows as { seq: string }[]).map((r) => Number(r.seq)),
         );
-        receipts += 1;
       }
-      imported += 1;
+      const cursor = new Map(years.map((fy) => [fy, 0]));
+      const receiptRows = paying.map((r, i) => {
+        const fy = fiscalYearLabel(r.startDate);
+        const at = cursor.get(fy)!;
+        cursor.set(fy, at + 1);
+        const seq = seqByYear.get(fy)![at]!;
+        return {
+          paymentId: paymentIds[i]!,
+          fy,
+          seq,
+          number: formatReceiptNumber({
+            prefix: settings.receipt_prefix,
+            fiscalYear: fy,
+            sequence: seq,
+            padding: settings.receipt_sequence_padding,
+          }),
+        };
+      });
+
+      await tx.query(
+        `INSERT INTO receipts (tenant_id, branch_id, payment_id, receipt_number, sequence,
+                               fiscal_year)
+         SELECT $1::uuid, $2::uuid, t.payment_id, t.number, t.seq, t.fy
+         FROM unnest($3::uuid[], $4::text[], $5::bigint[], $6::text[])
+           AS t(payment_id, number, seq, fy)`,
+        [
+          user.tenantId,
+          branchId,
+          receiptRows.map((r) => r.paymentId),
+          receiptRows.map((r) => r.number),
+          receiptRows.map((r) => String(r.seq)),
+          receiptRows.map((r) => r.fy),
+        ],
+      );
     }
+
+    const imported = rows.length;
+    const receipts = paying.length;
 
     await writeAudit(tx, user, {
       action: 'import.members',
       entityType: 'import',
-      after: { imported, receipts },
+      // `statements` is what this import cost the database. It belongs with
+      // the record of the import itself: it must stay flat as the file grows,
+      // and if it ever tracks the row count again someone has put a query
+      // back inside a loop.
+      after: { imported, receipts, statements },
+    });
+    log.info('import.members', {
+      tenantId: user.tenantId,
+      userId: user.userId,
+      imported,
+      receipts,
+      statements,
+      ms: Date.now() - startedAt,
     });
     return { imported, receipts };
   });

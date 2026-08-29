@@ -84,6 +84,41 @@ Both fixes are structural, so they scale: the hoisting removes a per-row cost
 entirely, and the pagination fix makes the list query's dues work independent
 of gym size.
 
+## The third finding: CSV import was one transaction of thousands of queries
+
+A gym does not arrive one member at a time — it arrives with its whole book in
+a spreadsheet. The importer looped over the rows and issued four queries per
+member (membership number, member, membership, event) plus four more per
+payment (payment, allocation, receipt sequence, receipt), sequentially, inside
+a single transaction. A 500-row file was 4,004 statements; the 2,000-row
+maximum was 16,003.
+
+That is now a fixed set of statements fed by `unnest()` — one per table —
+regardless of file size. `RETURNING` order is not guaranteed for a multi-row
+insert, so each batch maps its results back by a natural key
+(`membership_number` for members, `member_id` for the per-member rows) rather
+than by position.
+
+Measured on this hardware, same 500-row file through the same UI:
+
+|              | Statements | Import time |
+| ------------ | ---------- | ----------- |
+| Per-row loop | ~4,004     | 4,127 ms    |
+| Batched      | 11         | ~170 ms     |
+
+The wall-clock figure understates the change, because the database here is on
+localhost where a round trip is measured in microseconds. In the deployment
+this product actually targets — managed Postgres on a separate host, 1–2 ms
+away — the per-row version spent 4,004 × ~1.5 ms ≈ **6 seconds of pure network
+wait for 500 rows, and 24 seconds for a full 2,000-row book**, all of it inside
+one transaction holding write locks while the front desk waited. The batched
+version pays that latency eleven times.
+
+The import's own audit row and log line now carry `statements`, so the
+invariant is checkable in production, not just in a benchmark: it must stay
+flat as the file grows. The acceptance test asserts a 500-row import costs
+fewer than 30 statements and within two of what a 2-row import costs.
+
 ## What is still linear, and when it will matter
 
 - **Members search** has no index for the `mobile` / `membership_number`

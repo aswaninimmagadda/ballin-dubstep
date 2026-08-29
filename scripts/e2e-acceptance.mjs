@@ -636,6 +636,85 @@ async function main() {
     JSON.stringify(imported),
   );
 
+  // A real gym arrives with its whole book in one file. The importer used to
+  // issue up to eight queries per member — sequentially, inside one
+  // transaction — so a 2,000-row file was ~16,000 round trips holding write
+  // locks the entire time. It is now a fixed handful of set-based statements.
+  const SCALE_ROWS = 500;
+  const scaleCsv =
+    'member_name,mobile,membership_plan,start_date,expiry_date,amount_paid,payment_method\n' +
+    Array.from(
+      { length: SCALE_ROWS },
+      (_, i) =>
+        `Bulk ${i} Member,9333${String(300000 + i).padStart(6, '0')},Quarterly,${istToday},,500,cash`,
+    ).join('\n');
+  const scaleRes = await postAction('/members/import', importForm, { csv: scaleCsv });
+  const scalePath = target(scaleRes).replace(/^https?:\/\/[^/]+/, '');
+  const scalePreview = await (await get(scalePath)).text();
+  check(
+    `${SCALE_ROWS} rows preview clean`,
+    scalePreview.includes('Confirm import') && !scalePreview.includes('Fix the errors'),
+  );
+  const scaleStarted = Date.now();
+  const scaleConf = await postAction(scalePath, extractForm(scalePreview, 'digest'), {});
+  const scaleMs = Date.now() - scaleStarted;
+  check(
+    `${SCALE_ROWS} members imported in one go`,
+    target(scaleConf).includes(`done=${SCALE_ROWS}`),
+    target(scaleConf),
+  );
+  // Wall clock is hardware, so the real guard is the statement count: it must
+  // stay flat as the file grows. Per-row it was four queries per member plus
+  // four per payment — 4,004 for this file, 16,003 for a full 2,000-row book.
+  const [scaleCost] = await q(
+    `SELECT (a.after->>'statements')::int AS statements, (a.after->>'imported')::int AS imported
+       FROM audit_logs a JOIN tenants t ON t.id = a.tenant_id
+      WHERE t.slug = $1 AND a.action = 'import.members'
+      ORDER BY a.created_at DESC LIMIT 1`,
+    [SLUG],
+  );
+  check(
+    `${SCALE_ROWS} rows cost a fixed handful of queries, not one per row ` +
+      `(${scaleCost.statements} statements, ${scaleMs} ms)`,
+    scaleCost.imported === SCALE_ROWS && scaleCost.statements < 30,
+    JSON.stringify(scaleCost),
+  );
+  const [smallCost] = await q(
+    `SELECT (a.after->>'statements')::int AS statements
+       FROM audit_logs a JOIN tenants t ON t.id = a.tenant_id
+      WHERE t.slug = $1 AND a.action = 'import.members' AND (a.after->>'imported')::int = 2`,
+    [SLUG],
+  );
+  check(
+    'and the same handful a 2-row file costs',
+    Math.abs(scaleCost.statements - smallCost.statements) <= 2,
+    `${smallCost.statements} vs ${scaleCost.statements}`,
+  );
+  const [bulk] = await q(
+    `SELECT count(*)::int AS members,
+            count(DISTINCT ms.id)::int AS memberships,
+            count(DISTINCT r.id)::int AS receipts
+       FROM members m JOIN tenants t ON t.id = m.tenant_id
+       JOIN memberships ms ON ms.member_id = m.id
+       JOIN payment_allocations pa ON pa.membership_id = ms.id
+       JOIN receipts r ON r.payment_id = pa.payment_id
+      WHERE t.slug = $1 AND m.mobile LIKE '+91933330%'`,
+    [SLUG],
+  );
+  check(
+    'every imported member got a membership, a payment and a receipt',
+    bulk.members === SCALE_ROWS && bulk.memberships === SCALE_ROWS && bulk.receipts === SCALE_ROWS,
+    JSON.stringify(bulk),
+  );
+  const [seqGaps] = await q(
+    `SELECT count(*)::int AS n FROM (
+       SELECT sequence, row_number() OVER (PARTITION BY fiscal_year ORDER BY sequence) AS rn
+         FROM receipts r JOIN tenants t ON t.id = r.tenant_id WHERE t.slug = $1
+     ) x WHERE sequence <> rn`,
+    [SLUG],
+  );
+  check('and receipt numbers came out gapless and in order', seqGaps.n === 0, String(seqGaps.n));
+
   // ---- Daily sweep: a pre-sold renewal whose start date arrived activates --
   const [impMember] = await q(
     `SELECT m.id, ms.id AS membership_id FROM members m
