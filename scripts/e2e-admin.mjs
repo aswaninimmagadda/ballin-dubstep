@@ -873,8 +873,27 @@ async function main() {
     for (let i = 0; i < 5; i += 1) runs.push(await timeLogin(mobile));
     return runs.sort((a, b) => a - b)[2];
   };
+  // Both mobiles must be fresh every run. A fixed "unknown" number
+  // accumulated failed attempts across runs, and once it crossed the
+  // per-identifier lockout the route answered 429 in 6ms without ever
+  // reaching scrypt — which looks exactly like the timing leak this check
+  // exists to catch. Two consecutive runs of the suite inside the 15-minute
+  // throttle window were enough to fake a security regression.
+  const unknownMobile = `9${String(Math.floor(100000000 + Math.random() * 899999999))}`;
   const known = await med(memberMobile);
-  const unknown = await med('9000000099');
+  const unknown = await med(unknownMobile);
+  const [attempts] = (
+    await db.query(
+      `SELECT count(*) FILTER (WHERE NOT succeeded)::int AS n FROM login_attempts
+        WHERE identifier = $1 AND attempted_at > now() - interval '15 minutes'`,
+      [`apfitness:+91${unknownMobile}`],
+    )
+  ).rows;
+  check(
+    'the timing probe stayed under the lockout threshold',
+    attempts.n <= 8,
+    `${attempts.n} failed attempts recorded — the probe itself tripped the throttle`,
+  );
   // Before the fix the unknown branch skipped scrypt entirely and answered
   // ~16x faster. Anything under 3x is noise on a shared box.
   check(
@@ -1025,6 +1044,73 @@ async function main() {
   const health = await fetch(`${BASE}/api/health`);
   const healthBody = health.ok ? await health.json() : null;
   check('health endpoint reports ok', health.status === 200 && healthBody?.status === 'ok');
+
+  // ---- a page that cannot be shown says so --------------------------------
+  // A 404 in the admin app used to render a completely blank page: no
+  // message, no navigation, nothing. A receptionist opening a stale bookmark
+  // got a white screen and no way to tell a broken system from their own
+  // mistake.
+  console.log('\n[when a page cannot be shown]');
+  const ghost = '00000000-0000-0000-0000-000000000000';
+  const missingMember = await get(`/members/${ghost}`);
+  const missingMemberBody = await missingMember.text();
+  check(
+    'a member that does not exist answers 404, not 200',
+    missingMember.status === 404,
+    String(missingMember.status),
+  );
+  check(
+    'and explains itself instead of rendering blank',
+    missingMemberBody.includes('does not exist'),
+  );
+  check(
+    'without confirming whether the id belongs to another gym',
+    !/belongs to (this|that) gym|another gym's member/i.test(missingMemberBody),
+  );
+  const missingReceipt = await get(`/receipts/${ghost}`);
+  check(
+    'a receipt that does not exist answers 404 too',
+    missingReceipt.status === 404 && (await missingReceipt.text()).includes('does not exist'),
+  );
+  const nonsense = await get('/no-such-page');
+  check('and so does a route that was never a page', nonsense.status === 404);
+
+  // The list pages stream a skeleton, which commits HTTP 200 before the body
+  // runs. That is why the skeletons are on the leaf list routes and on an
+  // in-page boundary in /members, never on the (app) group: a loading.tsx
+  // above members/[id] would silently turn every one of those 404s into 200.
+  const membersList = await get('/members');
+  check('the members list still answers 200', membersList.status === 200);
+  // /members streams its results behind a skeleton, but only AFTER the page
+  // has awaited requirePermission — so a staff member without members.view
+  // is still turned away by a real redirect rather than handed the shell.
+  const savedForForbidden = cookie;
+  check('receptionist relogin for the streamed-page check', await loginAs(EMAIL));
+  const recepMembers = await get('/members');
+  check(
+    'and a streamed page still enforces permission with a real redirect',
+    recepMembers.status === 200 || redirectTarget(recepMembers).includes('/forbidden'),
+    `${recepMembers.status} ${redirectTarget(recepMembers)}`,
+  );
+  const recepAuditAgain = await get('/audit');
+  check(
+    'the audit log still turns a receptionist away with a 307, not a 200 shell',
+    [302, 303, 307].includes(recepAuditAgain.status) &&
+      redirectTarget(recepAuditAgain).includes('/forbidden'),
+    `${recepAuditAgain.status} ${redirectTarget(recepAuditAgain)}`,
+  );
+  cookie = savedForForbidden;
+
+  const teNotFound = await fetch(`${BASE}/no-such-page`, {
+    headers: { cookie: `${cookie}; gymflow_lang=te` },
+  });
+  const teBody = await teNotFound.text();
+  check('the not-found page is translated, not English-only', teBody.includes('ఈ పేజీ లేదు'));
+  check(
+    'and the document language follows, so screen readers get it right',
+    teBody.includes('<html lang="te"'),
+    teBody.slice(0, 60),
+  );
 
   // ---- cleanup test member -------------------------------------------------
   await db.query(`DELETE FROM attendance WHERE member_id = $1`, [memberId]);

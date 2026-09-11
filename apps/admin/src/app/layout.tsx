@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
-import { cookies } from 'next/headers';
 import { PRODUCT } from '@gymflow/config';
+import { currentLanguage } from '@/lib/i18n';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -17,9 +17,17 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const lang = (await cookies()).get('gymflow_lang')?.value;
+  // Read the same way every server component does — explicit cookie first,
+  // then the staff member's own profile language. Reading only the cookie
+  // meant a Telugu-speaking receptionist who had never touched the toggle got
+  // lang="en", which is what a screen reader goes by.
+  //
+  // It is also how client components learn the language: they cannot await
+  // the server-side resolver, so they read document.documentElement.lang.
+  // See lib/i18n-client.ts.
+  const lang = await currentLanguage();
   return (
-    <html lang={lang === 'te' ? 'te' : 'en'}>
+    <html lang={lang}>
       <body>{children}</body>
     </html>
   );

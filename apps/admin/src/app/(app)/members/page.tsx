@@ -1,5 +1,7 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { formatDisplayDate, formatMoney } from '@gymflow/utils';
+import { renderTemplate, type TranslationTree } from '@gymflow/i18n';
 import { requirePermission } from '@/lib/session';
 import { searchMembers } from '@/lib/services/members';
 import { t } from '@/lib/i18n';
@@ -12,22 +14,96 @@ import {
   inputCls,
   statusTone,
 } from '@/components/ui';
+import { PageSkeleton } from '@/components/boundary';
 
 export const dynamic = 'force-dynamic';
 
+interface MemberQuery {
+  q?: string;
+  status?: string;
+  page?: string;
+  dues?: string;
+  archived?: string;
+}
+
+/**
+ * The search box and the toolbar do not need the database, so they paint
+ * immediately and the results stream in behind a skeleton. Reception can
+ * start typing the next search before the previous one has finished
+ * arriving, which on a gym's tethered connection is the difference between
+ * "slow" and "broken".
+ *
+ * This is an in-page Suspense boundary rather than a route-level
+ * loading.tsx on purpose: loading.tsx would wrap this segment AND its
+ * children, and every members/[id] page calls notFound(). Streaming commits
+ * HTTP 200 before the page body runs, so those 404s would silently become
+ * 200s. See the note in components/boundary.tsx.
+ */
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    q?: string;
-    status?: string;
-    page?: string;
-    dues?: string;
-    archived?: string;
-  }>;
+  searchParams: Promise<MemberQuery>;
 }) {
+  await requirePermission('members.view');
+  const params = await searchParams;
+  const tr = await t();
+  return (
+    <>
+      <PageHeader
+        title={tr.members.title}
+        actions={
+          <>
+            <Button href="/members/import" variant="secondary">
+              {tr.ui.importMembersFromCsv}
+            </Button>
+            <Button href="/members/new">{tr.members.newMember}</Button>
+          </>
+        }
+      />
+      <MemberSearchForm params={params} tr={tr} />
+      <Suspense key={JSON.stringify(params)} fallback={<PageSkeleton rows={10} />}>
+        <MemberResults params={params} />
+      </Suspense>
+    </>
+  );
+}
+
+function MemberSearchForm({ params, tr }: { params: MemberQuery; tr: TranslationTree }) {
+  const { q = '', status, dues, archived } = params;
+  return (
+    <form className="mb-4 flex flex-wrap gap-2" action="/members" method="get">
+      <input
+        type="search"
+        name="q"
+        defaultValue={q}
+        placeholder={tr.attendance.searchToCheckIn}
+        className={`${inputCls} max-w-xs`}
+        autoFocus
+      />
+      <select name="status" defaultValue={status ?? ''} className={`${inputCls} max-w-44`}>
+        <option value="">{tr.members.status}: —</option>
+        {Object.entries(tr.members.statuses).map(([key, label]) => (
+          <option key={key} value={key}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-600">
+        <input type="checkbox" name="dues" value="1" defaultChecked={dues === '1'} />
+        {tr.members.duesOnly}
+      </label>
+      <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-600">
+        <input type="checkbox" name="archived" value="1" defaultChecked={archived === '1'} />
+        {tr.members.showArchived}
+      </label>
+      <Button variant="secondary">{tr.common.search}</Button>
+    </form>
+  );
+}
+
+async function MemberResults({ params }: { params: MemberQuery }) {
   const user = await requirePermission('members.view');
-  const { q = '', status, page = '1', dues, archived } = await searchParams;
+  const { q = '', status, page = '1', dues, archived } = params;
   const duesOnly = dues === '1';
   // Archiving had no reverse anywhere in the product; this is how an archived
   // member is found again. `status=archived` used to be an option in the
@@ -58,49 +134,14 @@ export default async function MembersPage({
 
   return (
     <>
-      <PageHeader
-        title={`${tr.members.title} (${total})`}
-        actions={
-          <>
-            <Button href="/members/import" variant="secondary">
-              Import CSV
-            </Button>
-            <Button href="/members/new">{tr.members.newMember}</Button>
-          </>
-        }
-      />
-      <form className="mb-4 flex flex-wrap gap-2" action="/members" method="get">
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder={tr.attendance.searchToCheckIn}
-          className={`${inputCls} max-w-xs`}
-          autoFocus
-        />
-        <select name="status" defaultValue={status ?? ''} className={`${inputCls} max-w-44`}>
-          <option value="">{tr.members.status}: —</option>
-          {Object.entries(tr.members.statuses).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-600">
-          <input type="checkbox" name="dues" value="1" defaultChecked={duesOnly} />
-          {tr.members.duesOnly}
-        </label>
-        <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm text-slate-600">
-          <input type="checkbox" name="archived" value="1" defaultChecked={showArchived} />
-          {tr.members.showArchived}
-        </label>
-        <Button variant="secondary">{tr.common.search}</Button>
-      </form>
+      <p className="mb-2 text-sm text-slate-600">
+        {renderTemplate(tr.members.countShown, { total: String(total) })}
+      </p>
 
       {rows.length === 0 ? (
         <EmptyState
-          title={showArchived ? tr.members.noArchived : 'No members found.'}
-          hint={showArchived ? undefined : 'Try a different search or add a new member.'}
+          title={showArchived ? tr.members.noArchived : tr.members.noneFound}
+          hint={showArchived ? undefined : tr.members.noneFoundHint}
         />
       ) : (
         <Table

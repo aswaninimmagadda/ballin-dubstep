@@ -63,6 +63,17 @@ export const te: TranslationTree = {
     deletedTitle: 'ఖాతా తొలగించబడింది',
     deletedBody: 'మీ యాప్ లాగిన్ తొలగించబడింది. మళ్లీ యాప్ వాడాలంటే మీ జిమ్‌ను సంప్రదించండి.',
   },
+  errors: {
+    notFoundTitle: 'కనబడలేదు',
+    notFoundBody:
+      'ఈ పేజీ లేదు, లేదా అది వేరే జిమ్‌కు చెందినది. అది ఆర్కైవ్ చేయబడి ఉండవచ్చు లేదా లింక్ పాతది కావచ్చు.',
+    notFoundAction: 'డాష్‌బోర్డ్‌కు తిరిగి',
+    errorTitle: 'ఏదో తప్పు జరిగింది',
+    errorBody:
+      'ఈ పేజీని లోడ్ చేయలేకపోయాం. మళ్లీ ప్రయత్నించండి — పదే పదే జరిగితే, కింది రిఫరెన్స్‌ను మీ సపోర్ట్‌కు తెలియజేయండి.',
+    errorReference: 'రిఫరెన్స్',
+    loadingPage: 'లోడ్ అవుతోంది…',
+  },
   dashboard: {
     title: 'డాష్‌బోర్డ్',
     activeMembers: 'యాక్టివ్ సభ్యులు',
@@ -88,6 +99,9 @@ export const te: TranslationTree = {
     quickRecordPayment: 'చెల్లింపు నమోదు',
   },
   members: {
+    countShown: '{{total}} సభ్యులు',
+    noneFound: 'సభ్యులు ఎవరూ దొరకలేదు.',
+    noneFoundHint: 'వేరే విధంగా వెతకండి, లేదా కొత్త సభ్యుడిని చేర్చండి.',
     showArchived: 'ఆర్కైవ్ చేసినవి మాత్రమే',
     noArchived: 'ఆర్కైవ్ చేసిన సభ్యులు లేరు.',
     unarchive: 'సభ్యుని పునరుద్ధరించండి',

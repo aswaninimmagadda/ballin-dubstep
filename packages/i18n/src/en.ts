@@ -65,6 +65,20 @@ export const en = {
     deletedBody:
       'Your app login has been removed. Contact your gym if you want to use the app again.',
   },
+  errors: {
+    notFoundTitle: 'Not found',
+    // Deliberately does not say which of the two it is. Telling a signed-in
+    // user "that member exists but belongs to another gym" is a way to
+    // enumerate other gyms' members one id at a time.
+    notFoundBody:
+      'This page does not exist, or it belongs to a different gym. It may have been archived or the link may be out of date.',
+    notFoundAction: 'Back to the dashboard',
+    errorTitle: 'Something went wrong',
+    errorBody:
+      'This page could not be loaded. Try again — if it keeps happening, give your support contact the reference below.',
+    errorReference: 'Reference',
+    loadingPage: 'Loading…',
+  },
   dashboard: {
     title: 'Dashboard',
     activeMembers: 'Active members',
@@ -90,6 +104,9 @@ export const en = {
     quickRecordPayment: 'Record payment',
   },
   members: {
+    countShown: '{{total}} members',
+    noneFound: 'No members found.',
+    noneFoundHint: 'Try a different search, or add a new member.',
     showArchived: 'Archived only',
     noArchived: 'No archived members.',
     unarchive: 'Restore member',
