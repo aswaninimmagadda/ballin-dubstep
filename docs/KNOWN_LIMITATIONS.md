@@ -83,6 +83,18 @@ create-tenant -- --slug … --name … --owner-email …`) with zero source
     behind them, which are literals in the service layer. A Telugu-speaking
     receptionist gets Telugu screens with English confirmations.
 
+    The messages the gym _sends_ — the in-app notification written at
+    payment, renewal and add-on time — do follow the member's own language,
+    which the app sets from its picker and pushes at sign-in. What is not
+    supported is a gym-level default: `tenants.default_language` exists in
+    the schema but nothing writes it, and because `users.language` is NOT
+    NULL DEFAULT 'en' it could not take effect for an app user even if
+    something did. A gym whose members are overwhelmingly Telugu-speaking
+    therefore starts every one of them in English until they choose. Making
+    it real needs a nullable column, so "never chose" is representable, and
+    a Settings field — a small Phase-2 item, not a defect in the path that
+    works.
+
 ## Technical
 
 18. **Login throttling is DB-backed**, counted separately per identifier (8 in
