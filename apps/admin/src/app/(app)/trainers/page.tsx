@@ -89,7 +89,7 @@ export default async function TrainersPage({
               <tr key={x.id}>
                 <td className="px-4 py-3 font-medium">
                   {x.name}
-                  <span className="block text-xs text-slate-400">
+                  <span className="block text-xs text-slate-500">
                     {x.mobile.replace('+91', '')}
                   </span>
                 </td>

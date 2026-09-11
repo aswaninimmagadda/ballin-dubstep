@@ -38,11 +38,37 @@ async function handlePost(req: NextRequest): Promise<NextResponse> {
   //
   // The member-existence defence below is untouched: once the gym resolves,
   // a registered and an unregistered mobile still cost the same scrypt.
-  const gymExists = await asAnonymous(async (tx) => {
-    const r = await tx.query(`SELECT gym_name FROM app.public_gym_contact($1)`, [gymCode]);
-    return (r as { rows: unknown[] }).rows.length > 0;
+  const record = (ok: boolean) =>
+    asAnonymous((tx) =>
+      tx.query(`SELECT app.record_login_attempt($1, $2, $3)`, [identifier, ip, ok]),
+    );
+
+  const gymState = await asAnonymous(async (tx) => {
+    const r = await tx.query(`SELECT app.public_gym_signin_state($1) AS state`, [gymCode]);
+    return (r as { rows: { state: string }[] }).rows[0]?.state ?? 'unknown';
   });
-  if (!gymExists) {
+  if (gymState === 'closed') {
+    // The gym exists; its own account is not active. Saying "no gym with
+    // that code" here sent the member back to re-check the one thing they
+    // had typed correctly. The message does not say WHY the gym is closed:
+    // whether a gym is behind on its bill is not for an unauthenticated
+    // endpoint to publish.
+    await record(false);
+    return NextResponse.json({ error: 'gym_unavailable' }, { status: 403 });
+  }
+  if (gymState === 'unknown') {
+    // Record it like any other failure. This branch returned before `record`
+    // was even in scope, so a wrong gym code was the one way to call this
+    // endpoint for free — no attempt logged, nothing counted towards a
+    // lockout, and nothing in the audit trail.
+    //
+    // Note what this does and does not buy: the identifier is
+    // `gymCode:mobile`, so someone walking the slug namespace changes the
+    // identifier every request and never trips the per-identifier limit. The
+    // per-address limit is what catches that, and it only runs when
+    // TRUSTED_PROXY_HOPS is set (see docs/DEPLOYMENT.md). What this fixes is
+    // the free-and-invisible part.
+    await record(false);
     return NextResponse.json({ error: 'gym_not_found' }, { status: 404 });
   }
 
@@ -50,11 +76,6 @@ async function handlePost(req: NextRequest): Promise<NextResponse> {
     const r = await tx.query(`SELECT * FROM app.auth_member_lookup($1, $2)`, [gymCode, mobile]);
     return (r as { rows: Record<string, unknown>[] }).rows[0];
   });
-
-  const record = (ok: boolean) =>
-    asAnonymous((tx) =>
-      tx.query(`SELECT app.record_login_attempt($1, $2, $3)`, [identifier, ip, ok]),
-    );
 
   // Same scrypt cost whether or not the mobile is registered at this gym —
   // short-circuiting here made the endpoint an account-existence oracle.

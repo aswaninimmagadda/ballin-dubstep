@@ -28,6 +28,8 @@ function signInMessage(err: unknown, t: TranslationTree): string {
   switch (err.code) {
     case 'gym_not_found':
       return t.member.errGymNotFound;
+    case 'gym_unavailable':
+      return t.member.errGymUnavailable;
     case 'locked':
       return t.member.errLocked;
     case 'account_unavailable':

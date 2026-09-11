@@ -131,7 +131,7 @@ export default async function PromotionsPage({
                     : p.discount_kind === 'flat'
                       ? formatMoney(Number(p.discount_value))
                       : 'Joining fee waiver'}
-                  <span className="block text-xs text-slate-400">
+                  <span className="block text-xs text-slate-500">
                     saved {formatMoney(Number(p.total_discount))}
                   </span>
                 </td>

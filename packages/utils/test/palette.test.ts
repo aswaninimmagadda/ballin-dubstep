@@ -151,7 +151,22 @@ describe('no hard-coded low-contrast button in the admin app', () => {
     'sky-500': '#0ea5e9',
     'yellow-400': '#facc15',
     'orange-500': '#f97316',
+    'slate-300': '#cbd5e1',
+    'slate-400': '#94a3b8',
+    'slate-500': '#64748b',
+    'slate-600': '#475569',
+    'slate-700': '#334155',
+    'green-800': '#166534',
+    'amber-800': '#92400e',
+    'red-700': '#b91c1c',
+    'blue-700': '#1d4ed8',
   };
+
+  /**
+   * The surfaces text actually sits on in this app: white cards and the
+   * slate-50 page background.
+   */
+  const SURFACES: Record<string, string> = { white: '#ffffff', 'slate-50': '#f8fafc' };
 
   const dir = fileURLToPath(new URL('../../../apps/admin/src', import.meta.url));
 
@@ -185,5 +200,48 @@ describe('no hard-coded low-contrast button in the admin app', () => {
       }
     }
     expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+
+  /**
+   * The other half, and the half that was actually worse. Checking only
+   * bg-<shade> + text-white missed every COLOURED TEXT class on a plain
+   * background: `text-slate-400` at 2.56:1 was in fourteen files, and
+   * `text-red-500` was the required-field marker on every form in the app.
+   */
+  /**
+   * Files whose text sits on a dark surface set by an ancestor, which this
+   * test cannot see from a className alone. Each is checked by hand here
+   * rather than left as a silent hole.
+   *
+   * apps/admin/src/app/platform/layout.tsx paints bg-slate-900 on the header
+   * and uses text-slate-300 inside it: 12.02:1, comfortably AAA.
+   */
+  const DARK_CHROME = new Set(['app/platform/layout.tsx']);
+
+  it('every coloured text class is readable on the surface it sits on', () => {
+    const offenders: string[] = [];
+    for (const file of walk(dir)) {
+      if (DARK_CHROME.has(file.slice(dir.length + 1))) continue;
+      const src = readFileSync(file, 'utf8');
+      for (const m of src.matchAll(/class[Nn]ame="([^"]*)"/g)) {
+        const cls = m[1] ?? '';
+        // Skip anything painted onto a coloured fill — the check above owns
+        // those, and the fill is what the text sits on, not the page.
+        if (/\bbg-[a-z]+-\d{3}\b/.test(cls)) continue;
+        for (const t of cls.matchAll(/\b(?:placeholder:)?text-([a-z]+-\d{3})\b/g)) {
+          const hex = SHADES[t[1] ?? ''];
+          if (!hex) continue;
+          for (const [name, surface] of Object.entries(SURFACES)) {
+            if (!meetsAA(hex, surface)) {
+              offenders.push(
+                `${file.slice(dir.length + 1)}: text-${t[1]} (${hex}) on ${name} is ` +
+                  `${contrastRatio(hex, surface).toFixed(2)}:1`,
+              );
+            }
+          }
+        }
+      }
+    }
+    expect([...new Set(offenders)], [...new Set(offenders)].join('\n')).toEqual([]);
   });
 });

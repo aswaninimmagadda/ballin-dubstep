@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { formatMoney, formatDisplayDate, maskPhone, whatsappLink } from '@gymflow/utils';
+import { hasPermission } from '@gymflow/core';
 import { renderTemplate } from '@gymflow/i18n';
 import { requirePermission } from '@/lib/session';
 import { getDashboard } from '@/lib/services/dashboard';
@@ -30,7 +31,18 @@ export default async function DashboardPage() {
         }
       />
 
-      <SetupChecklist tr={tr} hasPlans={data.planCount > 0} hasMembers={data.memberCount > 0} />
+      <SetupChecklist
+        tr={tr}
+        hasPlans={data.planCount > 0}
+        hasMembers={data.memberCount > 0}
+        can={{
+          plans: user.kind === 'platform_admin' || hasPermission(user.permissions, 'plans.manage'),
+          members:
+            user.kind === 'platform_admin' || hasPermission(user.permissions, 'members.create'),
+          settings:
+            user.kind === 'platform_admin' || hasPermission(user.permissions, 'settings.manage'),
+        }}
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
@@ -88,8 +100,12 @@ export default async function DashboardPage() {
             {/* The list below is the first 30. Saying so, and offering the
                 rest, is the difference between a preview and a queue that
                 quietly ends. */}
+            {/* window=queue is the SAME range this count was taken over
+                ([today-7, today+7]). Linking to window=7 showed a smaller
+                list than the number promised — the very mismatch this
+                finding was about, reintroduced at the link. */}
             {data.expiryQueueTotal > data.expiryQueue.length ? (
-              <Link href="/renewals?window=7" className="text-sm font-semibold text-primary">
+              <Link href="/renewals?window=queue" className="text-sm font-semibold text-primary">
                 {renderTemplate(tr.dashboard.seeAllExpiring, {
                   total: String(data.expiryQueueTotal),
                 })}

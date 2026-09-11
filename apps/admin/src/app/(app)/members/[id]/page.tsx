@@ -8,6 +8,7 @@ import { getMemberDetail } from '@/lib/services/members';
 import { checkinMember } from '@/lib/services/attendance';
 import { renewalWhatsappLink } from '@/lib/services/settings';
 import { unfreezeMembership } from '@/lib/services/memberships';
+import { requireFeature } from '@/lib/flags';
 import { t } from '@/lib/i18n';
 import {
   Badge,
@@ -25,6 +26,10 @@ export const dynamic = 'force-dynamic';
 async function quickCheckinAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('attendance.checkin');
+  // The page is behind requireFeature, but a server action is a URL of its
+  // own: hiding the button does not stop a form post from a stale tab or a
+  // bookmarked page after the gym switched the feature off.
+  await requireFeature(user, 'attendance');
   const memberId = String(formData.get('memberId'));
   const result = await checkinMember(user, { memberId, method: 'reception' });
   redirect(
@@ -72,6 +77,10 @@ async function unarchiveAction(formData: FormData): Promise<void> {
 async function logPtAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('pt.manage');
+  // The page is behind requireFeature, but a server action is a URL of its
+  // own: hiding the button does not stop a form post from a stale tab or a
+  // bookmarked page after the gym switched the feature off.
+  await requireFeature(user, 'pt');
   const memberId = String(formData.get('memberId'));
   const { logPtSession } = await import('@/lib/services/addons');
   try {
@@ -309,7 +318,7 @@ export default async function MemberDetailPage({
                 {member.user_id ? tr.members.appAccessReset : tr.members.appAccessEnable}
               </button>
               {member.user_id ? (
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-slate-500">
                   {tr.members.appAccessEnabled} · {tr.members.appAccessResetHint}
                 </p>
               ) : null}
@@ -386,7 +395,7 @@ export default async function MemberDetailPage({
                       {formatMoney(Number(m.due_amount))}
                     </span>
                   ) : (
-                    <span className="text-slate-300">—</span>
+                    <span className="text-slate-500">—</span>
                   )}
                 </td>
                 <td className="px-4 py-3">

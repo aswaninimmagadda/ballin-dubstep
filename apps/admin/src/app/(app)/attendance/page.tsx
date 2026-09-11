@@ -27,6 +27,10 @@ export const dynamic = 'force-dynamic';
 async function checkinAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('attendance.checkin');
+  // The page is behind requireFeature, but a server action is a URL of its
+  // own: hiding the button does not stop a form post from a stale tab or a
+  // bookmarked page after the gym switched the feature off.
+  await requireFeature(user, 'attendance');
   const memberId = String(formData.get('memberId'));
   const override = formData.get('override') === '1';
   try {
@@ -43,6 +47,10 @@ async function checkinAction(formData: FormData): Promise<void> {
 async function qrAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('attendance.checkin');
+  // The page is behind requireFeature, but a server action is a URL of its
+  // own: hiding the button does not stop a form post from a stale tab or a
+  // bookmarked page after the gym switched the feature off.
+  await requireFeature(user, 'attendance');
   const token = String(formData.get('token') ?? '');
   try {
     const memberId = await resolveQrToken(user, token);
@@ -113,7 +121,7 @@ export default async function AttendancePage({
                       <span className="text-sm font-medium">
                         {m.first_name} {m.last_name ?? ''}
                       </span>
-                      <span className="ml-2 text-xs text-slate-400">{m.membership_number}</span>
+                      <span className="ml-2 text-xs text-slate-500">{m.membership_number}</span>
                     </div>
                     <a
                       href={`/attendance?preview=${m.id}`}
@@ -142,7 +150,7 @@ export default async function AttendancePage({
                       {tr.attendance.memberExpired}
                     </p>
                   ) : previewData.warning === 'frozen' ? (
-                    <p className="mt-1 text-sm font-medium text-amber-600">
+                    <p className="mt-1 text-sm font-medium text-amber-700">
                       {tr.attendance.memberFrozen}
                     </p>
                   ) : previewData.warning === 'grace' ? (
@@ -150,11 +158,11 @@ export default async function AttendancePage({
                     // no branch for it, so a member inside their grace period
                     // — the one moment a renewal conversation is easy — was
                     // waved through looking exactly like everyone else.
-                    <p className="mt-1 text-sm font-medium text-amber-600">
+                    <p className="mt-1 text-sm font-medium text-amber-700">
                       {tr.attendance.memberGrace}
                     </p>
                   ) : previewData.warning === 'expiring_soon' ? (
-                    <p className="mt-1 text-sm font-medium text-amber-600">
+                    <p className="mt-1 text-sm font-medium text-amber-700">
                       {tr.attendance.memberExpiringSoon}
                     </p>
                   ) : null}
@@ -194,7 +202,7 @@ export default async function AttendancePage({
                 <tr key={row.id}>
                   <td className="px-4 py-3">
                     {row.name}{' '}
-                    <span className="text-xs text-slate-400">{row.membership_number}</span>
+                    <span className="text-xs text-slate-500">{row.membership_number}</span>
                   </td>
                   <td className="px-4 py-3">
                     {new Date(row.checked_in_at).toLocaleTimeString('en-IN', {

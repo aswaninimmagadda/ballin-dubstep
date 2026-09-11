@@ -117,7 +117,7 @@ export default async function ImportPage({
                 className="mt-1 block w-full text-sm"
               />
             </label>
-            <div className="text-center text-xs text-slate-400">— or paste rows —</div>
+            <div className="text-center text-xs text-slate-500">— or paste rows —</div>
             <textarea
               name="csv"
               rows={8}
@@ -163,7 +163,7 @@ export default async function ImportPage({
           >
             {preview.rows.map((row) => (
               <tr key={row.line} className={row.errors.length ? 'bg-red-50' : ''}>
-                <td className="px-4 py-2 text-slate-400">{row.line}</td>
+                <td className="px-4 py-2 text-slate-500">{row.line}</td>
                 <td className="px-4 py-2">{row.raw.member_name}</td>
                 <td className="px-4 py-2">{row.raw.mobile}</td>
                 <td className="px-4 py-2">{row.raw.membership_plan}</td>

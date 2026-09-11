@@ -77,7 +77,7 @@ export default async function StaffPage({
                       </form>
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-400">you</span>
+                    <span className="text-xs text-slate-500">you</span>
                   )}
                 </td>
               </tr>

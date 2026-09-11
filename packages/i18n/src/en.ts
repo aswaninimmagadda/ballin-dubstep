@@ -67,6 +67,9 @@ export const en = {
       'Your app login has been removed. Contact your gym if you want to use the app again.',
   },
   errors: {
+    forbiddenTitle: 'No permission',
+    forbiddenBody:
+      'Your account does not have access to this page. Ask the gym owner to grant the permission if you need it.',
     notFoundTitle: 'Not found',
     // Deliberately does not say which of the two it is. Telling a signed-in
     // user "that member exists but belongs to another gym" is a way to
@@ -95,6 +98,7 @@ export const en = {
     renewalsSubtitle: '{{total}} memberships in this window',
     renewalsNone: 'Nothing due in this window.',
     renewalsNoneHint: 'Try a longer window, or check the overdue list.',
+    windowQueue: 'This fortnight',
     windowOverdue: 'Overdue',
     windowToday: 'Today',
     window7: 'Next 7 days',
@@ -252,11 +256,14 @@ export const en = {
     gymCodeHint: 'Ask at the desk if you do not know it',
     signInHint: 'Sign in with the number your gym has on file.',
     errGymNotFound: 'No gym with that code. Check it with your gym.',
+    errGymUnavailable: 'This gym is not using the app at the moment. Please ask at the desk.',
     errCredentials: 'That number and password do not match. Try again.',
     errLocked: 'Too many tries. Wait a few minutes, then try again.',
-    // Covers a membership the gym has not switched on for the app, an
-    // account the gym has closed, and a gym whose own subscription has
-    // lapsed. The member cannot fix any of them, so the app says who can.
+    // Covers a membership the gym has not switched on for the app and an
+    // account the gym has closed. A gym whose OWN subscription has lapsed
+    // gets errGymUnavailable instead — the member never reaches a password
+    // check in that case, and telling them to ask the gym to enable their
+    // login would send them to ask for the wrong thing.
     errAccountUnavailable: 'The app is not switched on for you yet. Ask your gym to enable it.',
     errOffline: 'Your phone cannot reach the gym right now. Check your connection.',
     errServer: 'Something went wrong at the gym’s end. Try again in a moment.',
@@ -477,6 +484,9 @@ export const en = {
     gstin: 'GSTIN',
     importMembersFromCsv: 'Import members from CSV',
     leaveEmptyToCollectLater: 'Leave empty to collect later',
+    platformInside: 'Platform admin — working inside {{gym}} ({{slug}})',
+    platformGymStatus: 'this gym is {{status}}',
+    platformLeave: 'Leave this gym',
     main: 'Main',
     mainMobile: 'Main mobile',
     maxFreezeDaysPerYear: 'Max freeze days per year',

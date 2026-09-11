@@ -1183,12 +1183,88 @@ async function main() {
     }
   }
   check('and every window opens', true);
-  const badWindow = await getFollow('/renewals?window=../../etc/passwd');
+  // `in` walks the prototype chain, so the first version of the window guard
+  // accepted ?window=constructor and ?window=toString and then read a
+  // function off Object.prototype where it expected a date range.
+  for (const w of ['../../etc/passwd', 'constructor', 'toString', '__proto__', 'valueOf', '']) {
+    const res = await getFollow(`/renewals?window=${encodeURIComponent(w)}`);
+    check(
+      `an unusable window (${w || 'empty'}) falls back rather than erroring`,
+      res.status === 200,
+      String(res.status),
+    );
+  }
+
+  // The dashboard promises a number and links somewhere; the two must be the
+  // same set. The card counts [today-7, today+7] and used to link to
+  // window=7, which is [today, today+7] — a smaller list than the number
+  // offered, which is the very mismatch this finding is about.
+  const queueRes = await getFollow('/renewals?window=queue');
+  const queueHtml = await queueRes.text();
+  const [cardTotal] = (
+    await db.query(
+      `SELECT count(*)::int AS n FROM memberships ms JOIN tenants t ON t.id = ms.tenant_id
+        WHERE t.slug = 'apfitness' AND ms.state = 'active'
+          AND ms.end_date BETWEEN $1::date - 7 AND $1::date + 7`,
+      [istToday],
+    )
+  ).rows;
   check(
-    'an unknown window falls back rather than erroring',
-    badWindow.status === 200,
-    String(badWindow.status),
+    'the dashboard link lands on exactly the set it counted',
+    queueHtml.includes(`${cardTotal.n} memberships in this window`),
+    `expected ${cardTotal.n}`,
   );
+  // Two links, two counts, and each must go to the range it counted.
+  // The "See all N" link only appears when the preview is truncated, so this
+  // asserts the pairing rather than the presence.
+  const dashForLink = await (await getFollow('/')).text();
+  const seeAll = dashForLink.match(/href="\/renewals\?window=([a-z0-9]+)"[^>]*>\s*See all/);
+  check(
+    'if the queue is truncated, "See all" goes to the range the heading counted',
+    seeAll === null || seeAll[1] === 'queue',
+    `See all -> window=${seeAll?.[1]}`,
+  );
+  // The "Expiring in 7 days" stat counts [today, today+7], so it links to
+  // window=7 — the one that is exactly that range.
+  check(
+    'the expiring-in-7-days card links to the 7-day window',
+    dashForLink.includes('/renewals?window=7'),
+    'the stat card links somewhere other than its own range',
+  );
+  const [stat7] = (
+    await db.query(
+      `SELECT count(*)::int AS n FROM memberships ms JOIN tenants t ON t.id = ms.tenant_id
+        WHERE t.slug = 'apfitness' AND ms.state = 'active'
+          AND ms.end_date BETWEEN $1::date AND $1::date + 7`,
+      [istToday],
+    )
+  ).rows;
+  const sevenHtml = await (await getFollow('/renewals?window=7')).text();
+  check(
+    'and that window holds exactly the number the card showed',
+    sevenHtml.includes(`${stat7.n} memberships in this window`),
+    `expected ${stat7.n}`,
+  );
+
+  // "Overdue" must mean everyone past their expiry date. The nightly sweep
+  // leaves a membership 'active' through its grace period and flips it to
+  // 'expired' afterwards, so an overdue list restricted to 'active' showed
+  // only the grace cohort and hid everyone who had actually lapsed.
+  const overdueHtml = await (await getFollow('/renewals?window=overdue')).text();
+  const [lapsed] = (
+    await db.query(
+      `SELECT count(*)::int AS n FROM memberships ms JOIN tenants t ON t.id = ms.tenant_id
+        WHERE t.slug = 'apfitness' AND ms.state IN ('active','expired')
+          AND ms.end_date < $1::date`,
+      [istToday],
+    )
+  ).rows;
+  check(
+    'overdue counts everyone past their expiry date, grace or lapsed',
+    overdueHtml.includes(`${lapsed.n} memberships in this window`),
+    `expected ${lapsed.n}`,
+  );
+  check('and there really are some to find', lapsed.n > 0, String(lapsed.n));
   const dashHtml = await (await getFollow('/')).text();
   check(
     'the dashboard card links to the full queue',

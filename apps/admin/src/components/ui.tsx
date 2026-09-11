@@ -45,7 +45,7 @@ export function StatCard({
   const tones = {
     default: 'text-slate-900',
     success: 'text-green-700',
-    warning: 'text-amber-600',
+    warning: 'text-amber-700',
     danger: 'text-red-600',
   } as const;
   const body = (
@@ -159,7 +159,7 @@ export function Field({
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-slate-700">
         {label}
-        {required ? <span className="text-red-500"> *</span> : null}
+        {required ? <span className="text-red-600"> *</span> : null}
       </span>
       {children}
       {hint ? <span className="mt-1 block text-xs text-slate-500">{hint}</span> : null}
@@ -168,7 +168,7 @@ export function Field({
 }
 
 export const inputCls =
-  'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30';
+  'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30';
 
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (

@@ -47,6 +47,7 @@ export default async function RenewalsPage({
 
   const WINDOWS: { key: RenewalWindow; label: string }[] = [
     { key: 'overdue', label: tr.dashboard.windowOverdue },
+    { key: 'queue', label: tr.dashboard.windowQueue },
     { key: 'today', label: tr.dashboard.windowToday },
     { key: '7', label: tr.dashboard.window7 },
     { key: '15', label: tr.dashboard.window15 },

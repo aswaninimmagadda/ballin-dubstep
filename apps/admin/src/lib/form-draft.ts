@@ -31,6 +31,12 @@ const NEVER_KEEP =
  * Browsers drop a Set-Cookie over ~4 KB without telling anyone. A draft that
  * would exceed this is not stored at all: losing the draft is a nuisance, but
  * a silently dropped cookie that half-restores a form would be worse.
+ *
+ * Measured in BYTES, which is what the limit is in. A JavaScript string's
+ * .length counts UTF-16 code units, and Telugu costs three UTF-8 bytes per
+ * character — so a gym's Telugu WhatsApp template measuring 1,500 by .length
+ * is over 4 KB on the wire. Using .length here would have let exactly the
+ * Telugu-language drafts through the guard and into the silent drop.
  */
 const MAX_DRAFT_BYTES = 3072;
 
@@ -68,8 +74,9 @@ export function formDraft(key: string, path: string): FormDraft {
         entries[field] = value;
       }
       const payload = JSON.stringify(entries);
-      if (payload.length > MAX_DRAFT_BYTES) {
-        log.warn('form_draft.too_large', { key, bytes: payload.length });
+      const bytes = Buffer.byteLength(payload, 'utf8');
+      if (bytes > MAX_DRAFT_BYTES) {
+        log.warn('form_draft.too_large', { key, bytes });
         return;
       }
       (await cookies()).set(name, payload, {

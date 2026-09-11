@@ -165,7 +165,7 @@ async function MemberResults({ params }: { params: MemberQuery }) {
                 >
                   {m.first_name} {m.last_name ?? ''}
                 </Link>
-                <span className="block text-xs text-slate-400">{m.branch_name}</span>
+                <span className="block text-xs text-slate-500">{m.branch_name}</span>
               </td>
               <td className="px-4 py-3">{m.mobile.replace('+91', '')}</td>
               <td className="px-4 py-3">{m.plan_name ?? '—'}</td>
@@ -176,7 +176,7 @@ async function MemberResults({ params }: { params: MemberQuery }) {
                     {formatMoney(Number(m.due_amount))}
                   </span>
                 ) : (
-                  <span className="text-slate-300">—</span>
+                  <span className="text-slate-500">—</span>
                 )}
               </td>
               <td className="px-4 py-3">

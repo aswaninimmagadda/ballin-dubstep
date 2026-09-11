@@ -104,7 +104,7 @@ export default async function ReportsPage({
               refunded
             </p>
           ) : (
-            <p className="mb-4 mt-1 text-sm text-slate-400">no refunds in this period</p>
+            <p className="mb-4 mt-1 text-sm text-slate-500">no refunds in this period</p>
           )}
           <Table headers={[tr.payments.method, 'Count', tr.payments.amount]}>
             {collections.byMethod.map((m) => (

@@ -17,6 +17,10 @@ export const dynamic = 'force-dynamic';
 async function sellAddonAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('pt.manage');
+  // The page is behind requireFeature, but a server action is a URL of its
+  // own: hiding the button does not stop a form post from a stale tab or a
+  // bookmarked page after the gym switched the feature off.
+  await requireFeature(user, 'pt');
   const memberId = String(formData.get('memberId'));
   const draft = formDraft('addon', `/members/${memberId}/addon`);
   // Use the shared reader rather than parseMoney directly. A mistyped amount

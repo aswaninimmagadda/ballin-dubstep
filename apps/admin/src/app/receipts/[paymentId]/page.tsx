@@ -78,7 +78,7 @@ export default async function ReceiptPage({
         <Button href="/payments" variant="secondary" type="button">
           ← {tr.common.back}
         </Button>
-        <span className="text-xs text-slate-400">Print: Ctrl/Cmd+P</span>
+        <span className="text-xs text-slate-500">Print: Ctrl/Cmd+P</span>
       </div>
       <div className="rounded-xl border border-slate-300 bg-white p-6">
         <header className="border-b border-dashed border-slate-300 pb-4 text-center">
@@ -197,7 +197,7 @@ export default async function ReceiptPage({
         {receipt.receipt_footer ? (
           <p className="mt-4 text-center text-xs text-slate-500">{receipt.receipt_footer}</p>
         ) : null}
-        <p className="mt-2 text-center text-[10px] text-slate-400">
+        <p className="mt-2 text-center text-[10px] text-slate-500">
           Receipt generated digitally — no signature required.
         </p>
       </div>

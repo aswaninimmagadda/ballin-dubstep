@@ -17,15 +17,23 @@ export function SetupChecklist({
   tr,
   hasPlans,
   hasMembers,
+  can,
 }: {
   tr: TranslationTree;
   hasPlans: boolean;
   hasMembers: boolean;
+  /** What this staff member may actually do, so the list never sends them
+      somewhere that answers /forbidden. A receptionist has members.create
+      but not plans.manage; telling them to go and create the plans is worse
+      than saying nothing, because they cannot and will assume the product
+      is broken. */
+  can: { plans: boolean; members: boolean; settings: boolean };
 }) {
   if (hasPlans && hasMembers) return null;
 
   const steps = [
     {
+      show: can.plans,
       done: hasPlans,
       href: '/plans',
       label: hasPlans ? tr.dashboard.setupPlansDone : tr.dashboard.setupPlans,
@@ -33,6 +41,7 @@ export function SetupChecklist({
       extra: null,
     },
     {
+      show: can.members,
       done: hasMembers,
       href: '/members/new',
       label: hasMembers ? tr.dashboard.setupMembersDone : tr.dashboard.setupMembers,
@@ -40,6 +49,7 @@ export function SetupChecklist({
       extra: { href: '/members/import', label: tr.dashboard.setupImport },
     },
     {
+      show: can.settings,
       // No "done" state: settings always have values, and nothing here can
       // tell whether the owner has actually looked at them.
       done: false,
@@ -48,7 +58,10 @@ export function SetupChecklist({
       hint: tr.dashboard.setupSettingsHint,
       extra: null,
     },
-  ];
+  ].filter((step) => step.show);
+
+  // Nothing they can act on: say nothing rather than show an empty card.
+  if (steps.length === 0) return null;
 
   return (
     <Card className="mb-6 border-primary/30 bg-green-50">

@@ -1,16 +1,20 @@
-import { Button } from '@/components/ui';
+import { t } from '@/lib/i18n';
+import { BoundaryLink, BoundaryMessage } from '@/components/boundary';
 
-export default function ForbiddenPage() {
+export const dynamic = 'force-dynamic';
+
+/**
+ * The one "this page cannot be shown" screen that was still English-only,
+ * and the one a Telugu-speaking receptionist is most likely to meet: it is
+ * what requirePermission sends them to.
+ */
+export default async function ForbiddenPage() {
+  const tr = await t();
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
-      <h1 className="text-2xl font-bold text-slate-900">No permission</h1>
-      <p className="max-w-sm text-sm text-slate-500">
-        Your account does not have access to this page. Ask the gym owner to grant the required
-        permission if you need it.
-      </p>
-      <Button href="/" variant="secondary" type="button">
-        Go to dashboard
-      </Button>
+    <main className="mx-auto max-w-7xl px-4 py-6">
+      <BoundaryMessage title={tr.errors.forbiddenTitle} body={tr.errors.forbiddenBody}>
+        <BoundaryLink href="/" label={tr.errors.notFoundAction} />
+      </BoundaryMessage>
     </main>
   );
 }

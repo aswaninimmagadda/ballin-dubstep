@@ -174,7 +174,7 @@ export default async function LeadsPage({
               <tr key={lead.id}>
                 <td className="px-4 py-3">
                   <span className="font-medium">{lead.name}</span>
-                  <span className="block text-xs text-slate-400">
+                  <span className="block text-xs text-slate-500">
                     {lead.mobile.replace('+91', '')}
                   </span>
                 </td>
@@ -215,7 +215,7 @@ export default async function LeadsPage({
                         opens rather than fires, and says what it does. */}
                     <details className="relative">
                       <summary
-                        className="cursor-pointer rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-100"
+                        className="cursor-pointer rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
                         title={tr.leads.markLost}
                       >
                         ✕

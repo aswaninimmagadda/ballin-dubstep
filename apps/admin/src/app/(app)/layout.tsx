@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { PRODUCT } from '@gymflow/config';
+import { renderTemplate } from '@gymflow/i18n';
 import { logout, requireUser, PLATFORM_SCOPE_COOKIE } from '@/lib/session';
 import { scopedTenant } from '@/lib/services/platform';
 import { t, LANG_COOKIE, currentLanguage } from '@/lib/i18n';
@@ -62,13 +63,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {scoped ? (
         <div className="no-print flex flex-wrap items-center justify-between gap-2 bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900">
           <span>
-            Platform admin — working inside <strong>{scoped.name}</strong> ({scoped.slug})
-            {scoped.status !== 'active' ? ` · this gym is ${scoped.status}` : ''}
+            {renderTemplate(tr.ui.platformInside, { gym: scoped.name, slug: scoped.slug })}
+            {scoped.status !== 'active'
+              ? ` · ${renderTemplate(tr.ui.platformGymStatus, { status: scoped.status })}`
+              : ''}
           </span>
           <form action={leaveTenantAction}>
             <input type="hidden" name="leaveGym" value="1" />
             <button className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800">
-              Leave this gym
+              {tr.ui.platformLeave}
             </button>
           </form>
         </div>
