@@ -310,11 +310,15 @@ export default async function NewMemberPage({
                 className={inputCls}
                 defaultValue={prev('referralSource') ?? 'walk_in'}
               >
-                <option value="walk_in">Walk-in</option>
-                <option value="referral">Referral</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="social">Social media</option>
-                <option value="other">Other</option>
+                {/* The same set the leads form offers, from the same keys —
+                    two hard-coded lists had already drifted apart (this one
+                    omits phone and website, and called social "Social media"
+                    where the other said "Instagram/Social"). */}
+                {Object.entries(tr.leads.sources).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label={`${tr.members.emergencyContact} (${tr.common.optional})`}>

@@ -28,7 +28,12 @@ const ATTRS = ['label', 'hint', 'title', 'subtitle', 'placeholder'];
 // two characters the RegExp needs for a word boundary. Written `\\\\b` it
 // became a literal backslash followed by b — a pattern that matches nothing,
 // so this gate silently passed everything for as long as it has existed.
-const PATTERN = new RegExp(`\\b(${ATTRS.join('|')})="([A-Z][^"]{2,})"`, 'g');
+// Two shapes count as prose: it starts with a capital, or it reads as a
+// sentence — two or more words of three-plus letters. The capital-only rule
+// let `hint="15 characters, e.g. 37ABCDE1234F1Z5. Empty = not registered."`
+// through, because it happens to start with a digit.
+const PROSE = `[A-Z][^"]{2,}|[^"]*[A-Za-z]{3,}[^"]*\\s+[^"]*[A-Za-z]{3,}[^"]*`;
+const PATTERN = new RegExp(`\\b(${ATTRS.join('|')})="(${PROSE})"`, 'g');
 
 /**
  * The other shape a user-visible string takes here: a table's column
@@ -59,6 +64,8 @@ const headerLiterals = (sample) =>
  */
 const MUST_MATCH = '<Field label="Member name" />';
 const MUST_NOT_MATCH = '<Field label={tr.members.name} data-x="ok" />';
+const DIGIT_LEAD_MUST_MATCH = '<Field hint="15 characters, e.g. 37ABCDE1234F1Z5." />';
+const SHORT_MUST_NOT_MATCH = '<Field hint="2500" label="id" />';
 const HEADERS_MUST_MATCH = "<Table headers={['Gym', 'Status']}>";
 const HEADERS_MUST_NOT_MATCH = "<Table headers={[tr.ui.colGym, tr.ui.colStatus, '']}>";
 if (!new RegExp(PATTERN.source).test(MUST_MATCH)) {
@@ -72,6 +79,20 @@ if (new RegExp(PATTERN.source).test(MUST_NOT_MATCH)) {
   console.error(
     'check-i18n-coverage is broken: its pattern matches a correctly ' +
       'translated attribute, so it would fail the build on good code.',
+  );
+  process.exit(2);
+}
+if (!new RegExp(PATTERN.source).test(DIGIT_LEAD_MUST_MATCH)) {
+  console.error(
+    'check-i18n-coverage is broken: prose that starts with a digit no ' +
+      'longer matches, so a pass here would mean nothing. Fix the pattern.',
+  );
+  process.exit(2);
+}
+if (new RegExp(PATTERN.source).test(SHORT_MUST_NOT_MATCH)) {
+  console.error(
+    'check-i18n-coverage is broken: it flags bare numbers and one-word ' +
+      'values, so it would fail the build on good code.',
   );
   process.exit(2);
 }

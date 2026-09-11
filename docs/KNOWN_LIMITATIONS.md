@@ -83,6 +83,15 @@ create-tenant -- --slug … --name … --owner-email …`) with zero source
     behind them, which are literals in the service layer. A Telugu-speaking
     receptionist gets Telugu screens with English confirmations.
 
+    That claim is measured, not assumed. Every admin page is rendered in
+    Telugu and its buttons, headings, labels, table headers, select options
+    and hint paragraphs are read back: four English strings remain, and all
+    four are correct — the language toggle, which names the language you
+    would switch TO, and the gym's own name and branch names, which are the
+    gym's data. Role names come from the six system keys rather than the
+    English display name stored at provisioning, so a gym that adds a role
+    of its own keeps the name it chose.
+
     The messages the gym _sends_ — the in-app notification written at
     payment, renewal and add-on time — do follow the member's own language,
     which the app sets from its picker and pushes at sign-in. What is not

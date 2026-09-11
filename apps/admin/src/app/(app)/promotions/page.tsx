@@ -151,7 +151,7 @@ export default async function PromotionsPage({
                       <input type="hidden" name="id" value={String(p.id)} />
                       <input type="hidden" name="active" value={p.is_active ? '0' : '1'} />
                       <button className="text-xs font-semibold text-slate-500 hover:text-slate-700">
-                        {p.is_active ? 'Disable' : 'Enable'}
+                        {p.is_active ? tr.ui.disable : tr.ui.enable}
                       </button>
                     </form>
                   ) : null}
@@ -163,7 +163,7 @@ export default async function PromotionsPage({
 
         {canManage ? (
           <Card>
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">New promotion</h2>
+            <h2 className="mb-3 text-sm font-semibold text-slate-700">{tr.ui.newPromotion}</h2>
             <form action={createPromotionAction} className="space-y-3">
               <Field label={tr.ui.code} required>
                 <input
@@ -189,9 +189,11 @@ export default async function PromotionsPage({
                   className={inputCls}
                   defaultValue={draftOr(kept, 'discountKind', 'percentage')}
                 >
-                  <option value="percentage">Percentage</option>
-                  <option value="flat">Flat ₹</option>
-                  <option value="joining_fee_waiver">Joining fee waiver</option>
+                  {Object.entries(tr.ui.discountKinds).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <div className="grid grid-cols-2 gap-3">
@@ -243,10 +245,11 @@ export default async function PromotionsPage({
                   className={inputCls}
                   defaultValue={draftOr(kept, 'audience', 'all')}
                 >
-                  <option value="all">Everyone</option>
-                  <option value="new_members">New members only</option>
-                  <option value="renewals">Renewals only</option>
-                  <option value="win_back">Win-back (lapsed members)</option>
+                  {Object.entries(tr.ui.audiences).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <Button className="w-full">{tr.common.save}</Button>

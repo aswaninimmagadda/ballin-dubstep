@@ -252,7 +252,7 @@ export default async function PlansPage({
                         <input type="hidden" name="planId" value={p.id} />
                         <input type="hidden" name="active" value={p.is_active ? '0' : '1'} />
                         <button className="text-xs font-semibold text-slate-500 hover:text-slate-700">
-                          {p.is_active ? 'Deactivate' : 'Activate'}
+                          {p.is_active ? tr.ui.deactivate : tr.ui.activate}
                         </button>
                       </form>
                     </div>
@@ -265,7 +265,7 @@ export default async function PlansPage({
 
         {canManage ? (
           <Card>
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">New plan</h2>
+            <h2 className="mb-3 text-sm font-semibold text-slate-700">{tr.plans.newPlan}</h2>
             <form action={createPlanAction} className="space-y-3">
               <Field label={tr.members.name} required>
                 <input
@@ -293,8 +293,11 @@ export default async function PlansPage({
                     className={inputCls}
                     defaultValue={draftOr(kept, 'durationUnit', 'months')}
                   >
-                    <option value="months">Months</option>
-                    <option value="days">Days</option>
+                    {Object.entries(tr.ui.durationUnits).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {v}
+                      </option>
+                    ))}
                   </select>
                 </Field>
               </div>
@@ -401,7 +404,7 @@ export default async function PlansPage({
       </div>
 
       <section className="mt-8">
-        <h2 className="mb-3 text-base font-semibold text-slate-900">PT & add-on packages</h2>
+        <h2 className="mb-3 text-base font-semibold text-slate-900">{tr.ui.ptAddonPackages}</h2>
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <Table
@@ -448,7 +451,7 @@ export default async function PlansPage({
                           <input type="hidden" name="packageId" value={a.id} />
                           <input type="hidden" name="active" value={a.is_active ? '0' : '1'} />
                           <button className="text-xs font-semibold text-slate-500 hover:text-slate-700">
-                            {a.is_active ? 'Deactivate' : 'Activate'}
+                            {a.is_active ? tr.ui.deactivate : tr.ui.activate}
                           </button>
                         </form>
                       </div>
@@ -460,7 +463,7 @@ export default async function PlansPage({
           </div>
           {canManage ? (
             <Card>
-              <h3 className="mb-3 text-sm font-semibold text-slate-700">New package</h3>
+              <h3 className="mb-3 text-sm font-semibold text-slate-700">{tr.ui.newPackage}</h3>
               <form action={createAddonAction} className="space-y-3">
                 <Field label={tr.members.name} required>
                   <input
@@ -472,12 +475,11 @@ export default async function PlansPage({
                 </Field>
                 <Field label={tr.ui.type} required>
                   <select name="kind" className={inputCls} defaultValue="personal_training">
-                    <option value="personal_training">Personal training</option>
-                    <option value="group_class">Group class</option>
-                    <option value="locker">Locker</option>
-                    <option value="towel">Towel</option>
-                    <option value="nutrition">Nutrition</option>
-                    <option value="other">Other</option>
+                    {Object.entries(tr.ui.addonKinds).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {v}
+                      </option>
+                    ))}
                   </select>
                 </Field>
                 <div className="grid grid-cols-3 gap-3">

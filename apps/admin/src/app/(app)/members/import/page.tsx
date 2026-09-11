@@ -94,7 +94,7 @@ export default async function ImportPage({
         subtitle={tr.ui.subImport}
         actions={
           <Button href="/api/import/template" variant="secondary">
-            Download template
+            {tr.ui.downloadTemplate}
           </Button>
         }
       />
@@ -109,7 +109,7 @@ export default async function ImportPage({
         <Card className="max-w-2xl">
           <form action={previewAction} className="space-y-4">
             <label className="block text-sm font-medium text-slate-700">
-              CSV file
+              {tr.ui.csvFile}
               <input
                 type="file"
                 name="file"
@@ -126,7 +126,7 @@ export default async function ImportPage({
                 'member_name,mobile,membership_plan,start_date,...\nRavi Kumar,9876543210,3 Month,2026-05-01,...'
               }
             />
-            <Button>Validate & preview (dry run)</Button>
+            <Button>{tr.ui.validateAndPreview}</Button>
           </form>
         </Card>
       ) : (

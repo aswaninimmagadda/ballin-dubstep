@@ -144,7 +144,7 @@ export default async function SettingsPage({
         <form action={saveSettingsAction} className="space-y-4">
           <fieldset disabled={!canManage} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={tr.ui.receiptPrefix} hint="e.g. SVF → SVF-2026-000123">
+              <Field label={tr.ui.receiptPrefix} hint={tr.ui.receiptPrefixHint}>
                 <input
                   name="receiptPrefix"
                   defaultValue={draftOr(kept, 'receiptPrefix', settings.receipt_prefix)}
@@ -194,7 +194,7 @@ export default async function SettingsPage({
                 defaultChecked={draftChecked(kept, 'allowPartial', settings.allow_partial_payments)}
                 className="h-4 w-4"
               />
-              Allow partial payments
+              {tr.ui.allowPartialPayments}
             </label>
             <Field
               label={tr.ui.whatsappRenewalTemplateEnglish}
@@ -227,10 +227,7 @@ export default async function SettingsPage({
                 turnover threshold must leave it empty and keeps the plain
                 payment acknowledgement. */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label={tr.ui.gstin}
-                hint="15 characters, e.g. 37ABCDE1234F1Z5. Empty = not registered, plain receipts."
-              >
+              <Field label={tr.ui.gstin} hint={tr.ui.gstinHint}>
                 <input
                   name="gstin"
                   defaultValue={draftOr(kept, 'gstin', settings.gstin ?? '')}
@@ -255,7 +252,7 @@ export default async function SettingsPage({
 
       {brand ? (
         <Card className="mt-6 max-w-2xl">
-          <h2 className="mb-3 text-sm font-semibold text-slate-700">Brand & member app identity</h2>
+          <h2 className="mb-3 text-sm font-semibold text-slate-700">{tr.ui.brandIdentity}</h2>
           <form action={saveBrandAction} className="space-y-4">
             <fieldset disabled={!canManage} className="grid gap-4 sm:grid-cols-2">
               <Field label={tr.ui.brandName} hint={tr.ui.shownInTheMemberApp}>

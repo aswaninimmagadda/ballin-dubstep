@@ -136,13 +136,11 @@ export default async function LeadsPage({
                 className={inputCls}
                 defaultValue={draftOr(kept, 'source', 'walk_in')}
               >
-                <option value="walk_in">Walk-in</option>
-                <option value="phone">Phone</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="social">Instagram/Social</option>
-                <option value="referral">Referral</option>
-                <option value="website">Website</option>
-                <option value="other">Other</option>
+                {Object.entries(tr.leads.sources).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label={tr.leads.followUpDate}>

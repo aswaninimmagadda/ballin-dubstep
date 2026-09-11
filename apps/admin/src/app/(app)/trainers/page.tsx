@@ -108,7 +108,7 @@ export default async function TrainersPage({
                       <input type="hidden" name="id" value={x.id} />
                       <input type="hidden" name="active" value={x.is_active ? '0' : '1'} />
                       <button className="text-xs font-semibold text-slate-500 hover:text-slate-700">
-                        {x.is_active ? 'Deactivate' : 'Activate'}
+                        {x.is_active ? tr.ui.deactivate : tr.ui.activate}
                       </button>
                     </form>
                   ) : null}
@@ -120,7 +120,7 @@ export default async function TrainersPage({
 
         {canManage ? (
           <Card>
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">New trainer</h2>
+            <h2 className="mb-3 text-sm font-semibold text-slate-700">{tr.ui.newTrainer}</h2>
             <form action={createTrainerAction} className="space-y-3">
               <Field label={tr.members.name} required>
                 <input
