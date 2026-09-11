@@ -10,6 +10,7 @@ import { toUserMessage } from '@/lib/errors';
 import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { requireFeature } from '@/lib/flags';
+import { submittedId } from '@/lib/route-id';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ async function sellAddonAction(formData: FormData): Promise<void> {
   // own: hiding the button does not stop a form post from a stale tab or a
   // bookmarked page after the gym switched the feature off.
   await requireFeature(user, 'pt');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   const draft = formDraft('addon', `/members/${memberId}/addon`);
   // Use the shared reader rather than parseMoney directly. A mistyped amount
   // does reach the catch below, but only as an unhandled fault — the staff

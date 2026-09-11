@@ -105,6 +105,42 @@ describe('member app status chips', () => {
   it.each(Object.entries(CHIPS))('%s is readable', (_name, [bg, fg]) => {
     expect(meetsAA(bg, fg)).toBe(true);
   });
+
+  /**
+   * The table above is a copy, and a copy is only as good as what keeps it
+   * honest. The member app is React Native: its colours are StyleSheet
+   * values, not class names, so the scan that walks the admin app cannot see
+   * them and nothing else in this file would notice theme.ts changing. Read
+   * the real source and require the two to agree, exactly as the admin CSS
+   * copy of the tokens is held to its TypeScript original above.
+   */
+  it('matches apps/member/src/lib/theme.ts, pair for pair', () => {
+    const src = readFileSync(
+      fileURLToPath(new URL('../../../apps/member/src/lib/theme.ts', import.meta.url)),
+      'utf8',
+    );
+    const block = src.match(/statusColors[^{]*\{([\s\S]*?)\n\};/)?.[1] ?? '';
+    const shipped: Record<string, [string, string]> = {};
+    for (const m of block.matchAll(
+      /(\w+):\s*\{\s*bg:\s*'(#[0-9a-fA-F]{3,8})',\s*fg:\s*'(#[0-9a-fA-F]{3,8})'\s*\}/g,
+    )) {
+      shipped[m[1] as string] = [m[2] as string, m[3] as string];
+    }
+    expect(Object.keys(shipped).length, 'parsed no chips out of theme.ts').toBeGreaterThan(0);
+    expect(shipped).toEqual(CHIPS);
+  });
+
+  /**
+   * The rest of the member app's colour, which is literal hex in StyleSheet
+   * objects. Each pair is one a member actually sees together.
+   */
+  it.each([
+    ['reload button label on the primary fill', DESIGN_TOKENS.color.primary, '#ffffff'],
+    ['offline banner', '#fef3c7', '#92400e'],
+    ['login error banner', '#fee2e2', '#991b1b'],
+  ])('%s is readable', (_name, bg, fg) => {
+    expect(meetsAA(bg, fg), `${fg} on ${bg} is ${contrastRatio(bg, fg).toFixed(2)}:1`).toBe(true);
+  });
 });
 
 describe('a gym’s own brand colour stays readable', () => {
@@ -119,8 +155,12 @@ describe('a gym’s own brand colour stays readable', () => {
   );
 
   it('rejects the mid-tones where neither black nor white works', () => {
-    // ~#777 is the worst case: 4.46:1 against near-black, 4.48:1 against
-    // white. Settings refuses these rather than shipping them to members.
+    // #7f7f7f is the boundary, and the figures are measured, not guessed:
+    // against the near-black label readableTextOn picks for it (#0f172a) it
+    // is 4.46:1 — just under the floor — and against white only 4.00:1, so
+    // there is no legible label either way. One shade lighter, #808080
+    // reaches 4.52:1 against the same near-black and is allowed. Settings
+    // refuses the ones below rather than shipping them to members.
     expect(isUsableAsFill('#7f7f7f')).toBe(false);
     expect(isUsableAsFill('#808080')).toBe(true);
   });
@@ -183,6 +223,8 @@ describe('no hard-coded low-contrast button in the admin app', () => {
     'amber-800': '#92400e',
     'red-700': '#b91c1c',
     'blue-700': '#1d4ed8',
+    'slate-800': '#1e293b',
+    'slate-900': '#0f172a',
   };
 
   /**
@@ -202,26 +244,55 @@ describe('no hard-coded low-contrast button in the admin app', () => {
     return out;
   }
 
+  /**
+   * Every run of class names in the file, however it was written.
+   *
+   * Matching only `className="…"` read the plain attributes and nothing
+   * else — so the app's own Button, whose variants live in a map and reach
+   * the element through a template literal, was never scanned at all. Its
+   * danger variant is `bg-red-600 text-white`, and the one component every
+   * destructive action in the product goes through was the one the test
+   * could not see. Take every string and template chunk in the file
+   * instead; a class list is a string wherever it is written.
+   */
+  function classRuns(src: string): string[] {
+    const runs: string[] = [];
+    for (const m of src.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)) {
+      const raw = m[1] ?? m[2] ?? m[3] ?? '';
+      // A template literal's ${…} holes break one class list into several;
+      // splitting on them keeps a background and a text colour from
+      // different branches from being read as one pair.
+      for (const chunk of raw.split(/\$\{[^}]*\}/)) runs.push(chunk);
+    }
+    return runs;
+  }
+
   it('every bg-<colour> paired with text-white clears AA', () => {
     const offenders: string[] = [];
+    const unknown = new Set<string>();
     for (const file of walk(dir)) {
-      const src = readFileSync(file, 'utf8');
-      // className strings that set both a background shade and white text.
-      for (const m of src.matchAll(/class[Nn]ame="([^"]*)"/g)) {
-        const cls = m[1] ?? '';
+      const where = file.slice(dir.length + 1);
+      for (const cls of classRuns(readFileSync(file, 'utf8'))) {
         if (!/\btext-white\b/.test(cls)) continue;
         const bg = cls.match(/\bbg-([a-z]+-\d{3})\b/)?.[1];
         if (!bg) continue;
         const hex = SHADES[bg];
-        if (!hex) continue; // a shade this test does not know; not a silent pass for known ones
+        if (!hex) {
+          // Skipping an unknown shade is how a palette test quietly stops
+          // testing: someone reaches for bg-rose-500, the map has never
+          // heard of it, and the check passes. Make it say so.
+          unknown.add(`${where}: bg-${bg} is not in SHADES — add its hex`);
+          continue;
+        }
         if (!meetsAA(hex, WHITE)) {
           offenders.push(
-            `${file.slice(dir.length + 1)}: bg-${bg} (${hex}) with white text is ` +
+            `${where}: bg-${bg} (${hex}) with white text is ` +
               `${contrastRatio(hex, WHITE).toFixed(2)}:1`,
           );
         }
       }
     }
+    expect([...unknown], [...unknown].join('\n')).toEqual([]);
     expect(offenders, offenders.join('\n')).toEqual([]);
   });
 
@@ -245,9 +316,7 @@ describe('no hard-coded low-contrast button in the admin app', () => {
     const offenders: string[] = [];
     for (const file of walk(dir)) {
       if (DARK_CHROME.has(file.slice(dir.length + 1))) continue;
-      const src = readFileSync(file, 'utf8');
-      for (const m of src.matchAll(/class[Nn]ame="([^"]*)"/g)) {
-        const cls = m[1] ?? '';
+      for (const cls of classRuns(readFileSync(file, 'utf8'))) {
         // Skip anything painted onto a coloured fill — the check above owns
         // those, and the fill is what the text sits on, not the page.
         if (/\bbg-[a-z]+-\d{3}\b/.test(cls)) continue;

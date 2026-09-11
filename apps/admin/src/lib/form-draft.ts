@@ -42,6 +42,17 @@ const MAX_DRAFT_BYTES = 3072;
 
 const TTL_SECONDS = 600;
 
+/**
+ * A cookie `path` this module is willing to put in a header.
+ *
+ * Callers build the path from a route id, and an id that reached them from a
+ * hidden form field is client-supplied. A `;` in it injects an attribute into
+ * the Set-Cookie line, a CR/LF splits the header, and a `.` opens the door to
+ * `..`. lib/route-id.ts rejects a non-UUID id before it ever gets here; this
+ * is the second lock, so that one forgetful caller cannot reopen the hole.
+ */
+const SAFE_COOKIE_PATH = /^\/[A-Za-z0-9\-_/]*$/;
+
 export interface FormDraft {
   /** Save the submitted values. Call immediately before an error redirect. */
   keep(formData: FormData): Promise<void>;
@@ -57,6 +68,11 @@ export interface FormDraft {
  */
 export function formDraft(key: string, path: string): FormDraft {
   const name = `gymflow_draft_${key}`;
+  // Neither writing nor clearing a draft is worth a header this module
+  // cannot vouch for. Losing a draft is a nuisance; an attacker-chosen
+  // cookie attribute is not.
+  const safePath = SAFE_COOKIE_PATH.test(path);
+  if (!safePath) log.warn('form_draft.unsafe_path', { key });
   return {
     async keep(formData: FormData): Promise<void> {
       const entries: Record<string, string> = {};
@@ -73,6 +89,7 @@ export function formDraft(key: string, path: string): FormDraft {
         // unticked checkbox is, and what draftChecked relies on.
         entries[field] = value;
       }
+      if (!safePath) return;
       const payload = JSON.stringify(entries);
       const bytes = Buffer.byteLength(payload, 'utf8');
       if (bytes > MAX_DRAFT_BYTES) {
@@ -106,6 +123,7 @@ export function formDraft(key: string, path: string): FormDraft {
     },
 
     async clear(): Promise<void> {
+      if (!safePath) return;
       (await cookies()).delete({ name, path });
     },
   };

@@ -565,7 +565,7 @@ export async function renewMembership(
       receiptNumber = rec.receiptNumber;
     }
 
-    await queueMemberNotification(tx, user, {
+    await queueMemberNotification(tx, {
       memberId: prev.member_id,
       event: 'renewal_completed',
       dedupeKey: `renewal:${membershipId}`,

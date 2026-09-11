@@ -6,6 +6,7 @@ import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
 import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
+import { submittedId } from '@/lib/route-id';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic';
 async function updateAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('members.edit');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   // Fourteen fields, most of them already filled in from the member's record.
   // A validation slip used to reset every one of them to the stored value,
   // silently throwing away the corrections the receptionist had just made.

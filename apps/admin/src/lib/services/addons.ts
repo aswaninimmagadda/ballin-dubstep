@@ -229,7 +229,7 @@ export async function sellAddon(
          VALUES ($1,$2,$3,$4,$5,$6)`,
         [user.tenantId, m.branch_id, paymentId, receiptNumber, seq, fy],
       );
-      await queueMemberNotification(tx, user, {
+      await queueMemberNotification(tx, {
         memberId: m.id,
         event: 'payment_received',
         dedupeKey: `payment:${paymentId}`,

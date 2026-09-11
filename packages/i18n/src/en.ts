@@ -81,7 +81,6 @@ export const en = {
     errorBody:
       'This page could not be loaded. Try again — if it keeps happening, give your support contact the reference below.',
     errorReference: 'Reference',
-    loadingPage: 'Loading…',
   },
   dashboard: {
     title: 'Dashboard',

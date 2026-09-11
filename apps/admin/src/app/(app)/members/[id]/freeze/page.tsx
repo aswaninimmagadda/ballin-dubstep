@@ -7,6 +7,7 @@ import { freezeMembership } from '@/lib/services/memberships';
 import { toUserMessage } from '@/lib/errors';
 import { draftChecked, draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
+import { submittedId } from '@/lib/route-id';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic';
 async function freezeAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.freeze');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   const draft = formDraft('freeze', `/members/${memberId}/freeze`);
   const parsed = freezeMembershipSchema.safeParse({
     membershipId: String(formData.get('membershipId')),

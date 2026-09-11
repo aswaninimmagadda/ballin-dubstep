@@ -12,6 +12,7 @@ import { toUserMessage } from '@/lib/errors';
 import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { getSettings } from '@/lib/services/settings';
 import { t } from '@/lib/i18n';
+import { submittedId } from '@/lib/route-id';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +36,7 @@ function discountPaise(raw: FormDataEntryValue | null): number | undefined {
 async function renewAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.renew');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   const draft = formDraft('renew', `/members/${memberId}/renew`);
   const amount = readAmount(formData.get('amount'));
   if (amount.kind === 'invalid') {

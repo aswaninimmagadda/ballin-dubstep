@@ -2,7 +2,6 @@ import 'server-only';
 import { getTranslations, renderTemplate, type Language } from '@gymflow/i18n';
 import { formatDisplayDate } from '@gymflow/utils';
 import type { Queryable } from '../db';
-import type { SessionUser } from '../session';
 
 /**
  * In-app notification delivery. Writes are idempotent via the dedupe key —
@@ -26,18 +25,33 @@ export type NotificationEvent =
   | 'promotion'
   | 'announcement';
 
-/** The member's chosen language, or the gym's default, or English. */
-async function memberLanguage(tx: Queryable, memberId: string): Promise<Language> {
+/**
+ * Which gym this member belongs to, and which language to write to them in.
+ *
+ * The gym comes from the MEMBER, not from whoever is signed in. Taking it
+ * from the session meant the message a member received depended on who
+ * happened to be at the desk: a platform administrator working inside a gym
+ * carries no tenant of their own, so the gym's own wording was silently
+ * skipped and the member got the built-in text instead — the same event,
+ * two different messages, with nothing in the record to say why. RLS has
+ * already established that this member is in scope; their row is the
+ * authority on whose member they are.
+ */
+async function memberContext(
+  tx: Queryable,
+  memberId: string,
+): Promise<{ tenantId: string; language: Language } | null> {
   const r = await tx.query(
-    `SELECT coalesce(u.language, t.default_language) AS language
+    `SELECT m.tenant_id, coalesce(u.language, t.default_language) AS language
        FROM members m
        JOIN tenants t ON t.id = m.tenant_id
        LEFT JOIN users u ON u.id = m.user_id
       WHERE m.id = $1`,
     [memberId],
   );
-  const value = (r as { rows: { language: string | null }[] }).rows[0]?.language;
-  return value === 'te' ? 'te' : 'en';
+  const row = (r as { rows: { tenant_id: string; language: string | null }[] }).rows[0];
+  if (!row) return null;
+  return { tenantId: row.tenant_id, language: row.language === 'te' ? 'te' : 'en' };
 }
 
 /**
@@ -64,7 +78,6 @@ async function tenantTemplate(
 
 export async function queueMemberNotification(
   tx: Queryable,
-  user: SessionUser,
   input: {
     memberId: string;
     event: NotificationEvent;
@@ -83,10 +96,15 @@ export async function queueMemberNotification(
     dateVars?: string[];
   },
 ): Promise<void> {
-  const language = await memberLanguage(tx, input.memberId);
+  const ctx = await memberContext(tx, input.memberId);
+  // No row means RLS did not hand this member over. Nothing to notify, and
+  // nothing to guess a tenant from — write nothing rather than a row in the
+  // wrong gym.
+  if (!ctx) return;
+  const { tenantId, language } = ctx;
   const tr = getTranslations(language);
   const body = tr.member.notifications[input.template];
-  const custom = await tenantTemplate(tx, user.tenantId as string, input.event, language);
+  const custom = await tenantTemplate(tx, tenantId, input.event, language);
 
   const vars: Record<string, string> = { ...(input.vars ?? {}) };
   for (const key of input.dateVars ?? []) {
@@ -99,12 +117,6 @@ export async function queueMemberNotification(
        (tenant_id, member_id, event, channel, dedupe_key, rendered_body, status, sent_at)
      VALUES ($1, $2, $3, 'in_app', $4, $5, 'sent', now())
      ON CONFLICT (tenant_id, dedupe_key) DO NOTHING`,
-    [
-      user.tenantId,
-      input.memberId,
-      input.event,
-      input.dedupeKey,
-      renderTemplate(custom ?? body, vars),
-    ],
+    [tenantId, input.memberId, input.event, input.dedupeKey, renderTemplate(custom ?? body, vars)],
   );
 }

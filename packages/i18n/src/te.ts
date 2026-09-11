@@ -75,7 +75,6 @@ export const te: TranslationTree = {
     errorBody:
       'ఈ పేజీని లోడ్ చేయలేకపోయాం. మళ్లీ ప్రయత్నించండి — పదే పదే జరిగితే, కింది రిఫరెన్స్‌ను మీ సపోర్ట్‌కు తెలియజేయండి.',
     errorReference: 'రిఫరెన్స్',
-    loadingPage: 'లోడ్ అవుతోంది…',
   },
   dashboard: {
     title: 'డాష్‌బోర్డ్',

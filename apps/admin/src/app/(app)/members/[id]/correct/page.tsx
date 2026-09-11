@@ -7,6 +7,7 @@ import { listPlans } from '@/lib/services/plans';
 import { toUserMessage } from '@/lib/errors';
 import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
+import { submittedId } from '@/lib/route-id';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export const dynamic = 'force-dynamic';
 async function correctAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.override');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   const draft = formDraft('correct', `/members/${memberId}/correct`);
   try {
     await correctMembership(user, {

@@ -1032,6 +1032,60 @@ async function main() {
   // exports, which a receptionist rightly cannot. Hand the session back.
   check('owner relogin after the notification check', await loginAs('owner@demo.gymflow.local'));
 
+  // ---- a hidden field is not a promise -----------------------------------
+  // Actions took the member id from a hidden input and concatenated it into
+  // two places: the URL they redirect back to, and the Path of the cookie
+  // holding what was typed. A hand-rolled POST controls that field, and a
+  // single semicolon in it appended an attribute to the Set-Cookie header —
+  // Domain= on a cookie carrying the member details just entered. A CR/LF
+  // answered 500 and `../..` moved the redirect elsewhere on the site.
+  console.log('\n[a forged hidden id cannot shape a header]');
+  const forgeBase = `/members/${memberId}/payment`;
+  const forgeForm = extractForm(await (await getFollow(forgeBase)).text(), 'amount');
+  const FORGERIES = [
+    ['a semicolon cannot add a cookie attribute', `${memberId}; Domain=example.test`],
+    ['a CR/LF cannot split the header', `${memberId}\r\nSet-Cookie: injected=1`],
+    ['dot-dot cannot move the redirect', '../..'],
+    ['and a non-uuid is simply not a member', 'x'.repeat(64)],
+  ];
+  for (const [name, forged] of FORGERIES) {
+    const res = await fetch(BASE + forgeBase, {
+      method: 'POST',
+      headers: { cookie },
+      body: (() => {
+        const fd = new FormData();
+        fd.set(`$ACTION_ID_${forgeForm.actionId}`, '');
+        for (const [k, v] of Object.entries(forgeForm.hidden)) fd.set(k, v);
+        fd.set('memberId', forged);
+        fd.set('amount', 'not-a-number'); // the branch that writes the draft cookie
+        fd.set('method', 'cash');
+        return fd;
+      })(),
+      redirect: 'manual',
+    });
+    const setCookies = res.headers.getSetCookie?.() ?? [];
+    const draftCookies = setCookies.filter((c) => c.includes('gymflow_draft'));
+    check(
+      name,
+      res.status === 404 && draftCookies.length === 0,
+      `${res.status} ${JSON.stringify(draftCookies)}`,
+    );
+  }
+  // The same form still works when the id is the real one.
+  const honestForm = extractForm(await (await getFollow(forgeBase)).text(), 'amount');
+  const honestRes = await postAction(forgeBase, honestForm, {
+    memberId,
+    membershipId: '',
+    amount: 'not-a-number',
+    method: 'cash',
+  });
+  check(
+    'a real id still gets its draft kept',
+    (honestRes.headers.getSetCookie?.() ?? []).some((c) => c.includes('gymflow_draft_payment')),
+    String(honestRes.status),
+  );
+  absorbCookies(honestRes);
+
   // ---- member session security ------------------------------------------
   // Three findings from the pre-release security review, each verified here
   // over real HTTP rather than by reading the code.

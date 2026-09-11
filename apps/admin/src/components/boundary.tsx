@@ -84,14 +84,16 @@ export function NotFoundBody({ tr }: { tr: TranslationTree }) {
  * Both were caught by the acceptance suite rather than by reading the docs,
  * which is the only reason this comment exists.
  */
-export function PageSkeleton({ rows = 6, label }: { rows?: number; label?: string }) {
+export function PageSkeleton({ rows = 6, label }: { rows?: number; label: string }) {
   return (
     // The grey bars themselves are decoration and stay hidden, but the fact
     // that something is loading has to reach a screen reader too — otherwise
     // the new "it looks like it is working" feedback reaches only people who
-    // can see it.
+    // can see it. The label is required rather than defaulted: a default
+    // would be an English string literal in a component, which is the one
+    // place the i18n coverage check does not look.
     <div role="status" aria-live="polite" aria-busy="true">
-      <span className="sr-only">{label ?? 'Loading…'}</span>
+      <span className="sr-only">{label}</span>
       <div className="animate-pulse" aria-hidden="true">
         <div className="mb-6 h-8 w-52 rounded bg-slate-200" />
         <div className="mb-4 grid gap-3 sm:grid-cols-3">

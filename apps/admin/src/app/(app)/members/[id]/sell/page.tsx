@@ -12,6 +12,7 @@ import { getSettings } from '@/lib/services/settings';
 import { toUserMessage } from '@/lib/errors';
 import { draftChecked, draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
+import { submittedId } from '@/lib/route-id';
 import {
   Button,
   Card,
@@ -43,7 +44,7 @@ function discountPaise(raw: FormDataEntryValue | null): number | undefined {
 async function sellAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.sell');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   // Selling is a seven-field form filled in with a member waiting at the
   // counter. Losing it to a mistyped amount meant choosing the plan, the
   // date, the promo code and the payment method all over again — which is

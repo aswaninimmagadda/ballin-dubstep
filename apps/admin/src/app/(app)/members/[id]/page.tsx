@@ -10,6 +10,7 @@ import { renewalWhatsappLink } from '@/lib/services/settings';
 import { unfreezeMembership } from '@/lib/services/memberships';
 import { requireFeature } from '@/lib/flags';
 import { t } from '@/lib/i18n';
+import { submittedId } from '@/lib/route-id';
 import {
   Badge,
   Button,
@@ -30,7 +31,7 @@ async function quickCheckinAction(formData: FormData): Promise<void> {
   // own: hiding the button does not stop a form post from a stale tab or a
   // bookmarked page after the gym switched the feature off.
   await requireFeature(user, 'attendance');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   const result = await checkinMember(user, { memberId, method: 'reception' });
   redirect(
     `/members/${memberId}?msg=${result.ok ? 'checkedin' : 'blocked' in result && result.blocked ? 'blocked' : 'duplicate'}`,
@@ -40,7 +41,7 @@ async function quickCheckinAction(formData: FormData): Promise<void> {
 async function unfreezeAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.freeze');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   const membershipId = String(formData.get('membershipId'));
   await unfreezeMembership(user, { membershipId, actualEndDate: todayInTz() });
   redirect(`/members/${memberId}?msg=unfrozen`);
@@ -49,7 +50,7 @@ async function unfreezeAction(formData: FormData): Promise<void> {
 async function archiveAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('members.edit');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   const { archiveMember } = await import('@/lib/services/members');
   try {
     await archiveMember(user, memberId);
@@ -63,7 +64,7 @@ async function archiveAction(formData: FormData): Promise<void> {
 async function unarchiveAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('members.edit');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   const { unarchiveMember } = await import('@/lib/services/members');
   try {
     await unarchiveMember(user, memberId);
@@ -81,7 +82,7 @@ async function logPtAction(formData: FormData): Promise<void> {
   // own: hiding the button does not stop a form post from a stale tab or a
   // bookmarked page after the gym switched the feature off.
   await requireFeature(user, 'pt');
-  const memberId = String(formData.get('memberId'));
+  const memberId = submittedId(formData);
   const { logPtSession } = await import('@/lib/services/addons');
   try {
     await logPtSession(user, { memberAddonId: String(formData.get('memberAddonId')) });
