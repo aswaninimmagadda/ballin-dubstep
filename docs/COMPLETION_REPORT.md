@@ -97,6 +97,59 @@ and write only that gym's rows. A real
 `pg_dump`/restore drill was executed (row counts matched, RLS held on the
 restored DB) — see DISASTER_RECOVERY.md. Details: TESTING.md.
 
+## 5b. Customer acceptance round
+
+A full acceptance pass was run against the built product — functional,
+usability, security, integration and store-readiness — and everything it
+raised was either fixed or recorded. Three rounds of independent review
+followed, each one reviewing the fixes the round before had landed; the
+second and third found defects in the first's work, which is the reason
+there were three.
+
+What that pass caught, in rough order of what it would have cost:
+
+- **A quality gate that could never fail.** `check-i18n-coverage.mjs`
+  built its pattern in a template literal, where `\\b` is a literal
+  backslash and not a word boundary, so it matched no text at all and had
+  been reporting a clean repository for its whole existence. Corrected,
+  it found real strings immediately; widened to see table-header arrays,
+  it found twenty-nine more across nine pages. The script now proves it
+  can fail before it is trusted to pass.
+- **Response-header injection through a hidden form field.** A `;` in a
+  posted member id appended an attribute to the draft cookie's
+  `Set-Cookie` line; a CR/LF returned 500; `../..` moved the redirect.
+  Closed at every call site and pinned over HTTP.
+- **Notifications that ignored the member's language.** The app kept the
+  choice on the device and never told the server, so the one message the
+  gym sends was the one thing not translated.
+- Money sorted as text in two report queries, a cash-up table ordered by
+  gross while showing net, a stale form draft that could resurface, and a
+  set of assertions in the suite itself that would have passed against a
+  broken product.
+
+Two things were deliberately **not** built while closing the round, and
+are recorded rather than hidden: a gym-level default language (see
+KNOWN_LIMITATIONS 17 — it needs a nullable column and a settings field,
+and is a feature, not a fix), and anything requiring an Android SDK.
+
+### Go / no-go
+
+| Gate                                       | State                                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Tenant isolation (release-blocking)        | **Pass** — 22 DB tests + bidirectional HTTP proof, in CI                                                             |
+| Financial integrity (append-only, refunds) | **Pass** — 7 DB tests incl. concurrent over-refund                                                                   |
+| Auth, throttling, refresh replay           | **Pass** — 16 DB tests + HTTP session-security block                                                                 |
+| Header/redirect injection                  | **Pass** — closed and pinned, all call sites audited                                                                 |
+| Bilingual coverage (EN/TE)                 | **Pass** — parity test plus a coverage gate that now works                                                           |
+| Empty-gym day one                          | **Pass** — 28 checks on a gym with no data                                                                           |
+| Disaster recovery                          | **Pass** — real dump/restore drill, RLS verified after restore                                                       |
+| Android/iOS release configuration          | **Pass** — 21 checks on the generated Android project                                                                |
+| **Member app on physical hardware**        | **Not done here** — no Android SDK in this environment; it is the first task of pilot testing (KNOWN_LIMITATIONS 23) |
+
+Everything above except the last line is machine-checked on every CI run.
+The last line is the one item that cannot be closed from a build
+environment and should gate the Play submission, not the web deployment.
+
 ## 6. Security summary (full review in SECURITY_REVIEW.md)
 
 - RLS on every tenant table; claims are transaction-scoped; two-tenant
