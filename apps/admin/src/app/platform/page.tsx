@@ -4,6 +4,7 @@ import { formatDisplayDate } from '@gymflow/utils';
 import { requireUser, PLATFORM_SCOPE_COOKIE } from '@/lib/session';
 import { listTenants, enterTenant } from '@/lib/services/platform';
 import { toUserMessage } from '@/lib/errors';
+import { renderTemplate } from '@gymflow/i18n';
 import { t } from '@/lib/i18n';
 import {
   Badge,
@@ -58,7 +59,11 @@ export default async function PlatformPage({
     <>
       <PageHeader
         title={tr.ui.platformTitle}
-        subtitle={`${tenants.length} gyms · ${totals.members} members · ${totals.active} active memberships`}
+        subtitle={renderTemplate(tr.ui.platformCounts, {
+          gyms: String(tenants.length),
+          members: String(totals.members),
+          active: String(totals.active),
+        })}
       />
       <ErrorBanner message={sp.error} />
       <Card>
@@ -68,14 +73,14 @@ export default async function PlatformPage({
         ) : (
           <Table
             headers={[
-              'Gym',
-              'Status',
-              'Plan',
-              'Branches',
-              'Staff',
-              'Members',
-              'Active',
-              'Last payment',
+              tr.ui.platformColGym,
+              tr.ui.platformColStatus,
+              tr.ui.platformColPlan,
+              tr.ui.platformColBranches,
+              tr.ui.platformColStaff,
+              tr.ui.platformColMembers,
+              tr.ui.platformColActive,
+              tr.ui.platformColLastPayment,
               '',
             ]}
           >
@@ -100,7 +105,7 @@ export default async function PlatformPage({
                   <form action={enterAction}>
                     <input type="hidden" name="tenantId" value={t.id} />
                     <button className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90">
-                      Open
+                      {tr.ui.platformOpen}
                     </button>
                   </form>
                 </td>

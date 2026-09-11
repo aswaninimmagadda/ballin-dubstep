@@ -26,7 +26,15 @@ export default async function AuditPage() {
       {rows.length === 0 ? (
         <EmptyState title={tr.ui.noActivityYet} />
       ) : (
-        <Table headers={['When', 'Who', 'Action', 'Entity', 'Details']}>
+        <Table
+          headers={[
+            tr.ui.colWhen,
+            tr.ui.colWho,
+            tr.ui.colAction,
+            tr.ui.colEntity,
+            tr.ui.colDetails,
+          ]}
+        >
           {rows.map((row) => (
             <tr key={String(row.id)}>
               <td className="px-4 py-3 text-xs text-slate-500">

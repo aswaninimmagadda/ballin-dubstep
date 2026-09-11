@@ -153,12 +153,12 @@ export default async function ImportPage({
 
           <Table
             headers={[
-              'Line',
+              tr.ui.colLine,
               tr.members.name,
               tr.members.mobile,
               tr.members.plan,
-              'Dates',
-              'Result',
+              tr.ui.colDates,
+              tr.ui.colResult,
             ]}
           >
             {preview.rows.map((row) => (

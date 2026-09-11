@@ -197,7 +197,7 @@ export default async function AttendancePage({
           {today.length === 0 ? (
             <p className="text-sm text-slate-500">No check-ins yet today.</p>
           ) : (
-            <Table headers={[tr.members.name, tr.attendance.checkedInAt, 'Method']}>
+            <Table headers={[tr.members.name, tr.attendance.checkedInAt, tr.ui.colMethod]}>
               {today.map((row) => (
                 <tr key={row.id}>
                   <td className="px-4 py-3">

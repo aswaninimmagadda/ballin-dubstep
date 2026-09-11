@@ -180,7 +180,9 @@ export default async function ReportsPage({
               with no filter — cancelled, never-paid and refunded ones all
               counted as money earned, printed next to a cash figure. These two
               columns are what actually arrived and what is still owed. */}
-          <Table headers={[tr.members.plan, 'Active', 'Collected', 'Outstanding']}>
+          <Table
+            headers={[tr.members.plan, tr.ui.colActive, tr.ui.colCollected, tr.ui.colOutstanding]}
+          >
             {planMix.map((p) => (
               <tr key={p.plan_name}>
                 <td className="px-4 py-3">{p.plan_name}</td>

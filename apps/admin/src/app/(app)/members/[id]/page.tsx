@@ -451,7 +451,13 @@ export default async function MemberDetailPage({
         <section className="mt-6">
           <h2 className="mb-3 text-base font-semibold">PT / Add-ons</h2>
           <Table
-            headers={['Package', tr.members.trainer, 'Sessions', 'Validity', tr.members.status]}
+            headers={[
+              tr.ui.colPackage,
+              tr.members.trainer,
+              tr.ui.colSessions,
+              tr.ui.colValidity,
+              tr.members.status,
+            ]}
           >
             {(addons as Record<string, unknown>[]).map((a) => (
               <tr key={String(a.id)}>

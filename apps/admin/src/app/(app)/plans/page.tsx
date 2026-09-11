@@ -206,7 +206,7 @@ export default async function PlansPage({
               tr.membership.duration,
               tr.membership.price,
               tr.membership.joiningFee,
-              'Version',
+              tr.ui.colVersion,
               tr.members.status,
               '',
             ]}
@@ -409,10 +409,10 @@ export default async function PlansPage({
           <div className="lg:col-span-2">
             <Table
               headers={[
-                'Package',
-                'Type',
-                'Sessions',
-                'Validity',
+                tr.ui.colPackage,
+                tr.ui.colType,
+                tr.ui.colSessions,
+                tr.ui.colValidity,
                 tr.membership.price,
                 tr.members.status,
                 '',

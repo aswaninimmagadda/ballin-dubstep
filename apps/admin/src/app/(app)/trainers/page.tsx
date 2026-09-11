@@ -77,10 +77,10 @@ export default async function TrainersPage({
           <Table
             headers={[
               tr.members.name,
-              'Branch',
-              'Specialization',
-              'Members',
-              'Sessions',
+              tr.ui.colBranch,
+              tr.ui.colSpecialization,
+              tr.ui.colMembers,
+              tr.ui.colSessions,
               tr.members.status,
               '',
             ]}
