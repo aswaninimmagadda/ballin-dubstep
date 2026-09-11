@@ -102,7 +102,7 @@ export default async function PaymentsPage({
                         : 'muted'
                   }
                 >
-                  {p.status}
+                  {tr.payments.statuses[p.status as keyof typeof tr.payments.statuses] ?? p.status}
                 </Badge>
               </td>
             </tr>

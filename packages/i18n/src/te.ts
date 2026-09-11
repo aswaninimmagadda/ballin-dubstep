@@ -250,6 +250,8 @@ export const te: TranslationTree = {
     graceTitle: 'మీరు ఇంకా రావచ్చు',
     graceBody:
       'మీ సభ్యత్వం {{ended}}న ముగిసింది. {{until}} వరకు మీరు ఇంకా వ్యాయామం చేయవచ్చు — కొనసాగించాలంటే రెన్యూ చేయించుకోండి.',
+    frozenTitle: 'మీ సభ్యత్వం తాత్కాలికంగా నిలిపివేసి ఉంది',
+    frozenBody: 'ప్రస్తుతం ఇది పాజ్‌లో ఉంది. మళ్లీ మొదలుపెట్టాలనుకున్నప్పుడు రిసెప్షన్‌లో అడగండి.',
     expiredTitle: 'మీ సభ్యత్వం ముగిసింది',
     expiredBody: 'మళ్లీ వ్యాయామం మొదలుపెట్టడానికి రిసెప్షన్‌లో రెన్యూ చేయించుకోండి.',
     startsOnTitle: 'మీ సభ్యత్వం {{date}}న మొదలవుతుంది',
@@ -261,8 +263,8 @@ export const te: TranslationTree = {
     paidOn: '{{date}}న చెల్లించారు',
     noPayments: 'ఇంకా చెల్లింపులు లేవు',
     noPaymentsHint: 'మీరు జిమ్‌లో చేసే చెల్లింపులు ఇక్కడ కనిపిస్తాయి.',
-    refunded: 'తిరిగి ఇచ్చారు',
-    partlyRefunded: 'కొంత తిరిగి ఇచ్చారు',
+    refunded: 'తిరిగి వచ్చింది',
+    partlyRefunded: 'కొంత తిరిగి వచ్చింది',
     visitsThisMonth: 'ఈ నెల రాకపోకలు',
     noVisits: 'ఇంకా రాకపోకలు లేవు',
     noVisitsHint: 'మీ చెక్-ఇన్‌లు ఇక్కడ కనిపిస్తాయి.',
@@ -277,9 +279,9 @@ export const te: TranslationTree = {
       active: 'యాక్టివ్',
       expiring_soon: 'త్వరలో ముగుస్తుంది',
       grace_period: 'గ్రేస్ పీరియడ్',
-      frozen: 'తాత్కాలికంగా ఆపారు',
+      frozen: 'తాత్కాలికంగా నిలిపివేసి ఉంది',
       expired: 'ముగిసింది',
-      cancelled: 'రద్దు చేశారు',
+      cancelled: 'రద్దు అయింది',
     },
     notifications: {
       payment_received: 'చెల్లింపు అందింది. రసీదు {{receipt}}.',
@@ -306,7 +308,7 @@ export const te: TranslationTree = {
     },
     checkInBy: {
       reception: 'రిసెప్షన్‌లో',
-      qr: 'స్కాన్ చేశారు',
+      qr: 'క్యూఆర్ స్కాన్',
       manual: 'జిమ్ నమోదు చేసింది',
     },
     monthsShort: [
@@ -342,6 +344,13 @@ export const te: TranslationTree = {
     receipt: 'రసీదు',
     receiptNumber: 'రసీదు నంబర్',
     receivedBy: 'స్వీకరించినవారు',
+    statuses: {
+      completed: 'పూర్తయింది',
+      pending: 'పెండింగ్',
+      failed: 'విఫలమైంది',
+      refunded: 'తిరిగి చెల్లించారు',
+      partially_refunded: 'పాక్షికంగా తిరిగి చెల్లించారు',
+    },
     methods: {
       cash: 'నగదు',
       upi: 'యూపీఐ',
@@ -375,6 +384,15 @@ export const te: TranslationTree = {
     source: 'మూలం',
     followUpDate: 'ఫాలో-అప్ తేదీ',
     convert: 'సభ్యుడిగా మార్చండి',
+    sources: {
+      walk_in: 'నేరుగా వచ్చారు',
+      phone: 'ఫోన్',
+      whatsapp: 'వాట్సాప్',
+      social: 'సోషల్ మీడియా',
+      referral: 'రిఫరల్',
+      website: 'వెబ్‌సైట్',
+      other: 'ఇతర',
+    },
     statuses: {
       new: 'కొత్తది',
       contacted: 'సంప్రదించారు',

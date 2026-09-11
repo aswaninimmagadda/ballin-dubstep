@@ -178,7 +178,9 @@ export default async function LeadsPage({
                     {lead.mobile.replace('+91', '')}
                   </span>
                 </td>
-                <td className="px-4 py-3">{lead.source}</td>
+                <td className="px-4 py-3">
+                  {tr.leads.sources[lead.source as keyof typeof tr.leads.sources] ?? lead.source}
+                </td>
                 <td className="px-4 py-3">
                   {lead.follow_up_date ? formatDisplayDate(lead.follow_up_date) : '—'}
                 </td>

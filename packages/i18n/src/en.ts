@@ -277,6 +277,8 @@ export const en = {
     graceTitle: 'You can still come in',
     graceBody:
       'Your membership ended on {{ended}}. You can still train until {{until}} — renew to keep going.',
+    frozenTitle: 'Your membership is on hold',
+    frozenBody: 'It is paused at the moment. Ask at the desk when you want to start again.',
     expiredTitle: 'Your membership has ended',
     expiredBody: 'Renew at the desk to start training again.',
     startsOnTitle: 'Your membership starts on {{date}}',
@@ -390,6 +392,15 @@ export const en = {
     receipt: 'Receipt',
     receiptNumber: 'Receipt #',
     receivedBy: 'Received by',
+    // The payments list rendered payments.status straight from the column:
+    // staff read "partially_refunded" on the screen they reconcile from.
+    statuses: {
+      completed: 'Completed',
+      pending: 'Pending',
+      failed: 'Failed',
+      refunded: 'Refunded',
+      partially_refunded: 'Partly refunded',
+    },
     methods: {
       cash: 'Cash',
       upi: 'UPI',
@@ -424,6 +435,15 @@ export const en = {
     source: 'Source',
     followUpDate: 'Follow-up date',
     convert: 'Convert to member',
+    sources: {
+      walk_in: 'Walk-in',
+      phone: 'Phone',
+      whatsapp: 'WhatsApp',
+      social: 'Social media',
+      referral: 'Referral',
+      website: 'Website',
+      other: 'Other',
+    },
     statuses: {
       new: 'New',
       contacted: 'Contacted',

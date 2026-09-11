@@ -61,8 +61,20 @@ function MembershipNote({
       </View>
     );
   }
-  // Active, ending soon, or on hold: how long is left, counted in days a
-  // member would count them.
+  if (membership.status === 'frozen') {
+    // A paused membership has no meaningful countdown: the days stopped
+    // running, and its end date is usually pushed out when it resumes. It
+    // used to fall through to the branch below and show "-5 days left" for
+    // anything frozen past its original expiry.
+    return (
+      <View style={styles.note}>
+        <Text style={styles.noteTitle}>{t.member.frozenTitle}</Text>
+        <Text style={styles.noteBody}>{t.member.frozenBody}</Text>
+      </View>
+    );
+  }
+  // Active or ending soon: how long is left, counted in days a member would
+  // count them.
   const left = membership.daysRemaining;
   const text =
     left === 0
