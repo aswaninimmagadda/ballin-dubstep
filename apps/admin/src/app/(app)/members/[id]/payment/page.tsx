@@ -9,6 +9,7 @@ import {
   earliestPaymentDate as earliestPaymentDateFor,
 } from '@/lib/services/payments';
 import { toUserMessage } from '@/lib/errors';
+import { draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -18,6 +19,7 @@ async function paymentAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('payments.record');
   const memberId = String(formData.get('memberId'));
+  const draft = formDraft('payment', `/members/${memberId}/payment`);
   let payload;
   try {
     payload = {
@@ -31,12 +33,14 @@ async function paymentAction(formData: FormData): Promise<void> {
       idempotencyKey: String(formData.get('idempotencyKey') ?? ''),
     };
   } catch {
+    await draft.keep(formData);
     redirect(
       `/members/${memberId}/payment?error=${encodeURIComponent('Enter a valid amount, e.g. 2500')}`,
     );
   }
   const parsed = recordPaymentSchema.safeParse(payload);
   if (!parsed.success) {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/payment?error=${encodeURIComponent('Please check the form.')}`);
   }
   let paymentId: string;
@@ -44,8 +48,10 @@ async function paymentAction(formData: FormData): Promise<void> {
     const result = await recordPayment(user, parsed.data);
     paymentId = result.paymentId;
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/payment?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect(`/receipts/${paymentId!}`);
 }
 
@@ -58,6 +64,7 @@ export default async function PaymentPage({
 }) {
   const user = await requirePermission('payments.record');
   const { id } = await params;
+  const kept = await formDraft('payment', `/members/${id}/payment`).read();
   const { error } = await searchParams;
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail) notFound();
@@ -86,10 +93,15 @@ export default async function PaymentPage({
                 placeholder="2500"
                 autoFocus
                 className={inputCls}
+                defaultValue={draftOr(kept, 'amount')}
               />
             </Field>
             <Field label={tr.payments.method} required>
-              <select name="method" className={inputCls} defaultValue="cash">
+              <select
+                name="method"
+                className={inputCls}
+                defaultValue={draftOr(kept, 'method', 'cash')}
+              >
                 {Object.entries(tr.payments.methods).map(([k, v]) => (
                   <option key={k} value={k}>
                     {v}
@@ -98,7 +110,11 @@ export default async function PaymentPage({
               </select>
             </Field>
             <Field label={tr.payments.reference} hint={tr.ui.upiUtrReferenceForNon}>
-              <input name="externalReference" className={inputCls} />
+              <input
+                name="externalReference"
+                className={inputCls}
+                defaultValue={draftOr(kept, 'externalReference')}
+              />
             </Field>
             {/* Bounded in the browser as well as the server: the receipt's
                 financial-year number is derived from this date and receipts
@@ -107,7 +123,7 @@ export default async function PaymentPage({
               <input
                 name="paymentDate"
                 type="date"
-                defaultValue={today}
+                defaultValue={draftOr(kept, 'paymentDate', today)}
                 min={earliestPaymentDate}
                 max={today}
                 className={inputCls}
@@ -115,7 +131,7 @@ export default async function PaymentPage({
             </Field>
           </div>
           <Field label={tr.members.notes}>
-            <input name="notes" className={inputCls} />
+            <input name="notes" className={inputCls} defaultValue={draftOr(kept, 'notes')} />
           </Field>
           <div className="flex gap-2">
             <Button>

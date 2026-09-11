@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/session';
 import { getMemberDetail } from '@/lib/services/members';
 import { freezeMembership } from '@/lib/services/memberships';
 import { toUserMessage } from '@/lib/errors';
+import { draftChecked, draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -14,6 +15,7 @@ async function freezeAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.freeze');
   const memberId = String(formData.get('memberId'));
+  const draft = formDraft('freeze', `/members/${memberId}/freeze`);
   const parsed = freezeMembershipSchema.safeParse({
     membershipId: String(formData.get('membershipId')),
     startDate: String(formData.get('startDate')),
@@ -23,6 +25,7 @@ async function freezeAction(formData: FormData): Promise<void> {
     extendsExpiry: formData.get('extendsExpiry') === 'on',
   });
   if (!parsed.success) {
+    await draft.keep(formData);
     redirect(
       `/members/${memberId}/freeze?error=${encodeURIComponent('Please fill the freeze details.')}`,
     );
@@ -30,8 +33,10 @@ async function freezeAction(formData: FormData): Promise<void> {
   try {
     await freezeMembership(user, parsed.data);
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/freeze?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect(`/members/${memberId}?msg=frozen`);
 }
 
@@ -44,6 +49,7 @@ export default async function FreezePage({
 }) {
   const user = await requirePermission('memberships.freeze');
   const { id } = await params;
+  const kept = await formDraft('freeze', `/members/${id}/freeze`).read();
   const { error } = await searchParams;
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail?.currentMembership) notFound();
@@ -65,7 +71,7 @@ export default async function FreezePage({
               <input
                 name="startDate"
                 type="date"
-                defaultValue={today}
+                defaultValue={draftOr(kept, 'startDate', today)}
                 required
                 className={inputCls}
               />
@@ -74,7 +80,7 @@ export default async function FreezePage({
               <input
                 name="plannedEndDate"
                 type="date"
-                defaultValue={addDays(today, 15)}
+                defaultValue={draftOr(kept, 'plannedEndDate', addDays(today, 15))}
                 className={inputCls}
               />
             </Field>
@@ -86,13 +92,24 @@ export default async function FreezePage({
               minLength={2}
               placeholder={tr.ui.medicalTravelPersonal}
               className={inputCls}
+              defaultValue={draftOr(kept, 'reason')}
             />
           </Field>
           <Field label={tr.members.notes}>
-            <textarea name="note" rows={2} className={inputCls} />
+            <textarea
+              name="note"
+              rows={2}
+              className={inputCls}
+              defaultValue={draftOr(kept, 'note')}
+            />
           </Field>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="extendsExpiry" defaultChecked className="h-4 w-4" />
+            <input
+              type="checkbox"
+              name="extendsExpiry"
+              defaultChecked={draftChecked(kept, 'extendsExpiry', true)}
+              className="h-4 w-4"
+            />
             {tr.membership.freezeExtends}
           </label>
           <div className="flex gap-2">

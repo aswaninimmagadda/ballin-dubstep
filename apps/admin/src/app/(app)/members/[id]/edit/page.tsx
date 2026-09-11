@@ -4,6 +4,7 @@ import { requirePermission } from '@/lib/session';
 import { getMemberDetail, updateMember } from '@/lib/services/members';
 import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
+import { draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -13,6 +14,10 @@ async function updateAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('members.edit');
   const memberId = String(formData.get('memberId'));
+  // Fourteen fields, most of them already filled in from the member's record.
+  // A validation slip used to reset every one of them to the stored value,
+  // silently throwing away the corrections the receptionist had just made.
+  const draft = formDraft('edit', `/members/${memberId}/edit`);
   // A field left blank means "clear this", not "ignore this" — every field on
   // the form is submitted, so blank is a deliberate erasure by the person at
   // the desk. Only `mobile` is mandatory (it is the member's login identity).
@@ -20,25 +25,30 @@ async function updateAction(formData: FormData): Promise<void> {
     const v = String(formData.get(name) ?? '').trim();
     return v === '' ? null : v;
   };
-  const fail = (message: string): never =>
+  // Awaited at every call site: the draft cookie has to be written before
+  // redirect() throws, or the entry is lost anyway and the whole point of
+  // keeping it is gone.
+  const fail = async (message: string): Promise<never> => {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/edit?error=${encodeURIComponent(message)}`);
+  };
 
   const mobileRaw = str('mobile');
   if (!mobileRaw || !isValidIndianMobile(mobileRaw)) {
-    fail('Enter a valid 10-digit mobile number.');
+    await fail('Enter a valid 10-digit mobile number.');
   }
   const altRaw = str('altMobile');
   if (altRaw && !isValidIndianMobile(altRaw)) {
-    fail('Alternate mobile is not valid. Leave it blank to remove it.');
+    await fail('Alternate mobile is not valid. Leave it blank to remove it.');
   }
   const firstName = str('firstName');
-  if (!firstName) fail('First name is required.');
+  if (!firstName) await fail('First name is required.');
   // Emergency contacts are often a landline or another household's number, so
   // accept any plausible phone — but say so when it is not, instead of
   // dropping it silently.
   const emergency = str('emergencyContactPhone');
   if (emergency && !/^[+\d][\d\s-]{5,19}$/.test(emergency)) {
-    fail('Emergency contact number looks wrong. Use digits, spaces or dashes.');
+    await fail('Emergency contact number looks wrong. Use digits, spaces or dashes.');
   }
   try {
     await updateMember(user, memberId, {
@@ -57,8 +67,10 @@ async function updateAction(formData: FormData): Promise<void> {
       notes: str('notes'),
     });
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/edit?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect(`/members/${memberId}?msg=edited`);
 }
 
@@ -71,6 +83,7 @@ export default async function EditMemberPage({
 }) {
   const user = await requirePermission('members.edit');
   const { id } = await params;
+  const kept = await formDraft('edit', `/members/${id}/edit`).read();
   const { error } = await searchParams;
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail) notFound();
@@ -95,7 +108,7 @@ export default async function EditMemberPage({
           <Field label={tr.members.firstName} required>
             <input
               name="firstName"
-              defaultValue={String(m.first_name)}
+              defaultValue={draftOr(kept, 'firstName', String(m.first_name))}
               required
               className={inputCls}
             />
@@ -103,14 +116,14 @@ export default async function EditMemberPage({
           <Field label={tr.members.lastName}>
             <input
               name="lastName"
-              defaultValue={m.last_name ? String(m.last_name) : ''}
+              defaultValue={draftOr(kept, 'lastName', m.last_name ? String(m.last_name) : '')}
               className={inputCls}
             />
           </Field>
           <Field label={tr.members.mobile} required>
             <input
               name="mobile"
-              defaultValue={String(m.mobile).replace('+91', '')}
+              defaultValue={draftOr(kept, 'mobile', String(m.mobile).replace('+91', ''))}
               required
               className={inputCls}
             />
@@ -118,12 +131,20 @@ export default async function EditMemberPage({
           <Field label={tr.members.altMobile}>
             <input
               name="altMobile"
-              defaultValue={m.alt_mobile ? String(m.alt_mobile).replace('+91', '') : ''}
+              defaultValue={draftOr(
+                kept,
+                'altMobile',
+                m.alt_mobile ? String(m.alt_mobile).replace('+91', '') : '',
+              )}
               className={inputCls}
             />
           </Field>
           <Field label={tr.ui.branchTransfer} required>
-            <select name="branchId" defaultValue={String(m.branch_id)} className={inputCls}>
+            <select
+              name="branchId"
+              defaultValue={draftOr(kept, 'branchId', String(m.branch_id))}
+              className={inputCls}
+            >
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
@@ -134,7 +155,11 @@ export default async function EditMemberPage({
           <Field label={tr.members.trainer}>
             <select
               name="assignedTrainerId"
-              defaultValue={m.assigned_trainer_id ? String(m.assigned_trainer_id) : ''}
+              defaultValue={draftOr(
+                kept,
+                'assignedTrainerId',
+                m.assigned_trainer_id ? String(m.assigned_trainer_id) : '',
+              )}
               className={inputCls}
             >
               <option value="">—</option>
@@ -149,28 +174,28 @@ export default async function EditMemberPage({
             <input
               name="email"
               type="email"
-              defaultValue={m.email ? String(m.email) : ''}
+              defaultValue={draftOr(kept, 'email', m.email ? String(m.email) : '')}
               className={inputCls}
             />
           </Field>
           <Field label={tr.members.village}>
             <input
               name="village"
-              defaultValue={m.village ? String(m.village) : ''}
+              defaultValue={draftOr(kept, 'village', m.village ? String(m.village) : '')}
               className={inputCls}
             />
           </Field>
           <Field label={tr.members.district}>
             <input
               name="district"
-              defaultValue={m.district ? String(m.district) : ''}
+              defaultValue={draftOr(kept, 'district', m.district ? String(m.district) : '')}
               className={inputCls}
             />
           </Field>
           <Field label={tr.members.pinCode}>
             <input
               name="pinCode"
-              defaultValue={m.pin_code ? String(m.pin_code) : ''}
+              defaultValue={draftOr(kept, 'pinCode', m.pin_code ? String(m.pin_code) : '')}
               pattern="[1-9][0-9]{5}"
               className={inputCls}
             />
@@ -178,18 +203,24 @@ export default async function EditMemberPage({
           <Field label={tr.members.emergencyContact}>
             <input
               name="emergencyContactName"
-              defaultValue={m.emergency_contact_name ? String(m.emergency_contact_name) : ''}
+              defaultValue={draftOr(
+                kept,
+                'emergencyContactName',
+                m.emergency_contact_name ? String(m.emergency_contact_name) : '',
+              )}
               className={inputCls}
             />
           </Field>
           <Field label={tr.ui.emergencyPhone}>
             <input
               name="emergencyContactPhone"
-              defaultValue={
+              defaultValue={draftOr(
+                kept,
+                'emergencyContactPhone',
                 m.emergency_contact_phone
                   ? String(m.emergency_contact_phone).replace('+91', '')
-                  : ''
-              }
+                  : '',
+              )}
               className={inputCls}
             />
           </Field>
@@ -198,7 +229,7 @@ export default async function EditMemberPage({
               <textarea
                 name="notes"
                 rows={2}
-                defaultValue={m.notes ? String(m.notes) : ''}
+                defaultValue={draftOr(kept, 'notes', m.notes ? String(m.notes) : '')}
                 className={inputCls}
               />
             </Field>

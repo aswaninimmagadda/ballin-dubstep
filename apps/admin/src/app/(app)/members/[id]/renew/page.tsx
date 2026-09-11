@@ -9,6 +9,7 @@ import { getMemberDetail } from '@/lib/services/members';
 import { renewMembership } from '@/lib/services/memberships';
 import { listPlans } from '@/lib/services/plans';
 import { toUserMessage } from '@/lib/errors';
+import { draftOr, formDraft } from '@/lib/form-draft';
 import { getSettings } from '@/lib/services/settings';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
@@ -35,8 +36,10 @@ async function renewAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.renew');
   const memberId = String(formData.get('memberId'));
+  const draft = formDraft('renew', `/members/${memberId}/renew`);
   const amount = readAmount(formData.get('amount'));
   if (amount.kind === 'invalid') {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/renew?error=${encodeURIComponent(AMOUNT_ERROR)}`);
   }
   const payload = {
@@ -60,6 +63,7 @@ async function renewAction(formData: FormData): Promise<void> {
   };
   const parsed = renewMembershipSchema.safeParse(payload);
   if (!parsed.success) {
+    await draft.keep(formData);
     redirect(
       `/members/${memberId}/renew?error=${encodeURIComponent('Please check the form and try again.')}`,
     );
@@ -67,8 +71,10 @@ async function renewAction(formData: FormData): Promise<void> {
   try {
     await renewMembership(user, parsed.data);
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/renew?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect(`/members/${memberId}?msg=renewed`);
 }
 
@@ -87,6 +93,7 @@ export default async function RenewPage({
     hasPermission(user.permissions, 'discounts.apply') ||
     hasPermission(user.permissions, 'discounts.approve');
   const { id } = await params;
+  const kept = await formDraft('renew', `/members/${id}/renew`).read();
   const { error } = await searchParams;
   const [detail, plans, tr, settings] = await Promise.all([
     getMemberDetail(user, id),
@@ -138,7 +145,7 @@ export default async function RenewPage({
                         name="planId"
                         value={p.id}
                         required
-                        defaultChecked={isSame}
+                        defaultChecked={kept.planId ? kept.planId === p.id : isSame}
                         className="h-4 w-4"
                       />
                       <span>
@@ -163,6 +170,7 @@ export default async function RenewPage({
               name="promotionCode"
               placeholder="e.g. WINBACK15"
               className={`${inputCls} max-w-xs`}
+              defaultValue={draftOr(kept, 'promotionCode')}
             />
           </Field>
           {/* Mutually exclusive with the promo code above; the approval
@@ -174,6 +182,7 @@ export default async function RenewPage({
                 inputMode="decimal"
                 placeholder="0"
                 className={`${inputCls} max-w-xs`}
+                defaultValue={draftOr(kept, 'manualDiscount')}
               />
             </Field>
           ) : null}
@@ -187,10 +196,19 @@ export default async function RenewPage({
                 label={`${tr.payments.amount} (₹)`}
                 hint={partPaymentsOn ? tr.membership.payLaterHint : tr.membership.payFullHint}
               >
-                <input name="amount" inputMode="decimal" className={inputCls} />
+                <input
+                  name="amount"
+                  inputMode="decimal"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'amount')}
+                />
               </Field>
               <Field label={tr.payments.method}>
-                <select name="method" className={inputCls} defaultValue="upi">
+                <select
+                  name="method"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'method', 'upi')}
+                >
                   {Object.entries(tr.payments.methods).map(([k, v]) => (
                     <option key={k} value={k}>
                       {v}
@@ -199,7 +217,11 @@ export default async function RenewPage({
                 </select>
               </Field>
               <Field label={tr.payments.reference}>
-                <input name="externalReference" className={inputCls} />
+                <input
+                  name="externalReference"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'externalReference')}
+                />
               </Field>
             </div>
           </fieldset>

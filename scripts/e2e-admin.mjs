@@ -1127,6 +1127,114 @@ async function main() {
   const healthBody = health.ok ? await health.json() : null;
   check('health endpoint reports ok', health.status === 200 && healthBody?.status === 'ok');
 
+  // ---- a rejected form keeps what was typed -------------------------------
+  // Every form except New member threw the entry away on a validation error.
+  // Selling a membership is seven fields filled in with a member waiting at
+  // the counter; getting the amount wrong meant choosing the plan, the date,
+  // the promo code and the payment method all over again.
+  console.log('\n[a rejected form keeps what was typed]');
+  const draftMobile = `9${String(Math.floor(100000000 + Math.random() * 899999999))}`;
+  const dStep1 = extractForm(await (await get('/members/new')).text(), 'mobile');
+  const dDup = await postAction('/members/new', dStep1, { mobile: draftMobile });
+  const dStep2Path = redirectTarget(dDup).replace(/^https?:\/\/[^/]+/, '');
+  const dStep2Html = await (await get(dStep2Path)).text();
+  const dCreate = await postAction(dStep2Path, extractForm(dStep2Html, 'firstName'), {
+    mobile: draftMobile,
+    branchId: dStep2Html.match(/<option[^>]*value="([a-f0-9-]{36})"/)?.[1],
+    firstName: 'Draft',
+    lastName: 'Keeper',
+    referralSource: 'walk_in',
+  });
+  const dSellPath = redirectTarget(dCreate).replace(/^https?:\/\/[^/]+/, '');
+  const draftMemberId = dSellPath.match(/members\/([a-f0-9-]+)\/sell/)?.[1];
+  check('a member to sell to', Boolean(draftMemberId), dSellPath);
+
+  // Fill the form in properly, but with an amount the server will reject.
+  const draftSellHtml = await (await get(dSellPath)).text();
+  const rejected = await postAction(dSellPath, extractForm(draftSellHtml, 'planId'), {
+    memberId: draftMemberId,
+    startDate: istToday,
+    promotionCode: 'TYPO-CODE-42',
+    amount: 'not-a-number',
+    method: 'upi',
+    externalReference: 'UTR-REF-9911',
+  });
+  check(
+    'the sale is refused',
+    decodeURIComponent(redirectTarget(rejected)).includes('error='),
+    redirectTarget(rejected),
+  );
+  // The draft cookie rides back on the redirect, so follow it the way a
+  // browser would.
+  absorbCookies(rejected);
+  const afterReject = await (await getFollow(dSellPath)).text();
+  check(
+    'the promo code they typed is still there',
+    afterReject.includes('TYPO-CODE-42'),
+    'promo code lost',
+  );
+  check('so is the payment reference', afterReject.includes('UTR-REF-9911'), 'reference lost');
+  check(
+    'and the payment method they picked, not the default',
+    /name="method"[\s\S]{0,400}?<option[^>]*value="upi"[^>]*selected/.test(afterReject) ||
+      afterReject.includes('value="upi" selected'),
+    'method reset to the default',
+  );
+  check(
+    'the amount that was rejected comes back so it can be corrected',
+    afterReject.includes('not-a-number'),
+    'amount lost',
+  );
+  // And none of it is in the URL: these forms carry member data, and the
+  // product's rule is that member data never reaches an access log.
+  check(
+    'none of it travelled in the URL',
+    !decodeURIComponent(redirectTarget(rejected)).includes('UTR-REF-9911') &&
+      !decodeURIComponent(redirectTarget(rejected)).includes('TYPO-CODE-42'),
+    redirectTarget(rejected),
+  );
+
+  // A successful sale must not leave the draft behind for the next member.
+  // planId is a radio, so it is not among the form's hidden fields — pick the
+  // plan the restored form has selected, the way a submit would.
+  const keptPlanId =
+    afterReject.match(/name="planId"\s+value="([a-f0-9-]{36})"\s+required\s+checked/)?.[1] ??
+    afterReject.match(/name="planId"\s+value="([a-f0-9-]{36})"/)?.[1];
+  check('the restored form still has a plan selected', Boolean(keptPlanId), String(keptPlanId));
+  // This gym does not allow part payments, so pay the plan price exactly.
+  // The joining fee is off: the rejected submission did not tick it, and the
+  // restored form reflects what was actually submitted rather than the
+  // original default — which is the point of restoring it.
+  const [planPrice] = (
+    await db.query(
+      `SELECT v.base_price::bigint::text AS price
+         FROM membership_plan_versions v
+        WHERE v.plan_id = $1 ORDER BY v.version DESC LIMIT 1`,
+      [keptPlanId],
+    )
+  ).rows;
+  const goodSale = await postAction(dSellPath, extractForm(afterReject, 'planId'), {
+    memberId: draftMemberId,
+    planId: keptPlanId,
+    startDate: istToday,
+    promotionCode: '',
+    manualDiscount: '',
+    amount: (Number(planPrice.price) / 100).toFixed(2),
+    method: 'cash',
+  });
+  absorbCookies(goodSale);
+  check(
+    'the sale goes through once corrected',
+    redirectTarget(goodSale).includes('msg=sold'),
+    redirectTarget(goodSale),
+  );
+  const freshForm = await (await getFollow(`/members/${draftMemberId}/sell`)).text();
+  check(
+    'and the draft is cleared, so the next sale starts clean',
+    !freshForm.includes('TYPO-CODE-42') && !freshForm.includes('UTR-REF-9911'),
+    'a finished draft leaked into the next form',
+  );
+
   // ---- a page that cannot be shown says so --------------------------------
   // A 404 in the admin app used to render a completely blank page: no
   // message, no navigation, nothing. A receptionist opening a stale bookmark

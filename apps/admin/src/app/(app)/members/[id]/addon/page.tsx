@@ -6,6 +6,7 @@ import { getMemberDetail } from '@/lib/services/members';
 import { listAddonPackages, sellAddon } from '@/lib/services/addons';
 import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
+import { draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { requireFeature } from '@/lib/flags';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
@@ -16,6 +17,7 @@ async function sellAddonAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('pt.manage');
   const memberId = String(formData.get('memberId'));
+  const draft = formDraft('addon', `/members/${memberId}/addon`);
   const amountRaw = String(formData.get('amount') ?? '').trim();
   try {
     await sellAddon(user, {
@@ -32,8 +34,10 @@ async function sellAddonAction(formData: FormData): Promise<void> {
         : null,
     });
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/addon?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect(`/members/${memberId}?msg=addon`);
 }
 
@@ -47,6 +51,7 @@ export default async function AddonPage({
   const user = await requirePermission('pt.manage');
   await requireFeature(user, 'pt');
   const { id } = await params;
+  const kept = await formDraft('addon', `/members/${id}/addon`).read();
   const { error } = await searchParams;
   const [detail, packages, tr] = await Promise.all([
     getMemberDetail(user, id),
@@ -101,7 +106,7 @@ export default async function AddonPage({
           </Field>
 
           <Field label={tr.members.trainer}>
-            <select name="trainerId" className={inputCls} defaultValue="">
+            <select name="trainerId" className={inputCls} defaultValue={draftOr(kept, 'trainerId')}>
               <option value="">—</option>
               {trainers.map((x) => (
                 <option key={x.id} value={x.id}>
@@ -117,10 +122,19 @@ export default async function AddonPage({
             </legend>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label={`${tr.payments.amount} (₹)`} hint={tr.ui.leaveEmptyToCollectLater}>
-                <input name="amount" inputMode="decimal" className={inputCls} />
+                <input
+                  name="amount"
+                  inputMode="decimal"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'amount')}
+                />
               </Field>
               <Field label={tr.payments.method}>
-                <select name="method" className={inputCls} defaultValue="cash">
+                <select
+                  name="method"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'method', 'cash')}
+                >
                   {Object.entries(tr.payments.methods).map(([k, v]) => (
                     <option key={k} value={k}>
                       {v}
@@ -129,7 +143,11 @@ export default async function AddonPage({
                 </select>
               </Field>
               <Field label={tr.payments.reference}>
-                <input name="externalReference" className={inputCls} />
+                <input
+                  name="externalReference"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'externalReference')}
+                />
               </Field>
             </div>
           </fieldset>

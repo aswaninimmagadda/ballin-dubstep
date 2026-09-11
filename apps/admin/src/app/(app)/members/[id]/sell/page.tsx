@@ -10,6 +10,7 @@ import { sellMembership } from '@/lib/services/memberships';
 import { listPlans } from '@/lib/services/plans';
 import { getSettings } from '@/lib/services/settings';
 import { toUserMessage } from '@/lib/errors';
+import { draftChecked, draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -35,8 +36,14 @@ async function sellAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.sell');
   const memberId = String(formData.get('memberId'));
+  // Selling is a seven-field form filled in with a member waiting at the
+  // counter. Losing it to a mistyped amount meant choosing the plan, the
+  // date, the promo code and the payment method all over again — which is
+  // where people stop using the software and reach for the notebook.
+  const draft = formDraft('sell', `/members/${memberId}/sell`);
   const amount = readAmount(formData.get('amount'));
   if (amount.kind === 'invalid') {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/sell?error=${encodeURIComponent(AMOUNT_ERROR)}`);
   }
   const payload = {
@@ -60,18 +67,18 @@ async function sellAction(formData: FormData): Promise<void> {
   };
   const parsed = sellMembershipSchema.safeParse(payload);
   if (!parsed.success) {
-    redirect(
-      `/members/${memberId}/sell?error=${encodeURIComponent('Please check the form and try again.')}`,
-    );
+    await draft.keep(formData);
+    const tr = await t();
+    redirect(`/members/${memberId}/sell?error=${encodeURIComponent(tr.ui.checkTheForm)}`);
   }
-  let receipt: string | null = null;
   try {
-    const result = await sellMembership(user, parsed.data);
-    receipt = result.receiptNumber;
+    await sellMembership(user, parsed.data);
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/sell?error=${encodeURIComponent(toUserMessage(err))}`);
   }
-  redirect(receipt ? `/members/${memberId}?msg=sold` : `/members/${memberId}?msg=sold`);
+  await draft.clear();
+  redirect(`/members/${memberId}?msg=sold`);
 }
 
 export default async function SellPage({
@@ -90,11 +97,12 @@ export default async function SellPage({
     hasPermission(user.permissions, 'discounts.approve');
   const { id } = await params;
   const { error, new: isNew } = await searchParams;
-  const [detail, plans, tr, settings] = await Promise.all([
+  const [detail, plans, tr, settings, kept] = await Promise.all([
     getMemberDetail(user, id),
     listPlans(user),
     t(),
     getSettings(user),
+    formDraft('sell', `/members/${id}/sell`).read(),
   ]);
   // The hint used to invite the exact action the service refuses when a
   // gym has not switched part payments on, which is every gym on day one.
@@ -127,7 +135,7 @@ export default async function SellPage({
                       name="planId"
                       value={p.id}
                       required
-                      defaultChecked={i === 0}
+                      defaultChecked={kept.planId ? kept.planId === p.id : i === 0}
                       className="h-4 w-4"
                     />
                     <span>
@@ -151,13 +159,18 @@ export default async function SellPage({
               <input
                 name="startDate"
                 type="date"
-                defaultValue={today}
+                defaultValue={draftOr(kept, 'startDate', today)}
                 required
                 className={inputCls}
               />
             </Field>
             <Field label={tr.membership.promotion} hint={tr.ui.optionalPromoCode}>
-              <input name="promotionCode" placeholder="e.g. NEWYEAR26" className={inputCls} />
+              <input
+                name="promotionCode"
+                placeholder="e.g. NEWYEAR26"
+                defaultValue={draftOr(kept, 'promotionCode')}
+                className={inputCls}
+              />
             </Field>
             {/* A promo code and a hand-written discount are mutually exclusive;
                 the service takes the promotion when both are sent. The
@@ -169,6 +182,7 @@ export default async function SellPage({
                   name="manualDiscount"
                   inputMode="decimal"
                   placeholder="0"
+                  defaultValue={draftOr(kept, 'manualDiscount')}
                   className={inputCls}
                 />
               </Field>
@@ -176,7 +190,12 @@ export default async function SellPage({
           </div>
 
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="includeJoiningFee" defaultChecked className="h-4 w-4" />
+            <input
+              type="checkbox"
+              name="includeJoiningFee"
+              defaultChecked={draftChecked(kept, 'includeJoiningFee', true)}
+              className="h-4 w-4"
+            />
             {tr.membership.joiningFee}
           </label>
 
@@ -189,10 +208,20 @@ export default async function SellPage({
                 label={`${tr.payments.amount} (₹)`}
                 hint={partPaymentsOn ? tr.membership.payLaterHint : tr.membership.payFullHint}
               >
-                <input name="amount" inputMode="decimal" placeholder="2500" className={inputCls} />
+                <input
+                  name="amount"
+                  inputMode="decimal"
+                  placeholder="2500"
+                  defaultValue={draftOr(kept, 'amount')}
+                  className={inputCls}
+                />
               </Field>
               <Field label={tr.payments.method}>
-                <select name="method" className={inputCls} defaultValue="cash">
+                <select
+                  name="method"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'method', 'cash')}
+                >
                   {Object.entries(tr.payments.methods).map(([k, v]) => (
                     <option key={k} value={k}>
                       {v}
@@ -204,6 +233,7 @@ export default async function SellPage({
                 <input
                   name="externalReference"
                   placeholder={tr.ui.upiRefUtr}
+                  defaultValue={draftOr(kept, 'externalReference')}
                   className={inputCls}
                 />
               </Field>

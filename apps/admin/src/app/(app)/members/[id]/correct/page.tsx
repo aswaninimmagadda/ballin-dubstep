@@ -5,6 +5,7 @@ import { getMemberDetail } from '@/lib/services/members';
 import { correctMembership } from '@/lib/services/memberships';
 import { listPlans } from '@/lib/services/plans';
 import { toUserMessage } from '@/lib/errors';
+import { draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -23,6 +24,7 @@ async function correctAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.override');
   const memberId = String(formData.get('memberId'));
+  const draft = formDraft('correct', `/members/${memberId}/correct`);
   try {
     await correctMembership(user, {
       membershipId: String(formData.get('membershipId')),
@@ -31,8 +33,10 @@ async function correctAction(formData: FormData): Promise<void> {
       reason: String(formData.get('reason') ?? ''),
     });
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/correct?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect(`/members/${memberId}?msg=corrected`);
 }
 
@@ -45,6 +49,7 @@ export default async function CorrectMembershipPage({
 }) {
   const user = await requirePermission('memberships.override');
   const { id } = await params;
+  const kept = await formDraft('correct', `/members/${id}/correct`).read();
   const { error } = await searchParams;
   const [detail, plans, tr] = await Promise.all([getMemberDetail(user, id), listPlans(user), t()]);
   if (!detail) notFound();
@@ -98,7 +103,11 @@ export default async function CorrectMembershipPage({
           <input type="hidden" name="memberId" value={id} />
           <input type="hidden" name="membershipId" value={String(live.id)} />
           <Field label={tr.members.plan} hint={tr.membership.correctPlanHint}>
-            <select name="planId" defaultValue={String(live.plan_id)} className={inputCls}>
+            <select
+              name="planId"
+              defaultValue={draftOr(kept, 'planId', String(live.plan_id))}
+              className={inputCls}
+            >
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} — {formatMoney(Number(p.base_price))}
@@ -110,7 +119,7 @@ export default async function CorrectMembershipPage({
             <input
               name="startDate"
               type="date"
-              defaultValue={String(live.start_date)}
+              defaultValue={draftOr(kept, 'startDate', String(live.start_date))}
               className={inputCls}
             />
           </Field>
@@ -119,6 +128,7 @@ export default async function CorrectMembershipPage({
               name="reason"
               required
               minLength={3}
+              defaultValue={draftOr(kept, 'reason')}
               placeholder={tr.membership.correctReasonHint}
               className={inputCls}
             />

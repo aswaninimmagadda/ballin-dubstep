@@ -3,6 +3,7 @@ import { requirePermission } from '@/lib/session';
 import { getMemberDetail } from '@/lib/services/members';
 import { cancelMembership } from '@/lib/services/memberships';
 import { toUserMessage } from '@/lib/errors';
+import { draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -12,8 +13,10 @@ async function cancelAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('memberships.cancel');
   const memberId = String(formData.get('memberId'));
+  const draft = formDraft('cancel', `/members/${memberId}/cancel`);
   const reason = String(formData.get('reason') ?? '').trim();
   if (reason.length < 3) {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/cancel?error=${encodeURIComponent('A reason is required.')}`);
   }
   try {
@@ -22,8 +25,10 @@ async function cancelAction(formData: FormData): Promise<void> {
       reason,
     });
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/members/${memberId}/cancel?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect(`/members/${memberId}?msg=cancelled`);
 }
 
@@ -36,6 +41,7 @@ export default async function CancelPage({
 }) {
   const user = await requirePermission('memberships.cancel');
   const { id } = await params;
+  const kept = await formDraft('cancel', `/members/${id}/cancel`).read();
   const { error } = await searchParams;
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail?.currentMembership) notFound();
@@ -61,7 +67,12 @@ export default async function CancelPage({
           <input type="hidden" name="memberId" value={id} />
           {cancellable.length > 1 ? (
             <Field label={tr.ui.whichMembership} required>
-              <select name="membershipId" className={inputCls} required>
+              <select
+                name="membershipId"
+                className={inputCls}
+                required
+                defaultValue={draftOr(kept, 'membershipId')}
+              >
                 {cancellable.map((m) => (
                   <option key={String(m.id)} value={String(m.id)}>
                     {String(m.plan_name_snapshot)} · {String(m.start_date)} → {String(m.end_date)} ·{' '}
@@ -81,6 +92,7 @@ export default async function CancelPage({
               maxLength={500}
               className={inputCls}
               placeholder={tr.ui.movingAwayMedicalDissatisfied}
+              defaultValue={draftOr(kept, 'reason')}
             />
           </Field>
           <div className="flex gap-2">

@@ -430,6 +430,7 @@ export const en = {
       'That colour cannot be read at {{ratio}}:1 — buttons in the member app would be hard to see. Pick a darker or lighter shade.',
     brandColorPreview: 'This is how buttons will look in the member app',
     brandName: 'Brand name',
+    checkTheForm: 'Please check the form and try again — what you typed has been kept.',
     code: 'Code',
     dateOfBirth: 'Date of birth',
     defaultGracePeriodDays: 'Default grace period (days)',
