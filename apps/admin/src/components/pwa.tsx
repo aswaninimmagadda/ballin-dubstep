@@ -29,7 +29,7 @@ export function PwaSetup({ offlineText }: { offlineText: string }) {
   return (
     <div
       role="status"
-      className="no-print sticky top-0 z-30 bg-amber-500 px-4 py-2 text-center text-sm font-semibold text-white"
+      className="no-print sticky top-0 z-30 bg-amber-400 px-4 py-2 text-center text-sm font-semibold text-slate-900"
     >
       {offlineText}
     </div>

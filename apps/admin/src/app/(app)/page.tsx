@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/session';
 import { getDashboard } from '@/lib/services/dashboard';
 import { t, currentLanguage } from '@/lib/i18n';
 import { Badge, Button, Card, PageHeader, StatCard, Table, EmptyState } from '@/components/ui';
+import { SetupChecklist } from '@/components/setup-checklist';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,8 @@ export default async function DashboardPage() {
         }
       />
 
+      <SetupChecklist tr={tr} hasPlans={data.planCount > 0} hasMembers={data.memberCount > 0} />
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
           label={tr.dashboard.activeMembers}
@@ -36,7 +39,12 @@ export default async function DashboardPage() {
           tone="success"
           href="/members?status=active"
         />
-        <StatCard label={tr.dashboard.expiring7Days} value={data.expiring7Days} tone="warning" />
+        <StatCard
+          label={tr.dashboard.expiring7Days}
+          value={data.expiring7Days}
+          tone="warning"
+          href="/renewals?window=7"
+        />
         <StatCard
           label={tr.dashboard.expiredMembers}
           value={data.expiredRecent}
@@ -68,7 +76,26 @@ export default async function DashboardPage() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <section>
-          <h2 className="mb-3 text-lg font-semibold text-slate-900">{tr.dashboard.expiryQueue}</h2>
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-900">
+              {tr.dashboard.expiryQueue}
+              {data.expiryQueueTotal > 0 ? (
+                <span className="ml-2 text-sm font-normal text-slate-600">
+                  {data.expiryQueueTotal}
+                </span>
+              ) : null}
+            </h2>
+            {/* The list below is the first 30. Saying so, and offering the
+                rest, is the difference between a preview and a queue that
+                quietly ends. */}
+            {data.expiryQueueTotal > data.expiryQueue.length ? (
+              <Link href="/renewals?window=7" className="text-sm font-semibold text-primary">
+                {renderTemplate(tr.dashboard.seeAllExpiring, {
+                  total: String(data.expiryQueueTotal),
+                })}
+              </Link>
+            ) : null}
+          </div>
           {data.expiryQueue.length === 0 ? (
             <EmptyState title={tr.ui.noMembershipsExpiringInThe} />
           ) : (
@@ -116,7 +143,7 @@ export default async function DashboardPage() {
                         href={wa}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                        className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-800"
                       >
                         {tr.members.whatsapp}
                       </a>

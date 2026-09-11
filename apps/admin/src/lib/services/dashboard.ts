@@ -24,6 +24,20 @@ export interface DashboardData {
   todayAttendance: number;
   leadsToFollowUp: number;
   expiryQueue: ExpiryRow[];
+  /**
+   * How many memberships are in the queue's window in total. The card shows
+   * the first 30; without this it looked as though 30 was all there was, and
+   * an owner with 200 renewals due would never have known the rest existed.
+   */
+  expiryQueueTotal: number;
+  /**
+   * Day-one signals. A freshly provisioned gym gets a branch, settings and
+   * an owner login, but no plans — so the dashboard was a grid of zeroes and
+   * the obvious first move ("New member" → "Sell membership") ran into a
+   * plan chooser with nothing in it.
+   */
+  planCount: number;
+  memberCount: number;
   recentPayments: PaymentRow[];
 }
 
@@ -77,7 +91,9 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
         (SELECT count(*) FROM members WHERE join_date >= $5 AND status NOT IN ('lead','archived'))::int AS new_members_month,
         (SELECT count(*) FROM attendance a
           WHERE ${onTenantDay('a.checked_in_at', '$1')})::int AS today_attendance,
-        (SELECT count(*) FROM leads WHERE status NOT IN ('won','lost') AND (follow_up_date IS NULL OR follow_up_date <= $1))::int AS leads_follow_up
+        (SELECT count(*) FROM leads WHERE status NOT IN ('won','lost') AND (follow_up_date IS NULL OR follow_up_date <= $1))::int AS leads_follow_up,
+        (SELECT count(*) FROM membership_plans WHERE is_active)::int AS plan_count,
+        (SELECT count(*) FROM members WHERE status <> 'lead')::int AS member_count
       `,
       [today, in7, back7, addDays(today, -1), monthStart],
     );
@@ -93,6 +109,11 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
        ORDER BY ms.end_date ASC
        LIMIT 30`,
       [today, back7, in7],
+    );
+    const queueTotal = await tx.query(
+      `SELECT count(*)::int AS n FROM memberships ms
+        WHERE ms.state = 'active' AND ms.end_date BETWEEN $1 AND $2`,
+      [back7, in7],
     );
 
     const payments = await tx.query(
@@ -132,6 +153,9 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
       todayAttendance: Number(c.today_attendance),
       leadsToFollowUp: Number(c.leads_follow_up),
       expiryQueue: queue.rows as ExpiryRow[],
+      expiryQueueTotal: (queueTotal.rows[0] as { n: number }).n,
+      planCount: Number(c.plan_count),
+      memberCount: Number(c.member_count),
       recentPayments: payments.rows as PaymentRow[],
     };
   });

@@ -21,6 +21,17 @@ const PASSWORD = process.env.E2E_PASSWORD ?? 'gymflow-dev-password';
 
 const db = new pg.Client({ connectionString: DB });
 let cookie = '';
+/**
+ * The seed owner's stored password hash, held while the suite has rotated it.
+ *
+ * The suite rotates owner@demo.gymflow.local to test the change-password
+ * flow and rotates it back. A crash in between used to leave the seed
+ * poisoned: every later run of this suite, and of e2e-acceptance.mjs, then
+ * failed to sign that owner in — surfacing as four unrelated-looking tenant
+ * isolation failures and sending the reader hunting for an RLS bug that was
+ * never there. The outer finally puts it back whatever happens.
+ */
+let ownerPasswordHash = null;
 let passed = 0;
 const failures = [];
 
@@ -609,6 +620,14 @@ async function main() {
     decodeURIComponent(redirectTarget(wrongRes)).includes('current password is not correct'),
     redirectTarget(wrongRes),
   );
+  // Snapshot the stored hash before rotating, so the outer finally can put
+  // it back byte for byte no matter where the suite stops.
+  ownerPasswordHash = (
+    await db.query(
+      `SELECT password_hash FROM user_credentials
+        WHERE user_id = (SELECT id FROM users WHERE email = 'owner@demo.gymflow.local')`,
+    )
+  ).rows[0].password_hash;
   const pwRes = await postAction('/account/password', pwForm, {
     currentPassword: PASSWORD,
     newPassword: NEW_PW,
@@ -640,6 +659,8 @@ async function main() {
     redirectTarget(restoreRes),
   );
   check('seed password works again', await loginAs('owner@demo.gymflow.local'));
+
+  ownerPasswordHash = null;
 
   // ---- money guards at the desk ------------------------------------------
   // Two ways a slipped keystroke used to become permanent.
@@ -1127,6 +1148,72 @@ async function main() {
   const healthBody = health.ok ? await health.json() : null;
   check('health endpoint reports ok', health.status === 200 && healthBody?.status === 'ok');
 
+  // ---- the renewal queue does not quietly end at 30 -----------------------
+  // The dashboard card listed the first 30 memberships expiring in its
+  // window with no way to reach the rest, and no total — so a gym with 200
+  // renewals due could work 30 of them and never learn the other 170
+  // existed.
+  console.log('\n[the whole renewal queue]');
+  const renewalsRes = await getFollow('/renewals?window=7');
+  check('there is a renewals page at all', renewalsRes.status === 200, String(renewalsRes.status));
+  const renewalsHtml = await renewalsRes.text();
+  const [dueSoon] = (
+    await db.query(
+      `SELECT count(*)::int AS n FROM memberships ms JOIN tenants t ON t.id = ms.tenant_id
+        WHERE t.slug = 'apfitness' AND ms.state = 'active'
+          AND ms.end_date BETWEEN $1::date AND $1::date + 7`,
+      [istToday],
+    )
+  ).rows;
+  check(
+    'it states the true total, not the length of a capped list',
+    renewalsHtml.includes(`${dueSoon.n} memberships in this window`),
+    `expected ${dueSoon.n}`,
+  );
+  check(
+    'every row can be acted on, not just read',
+    !dueSoon.n || (renewalsHtml.includes('/renew') && renewalsHtml.includes('wa.me')),
+    'no renew or WhatsApp action on the queue',
+  );
+  for (const w of ['overdue', 'today', '15', '30']) {
+    const res = await getFollow(`/renewals?window=${w}`);
+    if (res.status !== 200) {
+      check(`the ${w} window opens`, false, String(res.status));
+      break;
+    }
+  }
+  check('and every window opens', true);
+  const badWindow = await getFollow('/renewals?window=../../etc/passwd');
+  check(
+    'an unknown window falls back rather than erroring',
+    badWindow.status === 200,
+    String(badWindow.status),
+  );
+  const dashHtml = await (await getFollow('/')).text();
+  check(
+    'the dashboard card links to the full queue',
+    dashHtml.includes('/renewals'),
+    'no drill-down from the dashboard',
+  );
+
+  // ---- who took the cash ---------------------------------------------------
+  // payments.received_by has been recorded since the first migration and was
+  // only ever visible on one receipt at a time, so closing the till meant
+  // opening receipts one by one.
+  console.log('\n[cash up]');
+  const cashUpHtml = await (await getFollow(`/reports?from=${istToday}&to=${istToday}`)).text();
+  check(
+    'the reports page has a cash-up table',
+    cashUpHtml.includes('Cash up') || cashUpHtml.includes('క్యాష్ అప్'),
+    'no cash-up section',
+  );
+  check('it names who collected', cashUpHtml.includes('Collected by'), 'no collector column');
+  check(
+    'and separates cash from the methods that reconcile against a statement',
+    cashUpHtml.includes('Card / UPI / bank'),
+    'cash not separated',
+  );
+
   // ---- a rejected form keeps what was typed -------------------------------
   // Every form except New member threw the entry away on a validation error.
   // Selling a membership is seven fields filled in with a member waiting at
@@ -1317,4 +1404,14 @@ main()
     console.error(err);
     process.exitCode = 1;
   })
-  .finally(() => db.end());
+  .finally(async () => {
+    if (ownerPasswordHash) {
+      console.error('\nRestoring the seed owner password after an interrupted run.');
+      await db.query(
+        `UPDATE user_credentials SET password_hash = $1
+          WHERE user_id = (SELECT id FROM users WHERE email = 'owner@demo.gymflow.local')`,
+        [ownerPasswordHash],
+      );
+    }
+    await db.end();
+  });

@@ -12,7 +12,15 @@ import { getSettings } from '@/lib/services/settings';
 import { toUserMessage } from '@/lib/errors';
 import { draftChecked, draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
-import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorBanner,
+  Field,
+  PageHeader,
+  inputCls,
+} from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,137 +125,152 @@ export default async function SellPage({
         subtitle={isNew ? 'Member created. Now choose a plan.' : undefined}
       />
       <ErrorBanner message={error ?? null} />
-      <Card className="max-w-2xl">
-        <form action={sellAction} className="space-y-4">
-          <input type="hidden" name="memberId" value={id} />
-          <input type="hidden" name="idempotencyKey" value={randomUUID()} />
+      {/* A gym is provisioned with a branch and settings but no plans, so
+          this is exactly what a new owner hits on their first day: they
+          create a member, land here, and the plan chooser is empty. It used
+          to render an empty radio list and refuse the submission with
+          "Please check the form", which says nothing about the actual
+          problem or where to solve it. */}
+      {plans.length === 0 ? (
+        <Card className="max-w-2xl">
+          <EmptyState title={tr.membership.noPlansTitle} hint={tr.membership.noPlansBody} />
+          <div className="mt-4 flex justify-center">
+            <Button href="/plans">{tr.membership.noPlansAction}</Button>
+          </div>
+        </Card>
+      ) : (
+        <Card className="max-w-2xl">
+          <form action={sellAction} className="space-y-4">
+            <input type="hidden" name="memberId" value={id} />
+            <input type="hidden" name="idempotencyKey" value={randomUUID()} />
 
-          <Field label={tr.members.plan} required>
-            <div className="space-y-2">
-              {plans.map((p, i) => (
-                <label
-                  key={p.id}
-                  className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 px-4 py-3 hover:border-primary has-checked:border-primary has-checked:bg-green-50"
-                >
-                  <span className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="planId"
-                      value={p.id}
-                      required
-                      defaultChecked={kept.planId ? kept.planId === p.id : i === 0}
-                      className="h-4 w-4"
-                    />
-                    <span>
-                      <span className="block text-sm font-semibold">{p.name}</span>
-                      <span className="block text-xs text-slate-500">
-                        {p.duration_value} {p.duration_unit === 'months' ? 'months' : 'days'}
-                        {Number(p.joining_fee) > 0
-                          ? ` · ${tr.membership.joiningFee} ${formatMoney(Number(p.joining_fee))}`
-                          : ''}
+            <Field label={tr.members.plan} required>
+              <div className="space-y-2">
+                {plans.map((p, i) => (
+                  <label
+                    key={p.id}
+                    className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 px-4 py-3 hover:border-primary has-checked:border-primary has-checked:bg-green-50"
+                  >
+                    <span className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="planId"
+                        value={p.id}
+                        required
+                        defaultChecked={kept.planId ? kept.planId === p.id : i === 0}
+                        className="h-4 w-4"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold">{p.name}</span>
+                        <span className="block text-xs text-slate-500">
+                          {p.duration_value} {p.duration_unit === 'months' ? 'months' : 'days'}
+                          {Number(p.joining_fee) > 0
+                            ? ` · ${tr.membership.joiningFee} ${formatMoney(Number(p.joining_fee))}`
+                            : ''}
+                        </span>
                       </span>
                     </span>
-                  </span>
-                  <span className="text-sm font-bold">{formatMoney(Number(p.base_price))}</span>
-                </label>
-              ))}
-            </div>
-          </Field>
+                    <span className="text-sm font-bold">{formatMoney(Number(p.base_price))}</span>
+                  </label>
+                ))}
+              </div>
+            </Field>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={tr.membership.startDate} required>
-              <input
-                name="startDate"
-                type="date"
-                defaultValue={draftOr(kept, 'startDate', today)}
-                required
-                className={inputCls}
-              />
-            </Field>
-            <Field label={tr.membership.promotion} hint={tr.ui.optionalPromoCode}>
-              <input
-                name="promotionCode"
-                placeholder="e.g. NEWYEAR26"
-                defaultValue={draftOr(kept, 'promotionCode')}
-                className={inputCls}
-              />
-            </Field>
-            {/* A promo code and a hand-written discount are mutually exclusive;
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={tr.membership.startDate} required>
+                <input
+                  name="startDate"
+                  type="date"
+                  defaultValue={draftOr(kept, 'startDate', today)}
+                  required
+                  className={inputCls}
+                />
+              </Field>
+              <Field label={tr.membership.promotion} hint={tr.ui.optionalPromoCode}>
+                <input
+                  name="promotionCode"
+                  placeholder="e.g. NEWYEAR26"
+                  defaultValue={draftOr(kept, 'promotionCode')}
+                  className={inputCls}
+                />
+              </Field>
+              {/* A promo code and a hand-written discount are mutually exclusive;
                 the service takes the promotion when both are sent. The
                 approval threshold in Settings is enforced server-side, so this
                 field is safe to show to anyone who may sell. */}
-            {canDiscount ? (
-              <Field label={tr.membership.manualDiscount} hint={tr.membership.manualDiscountHint}>
-                <input
-                  name="manualDiscount"
-                  inputMode="decimal"
-                  placeholder="0"
-                  defaultValue={draftOr(kept, 'manualDiscount')}
-                  className={inputCls}
-                />
-              </Field>
-            ) : null}
-          </div>
-
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              name="includeJoiningFee"
-              defaultChecked={draftChecked(kept, 'includeJoiningFee', true)}
-              className="h-4 w-4"
-            />
-            {tr.membership.joiningFee}
-          </label>
-
-          <fieldset className="rounded-lg border border-slate-200 p-4">
-            <legend className="px-1 text-sm font-semibold text-slate-700">
-              {tr.members.recordPayment}
-            </legend>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field
-                label={`${tr.payments.amount} (₹)`}
-                hint={partPaymentsOn ? tr.membership.payLaterHint : tr.membership.payFullHint}
-              >
-                <input
-                  name="amount"
-                  inputMode="decimal"
-                  placeholder="2500"
-                  defaultValue={draftOr(kept, 'amount')}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label={tr.payments.method}>
-                <select
-                  name="method"
-                  className={inputCls}
-                  defaultValue={draftOr(kept, 'method', 'cash')}
-                >
-                  {Object.entries(tr.payments.methods).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label={tr.payments.reference}>
-                <input
-                  name="externalReference"
-                  placeholder={tr.ui.upiRefUtr}
-                  defaultValue={draftOr(kept, 'externalReference')}
-                  className={inputCls}
-                />
-              </Field>
+              {canDiscount ? (
+                <Field label={tr.membership.manualDiscount} hint={tr.membership.manualDiscountHint}>
+                  <input
+                    name="manualDiscount"
+                    inputMode="decimal"
+                    placeholder="0"
+                    defaultValue={draftOr(kept, 'manualDiscount')}
+                    className={inputCls}
+                  />
+                </Field>
+              ) : null}
             </div>
-          </fieldset>
 
-          <div className="flex gap-2">
-            <Button>{tr.common.confirm}</Button>
-            <Button href={`/members/${id}`} variant="secondary" type="button">
-              {tr.common.cancel}
-            </Button>
-          </div>
-        </form>
-      </Card>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="includeJoiningFee"
+                defaultChecked={draftChecked(kept, 'includeJoiningFee', true)}
+                className="h-4 w-4"
+              />
+              {tr.membership.joiningFee}
+            </label>
+
+            <fieldset className="rounded-lg border border-slate-200 p-4">
+              <legend className="px-1 text-sm font-semibold text-slate-700">
+                {tr.members.recordPayment}
+              </legend>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field
+                  label={`${tr.payments.amount} (₹)`}
+                  hint={partPaymentsOn ? tr.membership.payLaterHint : tr.membership.payFullHint}
+                >
+                  <input
+                    name="amount"
+                    inputMode="decimal"
+                    placeholder="2500"
+                    defaultValue={draftOr(kept, 'amount')}
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label={tr.payments.method}>
+                  <select
+                    name="method"
+                    className={inputCls}
+                    defaultValue={draftOr(kept, 'method', 'cash')}
+                  >
+                    {Object.entries(tr.payments.methods).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={tr.payments.reference}>
+                  <input
+                    name="externalReference"
+                    placeholder={tr.ui.upiRefUtr}
+                    defaultValue={draftOr(kept, 'externalReference')}
+                    className={inputCls}
+                  />
+                </Field>
+              </div>
+            </fieldset>
+
+            <div className="flex gap-2">
+              <Button>{tr.common.confirm}</Button>
+              <Button href={`/members/${id}`} variant="secondary" type="button">
+                {tr.common.cancel}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
     </>
   );
 }

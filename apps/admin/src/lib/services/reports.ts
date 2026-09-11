@@ -14,6 +14,23 @@ import type { SessionUser } from '../session';
 
 export interface CollectionsSummary {
   byMethod: { method: string; total: string; count: number }[];
+  /**
+   * Who took the money, and in what form.
+   *
+   * payments.received_by has been recorded since the first migration and was
+   * only ever shown on an individual receipt — so at close of day nobody
+   * could answer "how much cash did each person take, and does it match the
+   * drawer" without opening receipts one at a time. Cash is the line that
+   * actually goes missing in a gym; this is the report that finds it.
+   */
+  byCollector: {
+    userId: string | null;
+    name: string;
+    cash: string;
+    other: string;
+    total: string;
+    count: number;
+  }[];
   byDay: { day: string; total: string }[];
   /** Gross receipts before refunds. */
   gross: string;
@@ -52,6 +69,38 @@ export async function collectionsReport(
        GROUP BY p.method ORDER BY 2 DESC`,
       params,
     );
+    // Net of refunds, same as byMethod, and split so cash stands alone: the
+    // digital methods reconcile against a statement, cash reconciles against
+    // a drawer, and mixing them hides the only one that can walk.
+    const byCollector = await tx.query(
+      `SELECT p.received_by AS user_id,
+              coalesce(u.display_name, '—') AS name,
+              (sum(p.amount) FILTER (WHERE p.method = 'cash')
+                - coalesce(sum((
+                    SELECT coalesce(sum(rf.amount), 0) FROM refunds rf
+                     WHERE rf.payment_id = p.id
+                  )) FILTER (WHERE p.method = 'cash'), 0))::bigint::text AS cash,
+              (sum(p.amount) FILTER (WHERE p.method <> 'cash')
+                - coalesce(sum((
+                    SELECT coalesce(sum(rf.amount), 0) FROM refunds rf
+                     WHERE rf.payment_id = p.id
+                  )) FILTER (WHERE p.method <> 'cash'), 0))::bigint::text AS other,
+              (sum(p.amount) - coalesce(sum((
+                 SELECT coalesce(sum(rf.amount), 0) FROM refunds rf WHERE rf.payment_id = p.id
+               )), 0))::bigint::text AS total,
+              count(*)::int AS count
+         FROM payments p
+         LEFT JOIN users u ON u.id = p.received_by
+        WHERE ${where
+          .replace('payment_date', 'p.payment_date')
+          .replace('status', 'p.status')
+          .replace('branch_id', 'p.branch_id')
+          .replace('method =', 'p.method =')}
+        GROUP BY p.received_by, u.display_name
+        ORDER BY 5 DESC`,
+      params,
+    );
+
     const byDay = await tx.query(
       `SELECT payment_date::text AS day, sum(amount)::bigint::text AS total
        FROM payments WHERE ${where}
@@ -89,6 +138,7 @@ export async function collectionsReport(
     const refunded = BigInt((refunds.rows[0] as { total: string }).total);
     return {
       byMethod: byMethod.rows as never,
+      byCollector: byCollector.rows as never,
       byDay: byDay.rows as never,
       gross: gross.toString(),
       refunds: refunded.toString(),

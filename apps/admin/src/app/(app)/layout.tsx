@@ -40,6 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const nav = [
     { href: '/', label: tr.nav.dashboard },
     { href: '/members', label: tr.nav.members },
+    { href: '/renewals', label: tr.nav.renewals },
     ...(flags.attendance ? [{ href: '/attendance', label: tr.nav.attendance }] : []),
     { href: '/payments', label: tr.nav.payments },
     ...(flags.leads ? [{ href: '/leads', label: tr.nav.leads }] : []),

@@ -55,6 +55,18 @@ function extractForm(html, marker) {
   }
   throw new Error('no form ' + marker);
 }
+const target = (res) => res.headers.get('x-action-redirect') ?? res.headers.get('location') ?? '';
+async function postAction(path, form, fields) {
+  const fd = new FormData();
+  fd.set(`$ACTION_ID_${form.actionId}`, '');
+  for (const [k, v] of Object.entries({ ...form.hidden, ...fields })) fd.set(k, v);
+  return fetch(BASE + path, { method: 'POST', headers: { cookie }, body: fd, redirect: 'manual' });
+}
+const pageOk = async (p) => {
+  const r = await fetch(BASE + p, { headers: { cookie }, redirect: 'follow' });
+  return r.status === 200;
+};
+
 const login = async (email, password) => {
   cookie = '';
   const form = extractForm(await (await get('/login')).text(), 'email');
@@ -130,6 +142,58 @@ for (const [p, marker] of PAGES) {
     `${res.status} marker=${body.includes(marker)}`,
   );
 }
+// ---- day one is not a dead end ------------------------------------------
+// A gym is provisioned with a branch, settings and an owner login but NO
+// membership plans. The dashboard was a grid of zeroes, and the obvious
+// first move — New member, then Sell membership — walked into a plan
+// chooser with nothing in it and a validation error that said nothing
+// about plans.
+const dashBody = await (
+  await fetch(BASE + '/', { headers: { cookie }, redirect: 'follow' })
+).text();
+check('a brand-new gym is told what to do first', dashBody.includes('Set your gym up'), '');
+check(
+  'and the first step is the one that is actually missing',
+  dashBody.includes('Create your membership plans'),
+  '',
+);
+check('with a way to bring an existing book across', dashBody.includes('/members/import'), '');
+check('/renewals renders for an empty gym', await pageOk('/renewals'));
+
+// Create a member, then try to sell to them with no plans in existence.
+const newHtml = await (
+  await fetch(BASE + '/members/new', { headers: { cookie }, redirect: 'follow' })
+).text();
+const step1 = extractForm(newHtml, 'mobile');
+const mobile = `9${String(Math.floor(100000000 + Math.random() * 899999999))}`;
+const dup = await postAction('/members/new', step1, { mobile });
+const step2Path = target(dup).replace(/^https?:\/\/[^/]+/, '');
+const step2Html = await (
+  await fetch(BASE + step2Path, { headers: { cookie }, redirect: 'follow' })
+).text();
+const created = await postAction(step2Path, extractForm(step2Html, 'firstName'), {
+  mobile,
+  branchId: step2Html.match(/<option[^>]*value="([a-f0-9-]{36})"/)?.[1],
+  firstName: 'First',
+  lastName: 'Ever',
+  referralSource: 'walk_in',
+});
+const sellPath = target(created).replace(/^https?:\/\/[^/]+/, '');
+check('the first member can be created', sellPath.includes('/sell'), sellPath);
+const sellBody = await (
+  await fetch(BASE + sellPath, { headers: { cookie }, redirect: 'follow' })
+).text();
+check(
+  'the sell page explains there are no plans yet instead of an empty chooser',
+  sellBody.includes('No membership plans yet'),
+  '',
+);
+check(
+  'and offers the way out',
+  sellBody.includes('Create a plan') && sellBody.includes('/plans'),
+  '',
+);
+
 for (const k of ['members', 'memberships', 'payments', 'attendance', 'dues']) {
   const res = await fetch(`${BASE}/api/export/${k}`, { headers: { cookie } });
   check(`export ${k} works with no data`, res.status === 200, String(res.status));

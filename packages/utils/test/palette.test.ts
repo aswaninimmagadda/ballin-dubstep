@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DESIGN_TOKENS } from '@gymflow/config';
 import { contrastRatio, meetsAA, readableTextOn, isUsableAsFill } from '../src/contrast';
@@ -122,5 +123,67 @@ describe('a gym’s own brand colour stays readable', () => {
     expect(readableTextOn('#f59e0b')).toBe('#0f172a');
     expect(contrastRatio('#f59e0b', '#ffffff')).toBeLessThan(4.5);
     expect(contrastRatio('#f59e0b', readableTextOn('#f59e0b'))).toBeGreaterThan(4.5);
+  });
+});
+
+describe('no hard-coded low-contrast button in the admin app', () => {
+  /**
+   * The design tokens are only half the palette. Three buttons were written
+   * as literal Tailwind classes — a green-600 WhatsApp button on the
+   * dashboard and the member page, and an amber-500 offline banner — and so
+   * sailed past a token audit at 3.30:1 and 2.15:1 respectively.
+   *
+   * Tailwind's own scale, for the shades this app reaches for.
+   */
+  const SHADES: Record<string, string> = {
+    'green-500': '#22c55e',
+    'green-600': '#16a34a',
+    'green-700': '#15803d',
+    'emerald-600': '#059669',
+    'amber-400': '#fbbf24',
+    'amber-500': '#f59e0b',
+    'amber-600': '#d97706',
+    'amber-700': '#b45309',
+    'red-500': '#ef4444',
+    'red-600': '#dc2626',
+    'blue-500': '#3b82f6',
+    'blue-600': '#2563eb',
+    'sky-500': '#0ea5e9',
+    'yellow-400': '#facc15',
+    'orange-500': '#f97316',
+  };
+
+  const dir = fileURLToPath(new URL('../../../apps/admin/src', import.meta.url));
+
+  function walk(d: string, out: string[] = []): string[] {
+    for (const entry of readdirSync(d, { withFileTypes: true })) {
+      const full = join(d, entry.name);
+      if (entry.isDirectory()) walk(full, out);
+      else if (entry.name.endsWith('.tsx')) out.push(full);
+    }
+    return out;
+  }
+
+  it('every bg-<colour> paired with text-white clears AA', () => {
+    const offenders: string[] = [];
+    for (const file of walk(dir)) {
+      const src = readFileSync(file, 'utf8');
+      // className strings that set both a background shade and white text.
+      for (const m of src.matchAll(/class[Nn]ame="([^"]*)"/g)) {
+        const cls = m[1] ?? '';
+        if (!/\btext-white\b/.test(cls)) continue;
+        const bg = cls.match(/\bbg-([a-z]+-\d{3})\b/)?.[1];
+        if (!bg) continue;
+        const hex = SHADES[bg];
+        if (!hex) continue; // a shade this test does not know; not a silent pass for known ones
+        if (!meetsAA(hex, WHITE)) {
+          offenders.push(
+            `${file.slice(dir.length + 1)}: bg-${bg} (${hex}) with white text is ` +
+              `${contrastRatio(hex, WHITE).toFixed(2)}:1`,
+          );
+        }
+      }
+    }
+    expect(offenders, offenders.join('\n')).toEqual([]);
   });
 });

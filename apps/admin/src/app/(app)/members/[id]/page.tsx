@@ -180,7 +180,7 @@ export default async function MemberDetailPage({
                 href={wa}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn inline-flex min-h-11 items-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+                className="btn inline-flex min-h-11 items-center rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
               >
                 {tr.members.whatsapp}
               </a>

@@ -119,6 +119,59 @@ export default async function ReportsPage({
           </Table>
         </Card>
 
+        {/* Who took the money. received_by has been on every payment since
+            the first migration and was only ever visible on an individual
+            receipt, so closing the till meant opening receipts one at a
+            time. */}
+        <Card>
+          <h2 className="text-sm font-semibold text-slate-700">{tr.payments.cashUp}</h2>
+          <p className="mb-4 mt-1 text-xs text-slate-600">{tr.payments.cashUpHint}</p>
+          {collections.byCollector.length === 0 ? (
+            <p className="text-sm text-slate-600">{tr.payments.noCollections}</p>
+          ) : (
+            <Table
+              headers={[
+                tr.payments.collector,
+                'Count',
+                tr.payments.cashColumn,
+                tr.payments.otherColumn,
+                tr.payments.amount,
+              ]}
+            >
+              {collections.byCollector.map((c) => (
+                <tr key={c.userId ?? 'unattributed'}>
+                  <td className="px-4 py-3">{c.name}</td>
+                  <td className="px-4 py-3">{c.count}</td>
+                  <td className="px-4 py-3 font-semibold tabular-nums">
+                    {formatMoney(Number(c.cash))}
+                  </td>
+                  <td className="px-4 py-3 tabular-nums text-slate-600">
+                    {formatMoney(Number(c.other))}
+                  </td>
+                  <td className="px-4 py-3 font-medium tabular-nums">
+                    {formatMoney(Number(c.total))}
+                  </td>
+                </tr>
+              ))}
+              <tr className="border-t-2 border-slate-300 font-semibold">
+                <td className="px-4 py-3">{tr.membership.total}</td>
+                <td className="px-4 py-3">
+                  {collections.byCollector.reduce((n, c) => n + c.count, 0)}
+                </td>
+                <td className="px-4 py-3 tabular-nums">
+                  {formatMoney(collections.byCollector.reduce((n, c) => n + Number(c.cash), 0))}
+                </td>
+                <td className="px-4 py-3 tabular-nums">
+                  {formatMoney(collections.byCollector.reduce((n, c) => n + Number(c.other), 0))}
+                </td>
+                <td className="px-4 py-3 tabular-nums">
+                  {formatMoney(collections.byCollector.reduce((n, c) => n + Number(c.total), 0))}
+                </td>
+              </tr>
+            </Table>
+          )}
+        </Card>
+
         <Card>
           <h2 className="mb-4 text-sm font-semibold text-slate-700">
             Membership plan mix (all time)
