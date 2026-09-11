@@ -31,7 +31,7 @@ A production-ready, multi-tenant gym management SaaS for the Indian market
   zero source changes — proven by the automated acceptance suite; daily
   `sweep` job trues up stored membership states.
 - **Database**: PostgreSQL with row-level security enforced from the first
-  migration; 12 migrations, 39 tables; append-only financial history;
+  migration; 23 migrations, 41 tables; append-only financial history;
   sealed authentication path (the app role cannot read credential tables).
 
 ## 2. Architecture (summary — full detail in ARCHITECTURE.md)
@@ -74,9 +74,9 @@ Deployment targets and domain guidance: DEPLOYMENT.md.
 
 | Layer                      | Count                   | Command                                   |
 | -------------------------- | ----------------------- | ----------------------------------------- |
-| Unit (vitest)              | **183 passed**          | `pnpm test:unit`                          |
+| Unit (vitest)              | **189 passed**          | `pnpm test:unit`                          |
 | Integration (real PG, RLS) | **72 passed**           | `pnpm --filter @gymflow/database test`    |
-| E2E admin HTTP suite       | **168 checks passed**   | `node scripts/e2e-admin.mjs`              |
+| E2E admin HTTP suite       | **182 checks passed**   | `node scripts/e2e-admin.mjs`              |
 | E2E final acceptance (§82) | **176 checks passed**   | `node scripts/e2e-acceptance.mjs`         |
 | E2E empty tenant (day one) | **28 checks passed**    | `node scripts/e2e-empty-tenant.mjs`       |
 | Android/iOS release config | **21 checks passed**    | `node scripts/check-android-manifest.mjs` |

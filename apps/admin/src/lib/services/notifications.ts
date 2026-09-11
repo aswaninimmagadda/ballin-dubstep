@@ -28,14 +28,19 @@ export type NotificationEvent =
 /**
  * Which gym this member belongs to, and which language to write to them in.
  *
- * The gym comes from the MEMBER, not from whoever is signed in. Taking it
- * from the session meant the message a member received depended on who
- * happened to be at the desk: a platform administrator working inside a gym
- * carries no tenant of their own, so the gym's own wording was silently
- * skipped and the member got the built-in text instead — the same event,
- * two different messages, with nothing in the record to say why. RLS has
- * already established that this member is in scope; their row is the
- * authority on whose member they are.
+ * The gym comes from the MEMBER, not from whoever is signed in. Today those
+ * are always the same value — requirePermission sends an unscoped platform
+ * admin to /platform, so every caller reaches here with a tenant, and RLS
+ * means the member they just acted on is in it. This is defence, not a
+ * repair: the session's tenant being right depends on an invariant three
+ * layers away, and a caller that does not go through requirePermission — a
+ * cron job, a webhook handler, a synthetic user — would have written the
+ * gym's notification under whatever tenant it happened to carry. The
+ * member's own row cannot be wrong about whose member they are.
+ *
+ * It also gives the one honest answer when the member is not visible at
+ * all: return nothing, rather than write a row under the session's tenant
+ * for a member the session cannot see.
  */
 async function memberContext(
   tx: Queryable,
