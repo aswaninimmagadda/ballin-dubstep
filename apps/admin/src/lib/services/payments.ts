@@ -158,7 +158,8 @@ export async function recordPayment(
       memberId: m.id,
       event: 'payment_received',
       dedupeKey: `payment:${paymentId}`,
-      body: `Payment received. Receipt ${receiptNumber}.`,
+      template: 'payment_received',
+      vars: { receipt: receiptNumber },
     });
     await writeAudit(tx, user, {
       action: 'payment.record',

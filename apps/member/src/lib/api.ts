@@ -61,7 +61,15 @@ export async function clearTokens(): Promise<void> {
   accessToken = null;
   await SecureStore.deleteItemAsync(ACCESS_KEY);
   await SecureStore.deleteItemAsync(REFRESH_KEY);
-  await AsyncStorage.clear();
+  // Only the cached responses — every one is written under a `cache:` key.
+  //
+  // This used to be AsyncStorage.clear(), which also took the member's own
+  // settings with it. Signing out reset a Telugu speaker's app to English,
+  // and the sign-in screen they landed on had no way to change it back: a
+  // member could be locked out of their own language by signing out.
+  const keys = await AsyncStorage.getAllKeys();
+  const cached = keys.filter((k) => k.startsWith('cache:'));
+  if (cached.length > 0) await AsyncStorage.multiRemove(cached);
 }
 
 /**
@@ -102,12 +110,33 @@ export async function signOutEverywhere(): Promise<void> {
  */
 let refreshInFlight: Promise<boolean> | null = null;
 
+/**
+ * The phone could not reach the gym at all.
+ *
+ * Distinct from ApiError on purpose: a member on a patchy connection used to
+ * be told "Something went wrong. Please try again." — the same words as a
+ * wrong password — so the obvious thing to do was retype the password that
+ * was already right.
+ */
+export class NetworkError extends Error {
+  constructor() {
+    super('network_unreachable');
+    this.name = 'NetworkError';
+  }
+}
+
 export async function login(gymCode: string, mobile: string, password: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/member/v1/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gymCode, mobile, password }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/member/v1/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gymCode, mobile, password }),
+    });
+  } catch {
+    // fetch only rejects for transport failures — DNS, TLS, no route.
+    throw new NetworkError();
+  }
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new ApiError(res.status, body.error ?? 'login_failed');
@@ -221,7 +250,14 @@ export interface MeResponse {
     endDate: string;
     status: string;
     daysRemaining: number;
+    /** Last day a member in grace can still train. */
+    graceEndDate: string | null;
   } | null;
+  /**
+   * Which parts of the product this gym runs. Absent on a response cached
+   * before the field existed, so every reader must tolerate undefined.
+   */
+  features?: { attendance?: boolean; pt?: boolean };
 }
 
 export const api = {

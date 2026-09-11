@@ -15,7 +15,7 @@ import { theme } from './src/lib/theme';
 type Tab = 'home' | 'payments' | 'attendance' | 'pt' | 'profile';
 
 function Shell() {
-  const { ready, signedIn, t, brandColor } = useAuth();
+  const { ready, signedIn, t, brandColor, features } = useAuth();
   const [tab, setTab] = useState<Tab>('home');
   // Android 15+ draws edge-to-edge and there is no opt-out, so the app is
   // laid out under the status bar and the gesture/navigation bar. Real insets
@@ -46,22 +46,30 @@ function Shell() {
       </View>
     );
 
+  // Only what this gym actually offers. A member of a gym that does not do
+  // personal training was shown a Training tab they could not get rid of,
+  // leading to a permanently empty screen; the same was true of check-in
+  // history at a gym with attendance switched off. The labels were the staff
+  // app's too — "Dashboard" and "Attendance", and an untranslated "PT".
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'home', label: t.nav.dashboard },
-    { key: 'payments', label: t.payments.title },
-    { key: 'attendance', label: t.attendance.title },
-    { key: 'pt', label: 'PT' },
-    { key: 'profile', label: t.members.overview },
+    { key: 'home', label: t.member.tabHome },
+    { key: 'payments', label: t.member.tabPayments },
+    ...(features.attendance ? [{ key: 'attendance' as const, label: t.member.tabVisits }] : []),
+    ...(features.pt ? [{ key: 'pt' as const, label: t.member.tabPt }] : []),
+    { key: 'profile', label: t.member.tabProfile },
   ];
+
+  // A gym can switch a feature off while a member is standing on that tab.
+  const activeTab = tabs.some((x) => x.key === tab) ? tab : 'home';
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.body}>
-        {tab === 'home' ? <HomeScreen /> : null}
-        {tab === 'payments' ? <PaymentsScreen /> : null}
-        {tab === 'attendance' ? <AttendanceScreen /> : null}
-        {tab === 'pt' ? <PtScreen /> : null}
-        {tab === 'profile' ? <ProfileScreen /> : null}
+        {activeTab === 'home' ? <HomeScreen /> : null}
+        {activeTab === 'payments' ? <PaymentsScreen /> : null}
+        {activeTab === 'attendance' ? <AttendanceScreen /> : null}
+        {activeTab === 'pt' ? <PtScreen /> : null}
+        {activeTab === 'profile' ? <ProfileScreen /> : null}
       </View>
       <View
         style={[
@@ -76,17 +84,17 @@ function Shell() {
           <Pressable
             key={key}
             accessibilityRole="tab"
-            accessibilityState={{ selected: tab === key }}
+            accessibilityState={{ selected: activeTab === key }}
             onPress={() => setTab(key)}
             style={styles.tabItem}
           >
             <Text
               style={[
                 styles.tabLabel,
-                tab === key && styles.tabLabelActive,
+                activeTab === key && styles.tabLabelActive,
                 // The active tab picks up the gym's colour too, so the whole
                 // shell reads as the gym's app rather than GymFlow's.
-                tab === key && { color: brandColor },
+                activeTab === key && { color: brandColor },
               ]}
               numberOfLines={1}
             >

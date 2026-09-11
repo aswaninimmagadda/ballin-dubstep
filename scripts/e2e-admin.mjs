@@ -805,6 +805,88 @@ async function main() {
     );
   }
 
+  // ---- what the member app is actually told -------------------------------
+  // The app can only say what the API tells it. These are the facts the
+  // member screens were rewritten around.
+  console.log('\n[what the member app is told]');
+  const memberMobileForApp = memberRowDb.mobile.replace('+91', '');
+  const loginAs2 = (gymCode, mobile, password) =>
+    fetch(`${BASE}/api/member/v1/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gymCode, mobile, password }),
+    });
+
+  // A wrong gym code is the field members get wrong most often, and it is
+  // not their password. The gym directory is already public (the
+  // account-deletion page looks gyms up by code), so saying so gives
+  // nothing away.
+  const badGym = await loginAs2('nosuchgym', memberMobileForApp, appPw);
+  check(
+    'a gym code that does not exist says so',
+    badGym.status === 404 && (await badGym.json()).error === 'gym_not_found',
+    String(badGym.status),
+  );
+  // But who is a member of a gym stays private.
+  const badPw = await loginAs2('apfitness', memberMobileForApp, 'definitely-not-it');
+  const badPwBody = await badPw.json();
+  const noSuchMember = await loginAs2('apfitness', '9000000123', 'definitely-not-it');
+  check(
+    'a wrong password and an unregistered number are still indistinguishable',
+    badPw.status === 401 &&
+      noSuchMember.status === 401 &&
+      badPwBody.error === (await noSuchMember.json()).error,
+    `${badPw.status}/${noSuchMember.status}`,
+  );
+
+  const appTokens = await (await loginAs2('apfitness', memberMobileForApp, appPw)).json();
+  const meForApp = await (
+    await fetch(`${BASE}/api/member/v1/me`, {
+      headers: { Authorization: `Bearer ${appTokens.accessToken}` },
+    })
+  ).json();
+  check(
+    'the app is told which features this gym runs',
+    typeof meForApp.features?.pt === 'boolean' &&
+      typeof meForApp.features?.attendance === 'boolean',
+    JSON.stringify(meForApp.features),
+  );
+  check(
+    'and when the grace period actually ends, so it need not guess',
+    typeof meForApp.membership?.graceEndDate === 'string' &&
+      meForApp.membership.graceEndDate >= meForApp.membership.endDate,
+    JSON.stringify(meForApp.membership?.graceEndDate),
+  );
+
+  // A gym with personal training switched off should not have a PT endpoint
+  // answering for its members. Hiding the tab alone is a UI-only fix.
+  await db.query(
+    `INSERT INTO feature_flags (tenant_id, key, enabled)
+     SELECT id, 'pt', false FROM tenants WHERE slug = 'apfitness'
+     ON CONFLICT (tenant_id, key) DO UPDATE SET enabled = false`,
+  );
+  try {
+    const ptOff = await fetch(`${BASE}/api/member/v1/pt`, {
+      headers: { Authorization: `Bearer ${appTokens.accessToken}` },
+    });
+    check(
+      'with PT switched off the endpoint stops answering, not just the tab',
+      ptOff.status === 404,
+      String(ptOff.status),
+    );
+    const meOff = await (
+      await fetch(`${BASE}/api/member/v1/me`, {
+        headers: { Authorization: `Bearer ${appTokens.accessToken}` },
+      })
+    ).json();
+    check('and /me reports it so the app can drop the tab', meOff.features?.pt === false);
+  } finally {
+    await db.query(
+      `UPDATE feature_flags SET enabled = true
+        WHERE key = 'pt' AND tenant_id = (SELECT id FROM tenants WHERE slug = 'apfitness')`,
+    );
+  }
+
   // ---- member session security ------------------------------------------
   // Three findings from the pre-release security review, each verified here
   // over real HTTP rather than by reading the code.

@@ -1,10 +1,12 @@
 import { useCallback } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
+import { renderTemplate } from '@gymflow/i18n';
 import { api } from '../lib/api';
+import { memberDate } from '../lib/format';
 import { useResource } from '../lib/use-resource';
 import { ErrorState } from '../components/ErrorState';
 import { useAuth } from '../lib/auth';
-import { Card, Loading, Muted, OfflineBanner, StatusBadge } from '../components/ui';
+import { Card, Loading, Muted, OfflineBanner, StatusBadge, EmptyNote } from '../components/ui';
 import { theme } from '../lib/theme';
 
 type PtData = Awaited<ReturnType<typeof api.pt>>['data'];
@@ -29,37 +31,40 @@ export function PtScreen() {
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       {stale ? <OfflineBanner text={t.common.offline} /> : null}
       {data.addons.length === 0 ? (
-        <Card>
-          <Muted>—</Muted>
-        </Card>
+        <EmptyNote title={t.member.noPt} hint={t.member.noPtHint} />
       ) : (
         data.addons.map((a) => (
           <Card key={a.id}>
             <Text style={styles.name}>{a.name_snapshot}</Text>
             {a.trainer_name ? (
-              <Muted>
-                {t.members.trainer}: {a.trainer_name}
-              </Muted>
+              <Muted>{renderTemplate(t.member.withTrainer, { trainer: a.trainer_name })}</Muted>
             ) : null}
             {a.sessions_total != null ? (
               <Text style={styles.sessions}>
-                {a.sessions_used} / {a.sessions_total}
+                {renderTemplate(t.member.sessionsUsed, {
+                  used: String(a.sessions_used),
+                  total: String(a.sessions_total),
+                })}
               </Text>
             ) : null}
             <Muted>
-              {a.start_date} → {a.end_date}
+              {memberDate(a.start_date, t)} → {memberDate(a.end_date, t)}
             </Muted>
-            <StatusBadge status={a.state} label={a.state} />
+            <StatusBadge
+              status={a.state}
+              label={t.member.packState[a.state as keyof typeof t.member.packState] ?? a.state}
+            />
           </Card>
         ))
       )}
       {data.sessions.map((s, i) => (
         <Card key={`${s.session_date}-${i}`} style={styles.sessionRow}>
           <Text style={styles.when}>
-            {s.session_date} · {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}
+            {memberDate(s.session_date, t)} · {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}
           </Text>
           <Muted>
-            {s.trainer_name ?? ''} · {s.status}
+            {s.trainer_name ? `${s.trainer_name} · ` : ''}
+            {t.member.sessionStatus[s.status as keyof typeof t.member.sessionStatus] ?? s.status}
           </Muted>
         </Card>
       ))}

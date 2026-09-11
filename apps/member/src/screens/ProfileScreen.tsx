@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import { LANGUAGES } from '@gymflow/i18n';
 import { API_BASE_URL, api, type MeResponse } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { LanguagePicker } from '../components/LanguagePicker';
 import { Card, Muted, PrimaryButton, Title } from '../components/ui';
 import { theme } from '../lib/theme';
 
 export function ProfileScreen() {
-  const { t, language, setLanguage, signOut } = useAuth();
+  const { t, signOut } = useAuth();
   const [deleting, setDeleting] = useState(false);
   const [me, setMe] = useState<MeResponse | null>(null);
   const [offers, setOffers] = useState<{ code: string; name: string; valid_to: string }[]>([]);
@@ -45,19 +45,7 @@ export function ProfileScreen() {
 
       <Card>
         <Text style={styles.label}>{t.common.language}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {LANGUAGES.map((lang) => (
-            <Pressable
-              key={lang.tag}
-              onPress={() => setLanguage(lang.tag)}
-              style={[styles.langChip, language === lang.tag && styles.langChipActive]}
-            >
-              <Text style={[styles.langText, language === lang.tag && styles.langTextActive]}>
-                {lang.nativeLabel}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <LanguagePicker />
       </Card>
 
       {notifications.length > 0 ? (

@@ -2,7 +2,7 @@ import 'server-only';
 import { createHmac, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import { env } from './env';
-import { asAnonymous, type Claims } from './db';
+import { asAnonymous, asPrincipal, type Claims } from './db';
 import { log } from './log';
 
 /**
@@ -129,6 +129,34 @@ export function memberAuth(req: NextRequest): MemberAuth | NextResponse {
 
 export function isErrorResponse(x: MemberAuth | NextResponse): x is NextResponse {
   return x instanceof NextResponse;
+}
+
+/**
+ * Is this part of the product switched on for the caller's gym?
+ *
+ * Hiding a tab is a UI fix; the endpoint behind it still served. A gym that
+ * has switched personal training off should not have a PT endpoint answering
+ * for its members at all — not because the data is sensitive to them, but
+ * because "switched off" has to mean the same thing everywhere or it means
+ * nothing.
+ */
+export async function featureEnabled(claims: Claims, key: string): Promise<boolean> {
+  return asPrincipal(claims, async (tx) => {
+    const r = await tx.query(
+      `SELECT enabled FROM feature_flags WHERE tenant_id = $1 AND key = $2`,
+      [claims.tenant_id, key],
+    );
+    const row = (r as { rows: { enabled: boolean }[] }).rows[0];
+    // Absent means the platform default, which for these two is on.
+    return row ? row.enabled : true;
+  });
+}
+
+/** 404 when the gym does not run this part of the product. */
+export function featureOff(): NextResponse {
+  // Not 403: there is nothing here to be forbidden from. As far as a member
+  // of this gym is concerned the feature does not exist.
+  return NextResponse.json({ error: 'feature_not_enabled' }, { status: 404 });
 }
 
 /**

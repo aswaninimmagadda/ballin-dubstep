@@ -569,7 +569,9 @@ export async function renewMembership(
       memberId: prev.member_id,
       event: 'renewal_completed',
       dedupeKey: `renewal:${membershipId}`,
-      body: `${pv.plan_name} renewed: ${proposal.startDate} to ${proposal.endDate}.`,
+      template: 'renewal_completed',
+      vars: { plan: pv.plan_name, until: proposal.endDate },
+      dateVars: ['until'],
     });
     await writeAudit(tx, user, {
       action: 'membership.renew',

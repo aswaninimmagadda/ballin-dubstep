@@ -206,6 +206,139 @@ export const en = {
       expired: 'Expired',
     },
   },
+  /**
+   * The member app's own voice.
+   *
+   * These screens used to borrow the staff vocabulary: a member was shown
+   * "Scan member QR" (an instruction to a receptionist), "Membership expired
+   * — please renew" pulled from the check-in desk, and
+   * "In grace period — renewal is overdue. Ask them to renew today." — second
+   * person, about a third party, shown to that third party.
+   *
+   * A member reads this on a phone, standing in a gym. They are not
+   * administering anything. Separate keys rather than reworded shared ones,
+   * because packages/i18n serves both apps and the admin screens still need
+   * the staff phrasing.
+   */
+  member: {
+    // — sign in —
+    gymCode: 'Gym code',
+    gymCodeHint: 'Ask at the desk if you do not know it',
+    signInHint: 'Sign in with the number your gym has on file.',
+    errGymNotFound: 'No gym with that code. Check it with your gym.',
+    errCredentials: 'That number and password do not match. Try again.',
+    errLocked: 'Too many tries. Wait a few minutes, then try again.',
+    // Covers a membership the gym has not switched on for the app, an
+    // account the gym has closed, and a gym whose own subscription has
+    // lapsed. The member cannot fix any of them, so the app says who can.
+    errAccountUnavailable: 'The app is not switched on for you yet. Ask your gym to enable it.',
+    errOffline: 'Your phone cannot reach the gym right now. Check your connection.',
+    errServer: 'Something went wrong at the gym’s end. Try again in a moment.',
+    // — home —
+    showAtDesk: 'Show this at the desk',
+    memberId: 'Member ID',
+    validUntil: 'Valid until {{date}}',
+    daysLeft: '{{days}} days left',
+    endsToday: 'Last day today',
+    endsTomorrow: 'Last day tomorrow',
+    graceTitle: 'You can still come in',
+    graceBody:
+      'Your membership ended on {{ended}}. You can still train until {{until}} — renew to keep going.',
+    expiredTitle: 'Your membership has ended',
+    expiredBody: 'Renew at the desk to start training again.',
+    startsOnTitle: 'Your membership starts on {{date}}',
+    startsOnBody: 'You can come in from that day.',
+    noMembershipTitle: 'No membership yet',
+    noMembershipBody: 'Speak to your gym to get started.',
+    callGym: 'Call the gym',
+    // — payments —
+    paymentsTitle: 'Your payments',
+    paidOn: 'Paid {{date}}',
+    noPayments: 'No payments yet',
+    noPaymentsHint: 'Payments you make at the gym will appear here.',
+    refunded: 'Refunded',
+    partlyRefunded: 'Partly refunded',
+    // — visits —
+    visitsThisMonth: 'Visits this month',
+    noVisits: 'No visits yet',
+    noVisitsHint: 'Your check-ins will appear here.',
+    recentVisits: 'Recent visits',
+    // — personal training —
+    ptTitle: 'Personal training',
+    noPt: 'No personal training',
+    noPtHint: 'Ask at the desk about personal training packages.',
+    sessionsUsed: '{{used}} of {{total}} sessions used',
+    withTrainer: 'With {{trainer}}',
+    // Statuses as a member would say them, not as the database stores them.
+    status: {
+      pending: 'Starts soon',
+      active: 'Active',
+      expiring_soon: 'Ending soon',
+      grace_period: 'Grace period',
+      frozen: 'On hold',
+      expired: 'Ended',
+      cancelled: 'Cancelled',
+    },
+    // How a check-in was recorded. 'reception' | 'qr' | 'manual' reached the
+    // member's screen as those exact words until this existed.
+    // member_addons.state and trainer_sessions.status, both of which the PT
+    // screen printed verbatim: a member saw "member_no_show".
+    // Tab labels. These were the staff app's: a member was shown
+    // "Dashboard", "Attendance" and an untranslated "PT".
+    /**
+     * Default notification bodies, rendered into notification_deliveries at
+     * the moment the thing happens.
+     *
+     * They were English string literals in the service code — so a Telugu
+     * speaker's payment receipts and renewal confirmations arrived in
+     * English regardless of the language they had chosen, and the renewal
+     * one carried raw ISO dates ("2026-08-29 to 2026-11-29"). A gym can
+     * override any of these per language in notification_templates; these
+     * are what everyone gets until they do.
+     */
+    notifications: {
+      payment_received: 'Payment received. Receipt {{receipt}}.',
+      payment_received_for: 'Payment received for {{item}}. Receipt {{receipt}}.',
+      renewal_completed: '{{plan}} renewed. Valid until {{until}}.',
+    },
+    tabHome: 'Home',
+    tabPayments: 'Payments',
+    tabVisits: 'Visits',
+    tabPt: 'Training',
+    tabProfile: 'You',
+    packState: {
+      active: 'Active',
+      completed: 'All sessions used',
+      expired: 'Expired',
+      cancelled: 'Cancelled',
+    },
+    sessionStatus: {
+      scheduled: 'Booked',
+      completed: 'Done',
+      cancelled: 'Cancelled',
+      member_no_show: 'You missed it',
+      trainer_no_show: 'Trainer could not make it',
+    },
+    checkInBy: {
+      reception: 'At the desk',
+      qr: 'Scanned',
+      manual: 'Added by the gym',
+    },
+    monthsShort: [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ],
+  },
   payments: {
     statusRefunded: 'Refunded',
     statusPartiallyRefunded: 'Partially refunded',

@@ -81,6 +81,23 @@ export function OfflineBanner({ text }: { text: string }) {
   );
 }
 
+/**
+ * An empty list, said properly.
+ *
+ * Payments, visits and personal training each rendered a bare em dash when
+ * they had nothing to show. A member who has just joined and opens Payments
+ * sees "—" and cannot tell whether the gym has lost their money, the app is
+ * broken, or there is simply nothing there yet.
+ */
+export function EmptyNote({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <View style={styles.empty}>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      {hint ? <Text style={styles.emptyHint}>{hint}</Text> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.color.surfaceMuted, padding: theme.spacing.md },
   card: {
@@ -110,6 +127,9 @@ const styles = StyleSheet.create({
   },
   buttonText: { fontSize: 16, fontWeight: '700' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  empty: { paddingVertical: 32, paddingHorizontal: 16, alignItems: 'center', gap: 4 },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: theme.color.text, textAlign: 'center' },
+  emptyHint: { fontSize: 14, color: theme.color.textMuted, textAlign: 'center', lineHeight: 20 },
   offline: {
     backgroundColor: '#fef3c7',
     borderRadius: theme.radius.sm,

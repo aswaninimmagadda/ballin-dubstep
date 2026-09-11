@@ -233,7 +233,8 @@ export async function sellAddon(
         memberId: m.id,
         event: 'payment_received',
         dedupeKey: `payment:${paymentId}`,
-        body: `Payment received for ${pkg.name}. Receipt ${receiptNumber}.`,
+        template: 'payment_received_for',
+        vars: { item: pkg.name, receipt: receiptNumber },
       });
     }
 

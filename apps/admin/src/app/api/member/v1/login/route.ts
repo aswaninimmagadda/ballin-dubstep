@@ -29,6 +29,23 @@ async function handlePost(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'locked' }, { status: 429 });
   }
 
+  // A gym code that does not exist is worth saying out loud. It is the field
+  // members get wrong most often — it is not their phone number and not their
+  // password, and answering "those do not match" sends them to check the two
+  // things that were right. It gives nothing away either: the gym directory
+  // is already public, which is what app.public_gym_contact exists for and
+  // what the account-deletion page uses.
+  //
+  // The member-existence defence below is untouched: once the gym resolves,
+  // a registered and an unregistered mobile still cost the same scrypt.
+  const gymExists = await asAnonymous(async (tx) => {
+    const r = await tx.query(`SELECT gym_name FROM app.public_gym_contact($1)`, [gymCode]);
+    return (r as { rows: unknown[] }).rows.length > 0;
+  });
+  if (!gymExists) {
+    return NextResponse.json({ error: 'gym_not_found' }, { status: 404 });
+  }
+
   const row = await asAnonymous(async (tx) => {
     const r = await tx.query(`SELECT * FROM app.auth_member_lookup($1, $2)`, [gymCode, mobile]);
     return (r as { rows: Record<string, unknown>[] }).rows[0];

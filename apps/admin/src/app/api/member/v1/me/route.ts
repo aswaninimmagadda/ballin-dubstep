@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { deriveMembershipStatus, daysRemaining } from '@gymflow/core';
+import { deriveMembershipStatus, daysRemaining, graceEndDate } from '@gymflow/core';
 import { todayInTz } from '@gymflow/utils';
 import { asPrincipal } from '@/lib/db';
 import { isErrorResponse, memberAuth, withApiLogging } from '@/lib/member-api';
@@ -67,7 +67,33 @@ async function handleGet(req: NextRequest): Promise<NextResponse> {
       endDate: data.membership.end_date,
       status,
       daysRemaining: daysRemaining(data.membership.end_date as string, today),
+      // When a membership has run out but the gym's grace period has not, the
+      // member can still train. The app could not say so — it only had
+      // endDate and a negative daysRemaining, which reads as "expired" — so a
+      // member in grace was told their membership had ended on the same card
+      // whose badge said "Grace period". This is the date that makes the
+      // difference sayable.
+      graceEndDate: graceEndDate(
+        data.membership.end_date as string,
+        data.membership.grace_period_days as number,
+      ),
     };
+  }
+
+  // Which parts of the product this gym actually runs. Without it the app
+  // showed every member a Personal Training tab, including members of gyms
+  // that do not offer personal training at all — an empty screen they could
+  // not get rid of. The same is true of check-in history where attendance is
+  // switched off.
+  const features = await asPrincipal(auth.claims, async (tx) => {
+    const r = await tx.query(`SELECT key, enabled FROM feature_flags WHERE tenant_id = $1`, [
+      auth.claims.tenant_id,
+    ]);
+    return r.rows as { key: string; enabled: boolean }[];
+  });
+  const flags: Record<string, boolean> = { attendance: true, pt: true };
+  for (const row of features) {
+    if (row.key in flags) flags[row.key] = row.enabled;
   }
 
   const m = data.member;
@@ -88,6 +114,7 @@ async function handleGet(req: NextRequest): Promise<NextResponse> {
       supportWhatsapp: m.support_whatsapp,
     },
     membership,
+    features: flags,
   });
 }
 

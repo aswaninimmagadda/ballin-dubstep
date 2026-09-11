@@ -86,15 +86,22 @@ export function todayInTz(timezone = 'Asia/Kolkata', now: Date = new Date()): st
   return fmt.format(now); // en-CA yields YYYY-MM-DD
 }
 
-/** Format an ISO date for display, e.g. "2026-06-01" -> "01-Jun-2026". */
+/**
+ * Format an ISO date for display, e.g. "2026-06-01" -> "01-Jun-2026".
+ *
+ * @param monthNames Optional short month names, January first. Supply the
+ *   caller's language: the member app renders dates for Telugu speakers, and
+ *   a Telugu screen reading "29-Aug-2026" is only half translated.
+ */
 export function formatDisplayDate(
   date: string,
   style: 'DD-MM-YYYY' | 'DD-Mon-YYYY' = 'DD-Mon-YYYY',
+  monthNames?: readonly string[],
 ): string {
   assertISODate(date);
   const [y, m, d] = date.split('-') as [string, string, string];
   if (style === 'DD-MM-YYYY') return `${d}-${m}-${y}`;
-  const months = [
+  const months = monthNames ?? [
     'Jan',
     'Feb',
     'Mar',

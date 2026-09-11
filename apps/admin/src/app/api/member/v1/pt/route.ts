@@ -1,12 +1,19 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { asPrincipal } from '@/lib/db';
-import { isErrorResponse, memberAuth, withApiLogging } from '@/lib/member-api';
+import {
+  isErrorResponse,
+  memberAuth,
+  withApiLogging,
+  featureEnabled,
+  featureOff,
+} from '@/lib/member-api';
 
 export const dynamic = 'force-dynamic';
 
 async function handleGet(req: NextRequest): Promise<NextResponse> {
   const auth = memberAuth(req);
   if (isErrorResponse(auth)) return auth;
+  if (!(await featureEnabled(auth.claims, 'pt'))) return featureOff();
   const flagR = await asPrincipal(auth.claims, async (tx) => {
     const r = await tx.query(
       `SELECT enabled FROM feature_flags WHERE tenant_id = $1 AND key = 'pt'`,

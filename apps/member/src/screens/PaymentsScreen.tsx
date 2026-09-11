@@ -1,10 +1,12 @@
 import { useCallback } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { renderTemplate } from '@gymflow/i18n';
 import { api } from '../lib/api';
+import { memberDate } from '../lib/format';
 import { useResource } from '../lib/use-resource';
 import { ErrorState } from '../components/ErrorState';
 import { useAuth } from '../lib/auth';
-import { Card, Loading, Muted, OfflineBanner, Screen } from '../components/ui';
+import { Card, EmptyNote, Loading, Muted, OfflineBanner, Screen } from '../components/ui';
 import { theme } from '../lib/theme';
 
 interface PaymentRow {
@@ -54,7 +56,9 @@ export function PaymentsScreen() {
       <FlatList
         data={rows}
         keyExtractor={(item) => item.id}
-        ListEmptyComponent={<Muted>—</Muted>}
+        ListEmptyComponent={
+          <EmptyNote title={t.member.noPayments} hint={t.member.noPaymentsHint} />
+        }
         renderItem={({ item }) => (
           <Card style={styles.row}>
             <View style={styles.details}>
@@ -67,7 +71,7 @@ export function PaymentsScreen() {
                 {rupees(item.amount)}
               </Text>
               <Muted>
-                {item.payment_date} ·{' '}
+                {renderTemplate(t.member.paidOn, { date: memberDate(item.payment_date, t) })} ·{' '}
                 {t.payments.methods[item.method as keyof typeof t.payments.methods] ?? item.method}
               </Muted>
               {item.status === 'refunded' || item.status === 'partially_refunded' ? (

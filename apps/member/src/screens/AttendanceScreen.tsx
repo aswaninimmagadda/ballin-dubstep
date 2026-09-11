@@ -1,10 +1,11 @@
 import { useCallback } from 'react';
 import { FlatList, StyleSheet, Text } from 'react-native';
 import { api } from '../lib/api';
+import { memberDateTime } from '../lib/format';
 import { useResource } from '../lib/use-resource';
 import { ErrorState } from '../components/ErrorState';
 import { useAuth } from '../lib/auth';
-import { Card, Loading, Muted, OfflineBanner, Screen } from '../components/ui';
+import { Card, Loading, Muted, OfflineBanner, Screen, EmptyNote } from '../components/ui';
 import { theme } from '../lib/theme';
 
 interface Visit {
@@ -43,23 +44,18 @@ export function AttendanceScreen() {
       {stale ? <OfflineBanner text={t.common.offline} /> : null}
       <Card>
         <Text style={styles.big}>{monthCount}</Text>
-        <Muted>{t.attendance.title}</Muted>
+        <Muted>{t.member.visitsThisMonth}</Muted>
       </Card>
       <FlatList
         data={rows}
         keyExtractor={(item) => item.checked_in_at}
-        ListEmptyComponent={<Muted>—</Muted>}
+        ListEmptyComponent={<EmptyNote title={t.member.noVisits} hint={t.member.noVisitsHint} />}
         renderItem={({ item }) => (
           <Card style={styles.row}>
-            <Text style={styles.when}>
-              {new Date(item.checked_in_at).toLocaleString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-            <Muted>{item.method}</Muted>
+            <Text style={styles.when}>{memberDateTime(item.checked_in_at, t)}</Text>
+            <Muted>
+              {t.member.checkInBy[item.method as keyof typeof t.member.checkInBy] ?? item.method}
+            </Muted>
           </Card>
         )}
       />

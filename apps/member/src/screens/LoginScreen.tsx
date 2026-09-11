@@ -1,10 +1,45 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PRODUCT } from '@gymflow/config';
+import type { TranslationTree } from '@gymflow/i18n';
 import { useAuth } from '../lib/auth';
-import { ApiError } from '../lib/api';
+import { ApiError, NetworkError } from '../lib/api';
 import { PrimaryButton } from '../components/ui';
+import { LanguagePicker } from '../components/LanguagePicker';
 import { theme } from '../lib/theme';
+
+/**
+ * Turn a failed sign-in into something a member can act on.
+ *
+ * Every failure except a lockout used to collapse to "Something went wrong.
+ * Please try again." — a member whose gym had never switched the app on for
+ * them, a member whose gym's own subscription had lapsed, and a member
+ * standing in a basement with no signal all read the same sentence, and none
+ * of them could do anything with it.
+ *
+ * What this deliberately does NOT do is distinguish "no such member" from
+ * "wrong password". The login route pays the same scrypt cost either way so
+ * that the endpoint cannot be used to find out who is a member of a gym, and
+ * a friendlier message here would hand that back.
+ */
+function signInMessage(err: unknown, t: TranslationTree): string {
+  if (err instanceof NetworkError) return t.member.errOffline;
+  if (!(err instanceof ApiError)) return t.member.errServer;
+  switch (err.code) {
+    case 'gym_not_found':
+      return t.member.errGymNotFound;
+    case 'locked':
+      return t.member.errLocked;
+    case 'account_unavailable':
+      return t.member.errAccountUnavailable;
+    case 'invalid_credentials':
+      return t.member.errCredentials;
+    default:
+      // invalid_input / invalid_json are our own bugs, and a 5xx is the
+      // gym's server. Neither is the member's to fix.
+      return err.status >= 500 ? t.member.errServer : t.member.errCredentials;
+  }
+}
 
 export function LoginScreen() {
   const { signIn, t } = useAuth();
@@ -20,9 +55,7 @@ export function LoginScreen() {
     try {
       await signIn(gymCode.trim(), mobile.trim(), password);
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'locked') setError(t.auth.accountLocked);
-      else if (err instanceof ApiError && err.status === 401) setError(t.auth.invalidCredentials);
-      else setError(t.common.error);
+      setError(signInMessage(err, t));
     } finally {
       setBusy(false);
     }
@@ -35,11 +68,11 @@ export function LoginScreen() {
     >
       <View style={styles.box}>
         <Text style={styles.logo}>{PRODUCT.name}</Text>
-        <Text style={styles.sub}>{t.auth.signIn}</Text>
+        <Text style={styles.sub}>{t.member.signInHint}</Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <TextInput
           style={styles.input}
-          placeholder="Gym code (e.g. apfitness)"
+          placeholder={t.member.gymCode}
           autoCapitalize="none"
           autoCorrect={false}
           value={gymCode}
@@ -59,11 +92,17 @@ export function LoginScreen() {
           value={password}
           onChangeText={setPassword}
         />
+        <Text style={styles.hint}>{t.member.gymCodeHint}</Text>
         <PrimaryButton
           label={busy ? t.common.loading : t.auth.signIn}
           onPress={submit}
           disabled={busy || !gymCode || !mobile || password.length < 6}
         />
+      </View>
+      {/* Below the card, not inside it: a member who cannot read the form
+          needs to find this without reading the form. */}
+      <View style={styles.langWrap}>
+        <LanguagePicker compact />
       </View>
     </KeyboardAvoidingView>
   );
@@ -93,6 +132,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontSize: 13,
   },
+  hint: { fontSize: 12, color: theme.color.textMuted, marginTop: -4, marginBottom: 12 },
+  langWrap: { marginTop: 20, alignItems: 'center' },
   input: {
     borderWidth: 1,
     borderColor: theme.color.border,

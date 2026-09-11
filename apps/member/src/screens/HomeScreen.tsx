@@ -1,33 +1,80 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { renderTemplate, type TranslationTree } from '@gymflow/i18n';
 import { api, getPass, type MeResponse } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { memberDate } from '../lib/format';
 import { ErrorState } from '../components/ErrorState';
 import { Card, Loading, Muted, OfflineBanner, StatusBadge, Title } from '../components/ui';
 import { theme } from '../lib/theme';
 
-function formatDate(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return `${d}-${months[Number(m) - 1]}-${y}`;
+/**
+ * The one line on the card that tells a member where they stand.
+ *
+ * It used to be "days remaining" or, the moment that number went negative,
+ * the check-in desk's "Membership expired — please renew." A member inside
+ * their gym's grace period is not expired: they can still train, which is
+ * the entire point of a grace period — and the badge right above this line
+ * already said "Grace period". The card contradicted itself, and the half a
+ * member was likelier to believe was the wrong half.
+ */
+function MembershipNote({
+  membership,
+  t,
+}: {
+  membership: NonNullable<MeResponse['membership']>;
+  t: TranslationTree;
+}) {
+  if (membership.status === 'grace_period') {
+    return (
+      <View style={styles.note}>
+        <Text style={styles.noteTitle}>{t.member.graceTitle}</Text>
+        <Text style={styles.noteBody}>
+          {renderTemplate(t.member.graceBody, {
+            ended: memberDate(membership.endDate, t),
+            until: memberDate(membership.graceEndDate ?? membership.endDate, t),
+          })}
+        </Text>
+      </View>
+    );
+  }
+  if (membership.status === 'expired' || membership.status === 'cancelled') {
+    return (
+      <View style={styles.note}>
+        <Text style={[styles.noteTitle, { color: theme.color.danger }]}>
+          {t.member.expiredTitle}
+        </Text>
+        <Text style={styles.noteBody}>{t.member.expiredBody}</Text>
+      </View>
+    );
+  }
+  if (membership.status === 'pending') {
+    return (
+      <View style={styles.note}>
+        <Text style={styles.noteTitle}>
+          {renderTemplate(t.member.startsOnTitle, {
+            date: memberDate(membership.startDate, t),
+          })}
+        </Text>
+        <Text style={styles.noteBody}>{t.member.startsOnBody}</Text>
+      </View>
+    );
+  }
+  // Active, ending soon, or on hold: how long is left, counted in days a
+  // member would count them.
+  const left = membership.daysRemaining;
+  const text =
+    left === 0
+      ? t.member.endsToday
+      : left === 1
+        ? t.member.endsTomorrow
+        : renderTemplate(t.member.daysLeft, { days: String(left) });
+  return <Text style={styles.days}>{text}</Text>;
 }
 
 export function HomeScreen() {
-  const { t, setBrandColor } = useAuth();
+  const { t, setBrandColor, setFeatures } = useAuth();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [stale, setStale] = useState(false);
   const [pass, setPass] = useState<string | null>(null);
@@ -46,6 +93,15 @@ export function HomeScreen() {
       // never used. Cached by the provider so it is on screen at first paint
       // next time.
       setBrandColor(result.data.gym?.primaryColor ?? null);
+      // Which tabs this gym's members should see at all.
+      setFeatures(
+        result.data.features
+          ? {
+              attendance: result.data.features.attendance !== false,
+              pt: result.data.features.pt !== false,
+            }
+          : undefined,
+      );
     } catch {
       // Only fatal when there is nothing to show. A refresh that fails must
       // not blank out the membership card the member is holding up at the desk
@@ -60,7 +116,7 @@ export function HomeScreen() {
     }
     const p = await getPass();
     setPass(p?.token ?? null);
-  }, [setBrandColor]);
+  }, [setBrandColor, setFeatures]);
 
   // Keep the displayed pass inside its validity window. The timer only runs
   // while the app is awake, and Android freezes backgrounded processes — so
@@ -103,9 +159,8 @@ export function HomeScreen() {
   }
   const membership = me.membership;
   const statusLabel = membership
-    ? (t.membership.statuses[membership.status as keyof typeof t.membership.statuses] ??
-      membership.status)
-    : t.members.statuses.expired;
+    ? (t.member.status[membership.status as keyof typeof t.member.status] ?? membership.status)
+    : t.member.status.expired;
 
   return (
     <ScrollView
@@ -124,7 +179,9 @@ export function HomeScreen() {
         </Title>
         <View style={styles.row}>
           <StatusBadge status={membership?.status ?? 'expired'} label={statusLabel} />
-          <Muted>#{me.member.membershipNumber}</Muted>
+          <Muted>
+            {t.member.memberId} {me.member.membershipNumber}
+          </Muted>
         </View>
       </Card>
 
@@ -132,21 +189,14 @@ export function HomeScreen() {
         <Card>
           <Text style={styles.plan}>{membership.planName}</Text>
           <Muted>
-            {formatDate(membership.startDate)} → {formatDate(membership.endDate)}
+            {renderTemplate(t.member.validUntil, { date: memberDate(membership.endDate, t) })}
           </Muted>
-          {membership.daysRemaining >= 0 ? (
-            <Text style={styles.days}>
-              {membership.daysRemaining} {t.members.daysRemaining}
-            </Text>
-          ) : (
-            <Text style={[styles.days, { color: theme.color.danger }]}>
-              {t.attendance.memberExpired}
-            </Text>
-          )}
+          <MembershipNote membership={membership} t={t} />
         </Card>
       ) : (
         <Card>
-          <Text style={styles.days}>{t.attendance.memberExpired}</Text>
+          <Text style={styles.plan}>{t.member.noMembershipTitle}</Text>
+          <Muted>{t.member.noMembershipBody}</Muted>
           {me.gym.supportPhone ? <Muted>{me.gym.supportPhone}</Muted> : null}
         </Card>
       )}
@@ -155,7 +205,7 @@ export function HomeScreen() {
         {pass ? (
           <>
             <QRCode value={pass} size={200} />
-            <Muted>{t.attendance.scanQr}</Muted>
+            <Muted>{t.member.showAtDesk}</Muted>
           </>
         ) : (
           <Muted>{t.common.offline}</Muted>
@@ -177,4 +227,7 @@ const styles = StyleSheet.create({
   plan: { fontSize: 18, fontWeight: '700', color: theme.color.text },
   days: { fontSize: 15, fontWeight: '600', color: theme.color.primaryDark, marginTop: 6 },
   qrCard: { alignItems: 'center', gap: 12, paddingVertical: 24 },
+  note: { marginTop: 8, gap: 2 },
+  noteTitle: { fontSize: 15, fontWeight: '700', color: theme.color.text },
+  noteBody: { fontSize: 14, color: theme.color.textMuted, lineHeight: 20 },
 });
