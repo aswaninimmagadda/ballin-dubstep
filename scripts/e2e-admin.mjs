@@ -1071,6 +1071,30 @@ async function main() {
       `${res.status} ${JSON.stringify(draftCookies)}`,
     );
   }
+  // The refund action lives outside the members route group and was the one
+  // action the UUID guard was not applied to, with the same shape: a hidden
+  // paymentId concatenated straight into both of its redirects.
+  const refundBase = `/receipts/${payRow.id}`;
+  const refundGuardForm = extractForm(await (await getFollow(refundBase)).text(), 'paymentId');
+  for (const [name, forged] of [
+    ['the refund action refuses a CR/LF payment id', `${payRow.id}\r\nSet-Cookie: injected=1`],
+    ['and a payment id that is not an id at all', 'not-a-uuid'],
+  ]) {
+    const fd = new FormData();
+    fd.set(`$ACTION_ID_${refundGuardForm.actionId}`, '');
+    for (const [k, v] of Object.entries(refundGuardForm.hidden)) fd.set(k, v);
+    fd.set('paymentId', forged);
+    fd.set('amount', 'abc'); // force the catch branch that builds the redirect
+    fd.set('reason', 'guard check');
+    const res = await fetch(BASE + refundBase, {
+      method: 'POST',
+      headers: { cookie },
+      body: fd,
+      redirect: 'manual',
+    });
+    check(name, res.status === 404, `${res.status} ${redirectTarget(res).slice(0, 80)}`);
+  }
+
   // The same form still works when the id is the real one.
   const honestForm = extractForm(await (await getFollow(forgeBase)).text(), 'amount');
   const honestRes = await postAction(forgeBase, honestForm, {

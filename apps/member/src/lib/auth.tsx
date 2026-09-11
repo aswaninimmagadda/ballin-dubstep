@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTranslations, type Language, type TranslationTree } from '@gymflow/i18n';
 import {
@@ -36,6 +44,8 @@ interface AuthState {
   signIn: (gymCode: string, mobile: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   setLanguage: (lang: Language) => Promise<void>;
+  /** Take the language from the account when this device has no choice of its own. */
+  adoptServerLanguage: (lang: Language | undefined) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -60,6 +70,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [brandColor, setBrandColorState] = useState<string>(theme.color.primary);
   const [features, setFeaturesState] = useState<MemberFeatures>(ALL_FEATURES);
 
+  /**
+   * Did this member actually pick a language, or are they just on the
+   * default? Only setLanguage writes LANG_KEY, so its presence is the
+   * answer. It decides who wins at sign-in: an explicit pick on the
+   * sign-in screen is pushed to the account, while a fresh install that
+   * has never been touched adopts whatever the account already says.
+   */
+  const languageChosen = useRef(false);
+
   useEffect(() => {
     (async () => {
       const [hasTokens, storedLang, storedBrand, storedFeatures] = await Promise.all([
@@ -69,7 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         AsyncStorage.getItem(FEATURES_KEY),
       ]);
       setSignedIn(hasTokens);
-      if (storedLang === 'en' || storedLang === 'te') setLanguageState(storedLang);
+      if (storedLang === 'en' || storedLang === 'te') {
+        setLanguageState(storedLang);
+        languageChosen.current = true;
+      }
       if (storedBrand && /^#[0-9a-fA-F]{6}$/.test(storedBrand)) setBrandColorState(storedBrand);
       if (storedFeatures) {
         try {
@@ -105,10 +127,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setSessionEndedHandler(null);
   }, []);
 
-  const signIn = useCallback(async (gymCode: string, mobile: string, password: string) => {
-    await apiLogin(gymCode, mobile, password);
-    setSignedIn(true);
-  }, []);
+  const signIn = useCallback(
+    async (gymCode: string, mobile: string, password: string) => {
+      await apiLogin(gymCode, mobile, password);
+      setSignedIn(true);
+      // The sign-in screen carries a language picker, and setLanguage can
+      // only reach the server once there is a session — so a member who
+      // tapped తెలుగు before their first sign-in had their choice stay on
+      // the device. Their screens were Telugu and every receipt the gym
+      // sent them was English, which is exactly the split this was all
+      // meant to close. Push it now, at the first moment there is an
+      // account to attach it to.
+      if (languageChosen.current) await api.setLanguage(language);
+    },
+    [language],
+  );
 
   const signOut = useCallback(async () => {
     await signOutEverywhere();
@@ -140,9 +173,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void AsyncStorage.setItem(BRAND_KEY, next);
   }, []);
 
+  /**
+   * Take the language from the account, for a device that has never been
+   * told otherwise — a reinstall, or a second phone. An explicit local
+   * choice always wins; this only fills the gap that would otherwise leave
+   * English screens in front of Telugu receipts.
+   */
+  const adoptServerLanguage = useCallback((lang: Language | undefined) => {
+    if (!lang || languageChosen.current) return;
+    setLanguageState(lang);
+  }, []);
+
   const setLanguage = useCallback(
     async (lang: Language) => {
       setLanguageState(lang);
+      languageChosen.current = true;
       await AsyncStorage.setItem(LANG_KEY, lang);
       // And tell the server, so the notifications it renders — payment
       // receipts, renewal confirmations — come in the same language as the
@@ -167,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signOut,
         setLanguage,
+        adoptServerLanguage,
       }}
     >
       {children}

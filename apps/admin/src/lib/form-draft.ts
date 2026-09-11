@@ -93,7 +93,14 @@ export function formDraft(key: string, path: string): FormDraft {
       const payload = JSON.stringify(entries);
       const bytes = Buffer.byteLength(payload, 'utf8');
       if (bytes > MAX_DRAFT_BYTES) {
+        // Drop whatever was there rather than just declining to write. The
+        // page restores a draft whenever it sees ?error=, so returning early
+        // left the PREVIOUS submission's values in the cookie and served
+        // them back as if they were this one — the second attempt silently
+        // showed the first attempt's email and mobile. Losing the draft is
+        // the honest outcome; showing the wrong one is not.
         log.warn('form_draft.too_large', { key, bytes });
+        (await cookies()).delete({ name, path });
         return;
       }
       (await cookies()).set(name, payload, {

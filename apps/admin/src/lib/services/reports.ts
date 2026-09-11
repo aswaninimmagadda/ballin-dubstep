@@ -67,7 +67,11 @@ export async function collectionsReport(
                )), 0))::bigint::text AS total,
               count(*)::int AS count
        FROM payments p WHERE ${where.replace('payment_date', 'p.payment_date').replace('status', 'p.status').replace('branch_id', 'p.branch_id').replace('method =', 'p.method =')}
-       GROUP BY p.method ORDER BY 2 DESC`,
+       GROUP BY p.method
+       -- Order on the numeric sum, never on output column 2: that column is
+       -- cast to text so paise survive the wire intact, and ordering by it
+       -- sorts '9000000' above '10000000' — Rs 90,000 above Rs 1,00,000.
+       ORDER BY sum(p.amount) DESC, p.method ASC`,
       params,
     );
     // Net of refunds, same as byMethod, and split so cash stands alone: the
@@ -109,7 +113,12 @@ export async function collectionsReport(
         -- Order by the NUMBER, not by column 5, which is the total already
         -- cast to text for the wire: "900000" sorts above "1000000", so the
         -- biggest collector could appear halfway down the list.
-        ORDER BY sum(p.amount) DESC, u.display_name ASC`,
+        -- By the NET figure, which is what the Total column shows. Ordering
+        -- by gross put a collector who took Rs 10,000 and refunded Rs 9,000
+        -- above one who took Rs 5,000 and kept it.
+        ORDER BY (sum(p.amount) - coalesce(sum((
+                   SELECT coalesce(sum(rf.amount), 0) FROM refunds rf WHERE rf.payment_id = p.id
+                 )), 0)) DESC, u.display_name ASC`,
       params,
     );
 

@@ -503,6 +503,11 @@ export const en = {
     gstin: 'GSTIN',
     importMembersFromCsv: 'Import members from CSV',
     leaveEmptyToCollectLater: 'Leave empty to collect later',
+    platformTitle: 'Gyms on this platform',
+    platformIntro:
+      'Open a gym to work inside it. Everything outside the gym you open stays out of reach for the rest of your session — the boundary is enforced by the database, not by this screen.',
+    platformNoGyms: 'No gyms yet',
+    platformNoGymsHint: 'Provision one with the operator CLI: pnpm run manage-tenant.',
     platformInside: 'Platform admin — working inside {{gym}} ({{slug}})',
     platformGymStatus: 'this gym is {{status}}',
     platformLeave: 'Leave this gym',

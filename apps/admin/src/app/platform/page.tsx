@@ -4,6 +4,7 @@ import { formatDisplayDate } from '@gymflow/utils';
 import { requireUser, PLATFORM_SCOPE_COOKIE } from '@/lib/session';
 import { listTenants, enterTenant } from '@/lib/services/platform';
 import { toUserMessage } from '@/lib/errors';
+import { t } from '@/lib/i18n';
 import {
   Badge,
   Card,
@@ -44,7 +45,7 @@ export default async function PlatformPage({
 }) {
   const user = await requireUser();
   const sp = await searchParams;
-  const tenants = await listTenants(user);
+  const [tenants, tr] = await Promise.all([listTenants(user), t()]);
   const totals = tenants.reduce(
     (acc, t) => ({
       members: acc.members + t.members,
@@ -56,20 +57,14 @@ export default async function PlatformPage({
   return (
     <>
       <PageHeader
-        title="Gyms on this platform"
+        title={tr.ui.platformTitle}
         subtitle={`${tenants.length} gyms · ${totals.members} members · ${totals.active} active memberships`}
       />
       <ErrorBanner message={sp.error} />
       <Card>
-        <p className="mb-4 text-sm text-slate-600">
-          Open a gym to work inside it. Everything outside the gym you open stays out of reach for
-          the rest of your session — the boundary is enforced by the database, not by this screen.
-        </p>
+        <p className="mb-4 text-sm text-slate-600">{tr.ui.platformIntro}</p>
         {tenants.length === 0 ? (
-          <EmptyState
-            title="No gyms yet"
-            hint="Provision one with the operator CLI: pnpm run manage-tenant."
-          />
+          <EmptyState title={tr.ui.platformNoGyms} hint={tr.ui.platformNoGymsHint} />
         ) : (
           <Table
             headers={[

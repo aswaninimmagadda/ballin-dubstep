@@ -113,8 +113,8 @@ export default async function RenewalsPage({
                 <div className="flex items-center gap-2">
                   <Badge tone={overdue ? 'danger' : row.days_left <= 3 ? 'warning' : 'default'}>
                     {overdue
-                      ? `${-row.days_left}d ${tr.members.statuses.expired}`
-                      : `${row.days_left}d`}
+                      ? renderTemplate(tr.ui.daysOverdue, { days: String(-row.days_left) })
+                      : renderTemplate(tr.ui.daysShort, { days: String(row.days_left) })}
                   </Badge>
                   <a
                     href={`tel:${row.mobile}`}

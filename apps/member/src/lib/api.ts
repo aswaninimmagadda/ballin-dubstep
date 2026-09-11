@@ -258,6 +258,12 @@ export interface MeResponse {
    * before the field existed, so every reader must tolerate undefined.
    */
   features?: { attendance?: boolean; pt?: boolean };
+  /**
+   * The language the server will write this member's notifications in.
+   * Optional for the same reason as `features`: a response cached before the
+   * field existed will not carry it.
+   */
+  language?: 'en' | 'te';
 }
 
 export const api = {

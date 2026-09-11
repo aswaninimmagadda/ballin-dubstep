@@ -86,7 +86,7 @@ function MembershipNote({
 }
 
 export function HomeScreen() {
-  const { t, setBrandColor, setFeatures } = useAuth();
+  const { t, setBrandColor, setFeatures, adoptServerLanguage } = useAuth();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [stale, setStale] = useState(false);
   const [pass, setPass] = useState<string | null>(null);
@@ -105,6 +105,7 @@ export function HomeScreen() {
       // never used. Cached by the provider so it is on screen at first paint
       // next time.
       setBrandColor(result.data.gym?.primaryColor ?? null);
+      adoptServerLanguage(result.data.language);
       // Which tabs this gym's members should see at all.
       setFeatures(
         result.data.features
@@ -128,7 +129,7 @@ export function HomeScreen() {
     }
     const p = await getPass();
     setPass(p?.token ?? null);
-  }, [setBrandColor, setFeatures]);
+  }, [setBrandColor, setFeatures, adoptServerLanguage]);
 
   // Keep the displayed pass inside its validity window. The timer only runs
   // while the app is awake, and Android freezes backgrounded processes — so

@@ -8,6 +8,7 @@ import { requirePermission } from '@/lib/session';
 import { getReceipt, refundPayment } from '@/lib/services/payments';
 import { toUserMessage } from '@/lib/errors';
 import { t } from '@/lib/i18n';
+import { submittedId } from '@/lib/route-id';
 import { Button } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic';
 async function refundAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('payments.refund');
-  const paymentId = String(formData.get('paymentId'));
+  const paymentId = submittedId(formData, 'paymentId');
   try {
     await refundPayment(user, {
       paymentId,

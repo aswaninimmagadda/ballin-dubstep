@@ -20,11 +20,18 @@ async function handleGet(req: NextRequest): Promise<NextResponse> {
               -- tenant name is fixed at provisioning. Showing the tenant name
               -- meant renaming the gym changed nothing a member ever saw.
               coalesce(br.name, t.name) AS gym_name,
-              br.logo_path, br.primary_color, br.support_phone, br.support_whatsapp
+              br.logo_path, br.primary_color, br.support_phone, br.support_whatsapp,
+              -- What the server will write notifications in. The app sends it
+              -- here on PATCH; it reads it back so a member who chose Telugu
+              -- and then reinstalled, or signed in on a second phone, gets
+              -- Telugu screens again instead of silently reverting to English
+              -- while their receipts kept arriving in Telugu.
+              u.language
        FROM members m
        JOIN branches b ON b.id = m.branch_id
        JOIN tenants t ON t.id = m.tenant_id
        LEFT JOIN brands br ON br.tenant_id = m.tenant_id
+       LEFT JOIN users u ON u.id = m.user_id
        WHERE m.id = $1`,
       [auth.memberId],
     );
@@ -115,6 +122,7 @@ async function handleGet(req: NextRequest): Promise<NextResponse> {
     },
     membership,
     features: flags,
+    language: m.language === 'te' ? 'te' : 'en',
   });
 }
 
