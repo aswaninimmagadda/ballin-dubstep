@@ -16,7 +16,11 @@
 import { readFileSync } from 'node:fs';
 import { globSync } from 'node:fs';
 
-const ATTRS = ['label', 'hint', 'title', 'placeholder'];
+// `subtitle` joined this list after a rendered Telugu page showed five
+// English sentences sitting directly under translated headings. The list
+// is the gate's whole reach: anything user-visible that arrives through a
+// prop not named here is invisible to it.
+const ATTRS = ['label', 'hint', 'title', 'subtitle', 'placeholder'];
 // A literal starting with a capital letter and containing a space, or any
 // literal of three or more characters, is prose. Single words like "id" or
 // units are allowed through only when they are not capitalised.

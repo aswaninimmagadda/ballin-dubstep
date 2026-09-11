@@ -192,10 +192,7 @@ export default async function PlansPage({
 
   return (
     <>
-      <PageHeader
-        title={tr.nav.plans}
-        subtitle="Price changes create a new version — past sales keep their original terms."
-      />
+      <PageHeader title={tr.nav.plans} subtitle={tr.ui.subPlans} />
       <ErrorBanner message={error ?? null} />
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -409,9 +406,9 @@ export default async function PlansPage({
           <div className="lg:col-span-2">
             <Table
               headers={[
-                tr.ui.colPackage,
-                tr.ui.colType,
-                tr.ui.colSessions,
+                tr.ui.package,
+                tr.ui.type,
+                tr.ui.sessions,
                 tr.ui.colValidity,
                 tr.membership.price,
                 tr.members.status,

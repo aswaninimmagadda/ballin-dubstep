@@ -91,7 +91,7 @@ export default async function ImportPage({
     <>
       <PageHeader
         title={tr.ui.importMembersFromCsv}
-        subtitle="Migrate from notebooks/Excel. Nothing imports until every row is valid."
+        subtitle={tr.ui.subImport}
         actions={
           <Button href="/api/import/template" variant="secondary">
             Download template

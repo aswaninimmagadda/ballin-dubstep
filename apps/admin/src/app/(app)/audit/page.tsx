@@ -19,10 +19,7 @@ export default async function AuditPage() {
 
   return (
     <>
-      <PageHeader
-        title={tr.nav.audit}
-        subtitle="Append-only — entries can never be edited or deleted."
-      />
+      <PageHeader title={tr.nav.audit} subtitle={tr.ui.subAudit} />
       {rows.length === 0 ? (
         <EmptyState title={tr.ui.noActivityYet} />
       ) : (

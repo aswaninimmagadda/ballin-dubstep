@@ -131,7 +131,7 @@ export default async function SettingsPage({
   const canManage =
     hasPermission(user.permissions, 'settings.manage') || user.kind === 'platform_admin';
   if (!settings) {
-    return <PageHeader title={tr.nav.settings} subtitle="No settings found for this account." />;
+    return <PageHeader title={tr.nav.settings} subtitle={tr.ui.subSettingsMissing} />;
   }
 
   return (

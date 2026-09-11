@@ -39,15 +39,12 @@ export default async function StaffPage({
 
   return (
     <>
-      <PageHeader
-        title={tr.ui.staff}
-        subtitle="Accounts, roles and access. Deactivation cuts access instantly."
-      />
+      <PageHeader title={tr.ui.staff} subtitle={tr.ui.subStaff} />
       <ErrorBanner message={error ?? null} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <Table headers={[tr.ui.colName, tr.auth.email, tr.ui.colRole, tr.members.status, '']}>
+          <Table headers={[tr.ui.name, tr.auth.email, tr.ui.role, tr.members.status, '']}>
             {staff.map((s) => (
               <tr key={s.id}>
                 <td className="px-4 py-3 font-medium">{s.display_name}</td>

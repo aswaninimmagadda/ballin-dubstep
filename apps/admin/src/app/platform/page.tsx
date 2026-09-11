@@ -74,12 +74,12 @@ export default async function PlatformPage({
           <Table
             headers={[
               tr.ui.platformColGym,
-              tr.ui.platformColStatus,
-              tr.ui.platformColPlan,
+              tr.members.status,
+              tr.members.plan,
               tr.ui.platformColBranches,
-              tr.ui.platformColStaff,
-              tr.ui.platformColMembers,
-              tr.ui.platformColActive,
+              tr.nav.staff,
+              tr.nav.members,
+              tr.ui.colActive,
               tr.ui.platformColLastPayment,
               '',
             ]}

@@ -112,7 +112,7 @@ export default async function PromotionsPage({
         <div className="lg:col-span-2">
           <Table
             headers={[
-              tr.ui.colCode,
+              tr.ui.code,
               tr.members.name,
               tr.membership.discount,
               tr.ui.colValidity,

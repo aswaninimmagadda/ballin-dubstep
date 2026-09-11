@@ -452,9 +452,9 @@ export default async function MemberDetailPage({
           <h2 className="mb-3 text-base font-semibold">PT / Add-ons</h2>
           <Table
             headers={[
-              tr.ui.colPackage,
+              tr.ui.package,
               tr.members.trainer,
-              tr.ui.colSessions,
+              tr.ui.sessions,
               tr.ui.colValidity,
               tr.members.status,
             ]}
