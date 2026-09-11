@@ -76,7 +76,7 @@ Deployment targets and domain guidance: DEPLOYMENT.md.
 | -------------------------- | ----------------------- | ----------------------------------------- |
 | Unit (vitest)              | **189 passed**          | `pnpm test:unit`                          |
 | Integration (real PG, RLS) | **72 passed**           | `pnpm --filter @gymflow/database test`    |
-| E2E admin HTTP suite       | **184 checks passed**   | `node scripts/e2e-admin.mjs`              |
+| E2E admin HTTP suite       | **185 checks passed**   | `node scripts/e2e-admin.mjs`              |
 | E2E final acceptance (§82) | **176 checks passed**   | `node scripts/e2e-acceptance.mjs`         |
 | E2E empty tenant (day one) | **28 checks passed**    | `node scripts/e2e-empty-tenant.mjs`       |
 | Android/iOS release config | **21 checks passed**    | `node scripts/check-android-manifest.mjs` |

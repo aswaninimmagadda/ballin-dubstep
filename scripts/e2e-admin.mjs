@@ -566,7 +566,11 @@ async function main() {
   const [refundedReceipt] = await q(`SELECT receipt_number FROM receipts WHERE payment_id = $1`, [
     payRow.id,
   ]);
-  const csvRow = payCsv.split('\n').find((l) => l.startsWith(`${refundedReceipt.receipt_number},`));
+  // Optional-chained on purpose: a missing receipt row should fail the one
+  // check below, not throw and take the remaining hundred with it.
+  const csvRow = refundedReceipt?.receipt_number
+    ? payCsv.split('\n').find((l) => l.startsWith(`${refundedReceipt.receipt_number},`))
+    : undefined;
   check(
     'payments export shows the refund and the net',
     Boolean(csvRow) &&
@@ -1018,10 +1022,19 @@ async function main() {
     /[ఀ-౿]/.test(note?.rendered_body ?? ''),
     note?.rendered_body ?? 'no notification',
   );
+  // Not merely "no {{receipt}} left in it": a template that expanded the
+  // placeholder to an empty string would pass that and tell the member
+  // nothing. Look up the receipt this payment actually produced and require
+  // the body to name it.
+  const notifyPaymentId = redirectTarget(notifyRes).split('/receipts/')[1]?.split('?')[0] ?? '';
+  const [notifyReceipt] = (
+    await db.query(`SELECT receipt_number FROM receipts WHERE payment_id = $1`, [notifyPaymentId])
+  ).rows;
   check(
-    'and it carries the receipt number, not a bare placeholder',
-    !(note?.rendered_body ?? '').includes('{{receipt}}'),
-    note?.rendered_body ?? '',
+    'and it carries the receipt number this payment produced',
+    Boolean(notifyReceipt?.receipt_number) &&
+      (note?.rendered_body ?? '').includes(notifyReceipt.receipt_number),
+    `${notifyReceipt?.receipt_number ?? 'no receipt row'} not in ${note?.rendered_body ?? ''}`,
   );
   // Put the seed back the way it was.
   await db.query(
@@ -1103,10 +1116,17 @@ async function main() {
     amount: 'not-a-number',
     method: 'cash',
   });
+  // A deletion carries the same cookie NAME, so "a Set-Cookie mentioning it"
+  // passes even when the draft is being thrown away — which is now a real
+  // code path, since an oversized draft deletes rather than declining.
+  // Require a real payload and a live Max-Age.
+  const honestCookies = (honestRes.headers.getSetCookie?.() ?? []).filter((c) =>
+    c.startsWith('gymflow_draft_payment='),
+  );
   check(
     'a real id still gets its draft kept',
-    (honestRes.headers.getSetCookie?.() ?? []).some((c) => c.includes('gymflow_draft_payment')),
-    String(honestRes.status),
+    honestCookies.some((c) => /gymflow_draft_payment=%7B/.test(c) && !/Max-Age=0\b/.test(c)),
+    JSON.stringify(honestCookies),
   );
   absorbCookies(honestRes);
 
@@ -1687,6 +1707,17 @@ async function main() {
     'and the draft is cleared, so the next sale starts clean',
     !freshForm.includes('TYPO-CODE-42') && !freshForm.includes('UTR-REF-9911'),
     'a finished draft leaked into the next form',
+  );
+  // On its own the check above cannot fail: a page opened without ?error=
+  // returns an empty draft whatever the cookie still holds. The property
+  // that has to be true is that the successful sale DELETED it — so ask for
+  // the one URL that would bring it back.
+  const staleErrorUrl = `/members/${draftMemberId}/sell?error=${encodeURIComponent('check')}`;
+  const staleForm = await (await getFollow(staleErrorUrl)).text();
+  check(
+    'and gone from the cookie, not merely unread',
+    !staleForm.includes('TYPO-CODE-42') && !staleForm.includes('UTR-REF-9911'),
+    'the finished draft is still in the jar and comes back on the next error',
   );
 
   // ---- a page that cannot be shown says so --------------------------------

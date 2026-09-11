@@ -51,9 +51,9 @@ actually-executed runs (CI re-runs them on every PR).
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 388 checks passing (three HTTP suites)
+### 3. End-to-end — 389 checks passing (three HTTP suites)
 
-`scripts/e2e-admin.mjs` (184 checks) drives the real HTTP surface (server
+`scripts/e2e-admin.mjs` (185 checks) drives the real HTTP surface (server
 actions via progressive-enhancement form posts) against a running server +
 seeded DB, then verifies database effects:
 

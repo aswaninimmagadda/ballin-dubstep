@@ -132,14 +132,39 @@ describe('member app status chips', () => {
 
   /**
    * The rest of the member app's colour, which is literal hex in StyleSheet
-   * objects. Each pair is one a member actually sees together.
+   * objects that no scan can pair up automatically.
+   *
+   * Asserting the contrast alone would prove nothing about the app: the
+   * numbers would be a copy, and a copy stays green while the source moves
+   * underneath it — the same trap the chip table above was in. So each case
+   * also requires both hexes to still be present in the file it was taken
+   * from. Change the colour in the app and this stops finding it.
    */
   it.each([
-    ['reload button label on the primary fill', DESIGN_TOKENS.color.primary, '#ffffff'],
-    ['offline banner', '#fef3c7', '#92400e'],
-    ['login error banner', '#fee2e2', '#991b1b'],
-  ])('%s is readable', (_name, bg, fg) => {
-    expect(meetsAA(bg, fg), `${fg} on ${bg} is ${contrastRatio(bg, fg).toFixed(2)}:1`).toBe(true);
+    [
+      'the reload button label',
+      'src/components/ErrorState.tsx',
+      DESIGN_TOKENS.color.primary,
+      '#fff',
+    ],
+    ['the offline banner', 'src/components/ui.tsx', '#fef3c7', '#92400e'],
+    ['the login error banner', 'src/screens/LoginScreen.tsx', '#fee2e2', '#991b1b'],
+  ])('%s is readable, and still the colour the app uses', (_name, where, bg, fg) => {
+    const src = readFileSync(
+      fileURLToPath(new URL(`../../../apps/member/${where}`, import.meta.url)),
+      'utf8',
+    );
+    // The primary comes from the shared tokens, so only the literal side of
+    // the pair is looked for in the file.
+    for (const hex of [bg, fg].filter((h) => h !== DESIGN_TOKENS.color.primary)) {
+      expect(src, `${hex} is no longer in apps/member/${where}`).toContain(hex);
+    }
+    const full = (h: string) =>
+      h.length === 4 ? `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}` : h;
+    expect(
+      meetsAA(full(bg), full(fg)),
+      `${fg} on ${bg} is ${contrastRatio(full(bg), full(fg)).toFixed(2)}:1`,
+    ).toBe(true);
   });
 });
 
