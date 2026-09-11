@@ -1,10 +1,11 @@
 import { notFound, redirect } from 'next/navigation';
 import { randomUUID } from 'node:crypto';
-import { formatMoney, parseMoney } from '@gymflow/utils';
+import { formatMoney } from '@gymflow/utils';
 import { requirePermission } from '@/lib/session';
 import { getMemberDetail } from '@/lib/services/members';
 import { listAddonPackages, sellAddon } from '@/lib/services/addons';
 import { asPrincipal } from '@/lib/db';
+import { AMOUNT_ERROR, readAmount } from '@/lib/amount';
 import { toUserMessage } from '@/lib/errors';
 import { draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
@@ -18,20 +19,31 @@ async function sellAddonAction(formData: FormData): Promise<void> {
   const user = await requirePermission('pt.manage');
   const memberId = String(formData.get('memberId'));
   const draft = formDraft('addon', `/members/${memberId}/addon`);
-  const amountRaw = String(formData.get('amount') ?? '').trim();
+  // Use the shared reader rather than parseMoney directly. A mistyped amount
+  // does reach the catch below, but only as an unhandled fault — the staff
+  // member gets "Something went wrong… Reference: 4f2a9c1e" for a stray
+  // letter in a number, which tells them nothing and puts a fake incident in
+  // the error log. Every other money form in the app already answers this
+  // with the amount message; this one was the exception.
+  const amount = readAmount(formData.get('amount'));
+  if (amount.kind === 'invalid') {
+    await draft.keep(formData);
+    redirect(`/members/${memberId}/addon?error=${encodeURIComponent(AMOUNT_ERROR)}`);
+  }
   try {
     await sellAddon(user, {
       memberId,
       addonPackageId: String(formData.get('addonPackageId')),
       trainerId: String(formData.get('trainerId') ?? '') || null,
       idempotencyKey: String(formData.get('idempotencyKey')),
-      payment: amountRaw
-        ? {
-            amount: parseMoney(amountRaw),
-            method: String(formData.get('method') ?? 'cash'),
-            externalReference: String(formData.get('externalReference') ?? '').trim() || null,
-          }
-        : null,
+      payment:
+        amount.kind === 'ok'
+          ? {
+              amount: amount.paise,
+              method: String(formData.get('method') ?? 'cash'),
+              externalReference: String(formData.get('externalReference') ?? '').trim() || null,
+            }
+          : null,
     });
   } catch (err) {
     await draft.keep(formData);

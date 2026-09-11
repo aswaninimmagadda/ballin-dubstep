@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/session';
 import { asPrincipal } from '@/lib/db';
 import { writeAudit } from '@/lib/audit';
 import { toUserMessage } from '@/lib/errors';
+import { draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import {
   Badge,
@@ -21,6 +22,7 @@ export const dynamic = 'force-dynamic';
 
 async function createPromotionAction(formData: FormData): Promise<void> {
   'use server';
+  const draft = formDraft('promotions_new', '/promotions');
   const user = await requirePermission('promotions.manage');
   const kind = String(formData.get('discountKind'));
   let value = 0;
@@ -32,6 +34,7 @@ async function createPromotionAction(formData: FormData): Promise<void> {
           ? parseMoney(String(formData.get('flat') ?? '0'))
           : 0;
   } catch {
+    await draft.keep(formData);
     redirect(`/promotions?error=${encodeURIComponent('Enter a valid discount value.')}`);
   }
   try {
@@ -59,8 +62,10 @@ async function createPromotionAction(formData: FormData): Promise<void> {
       });
     });
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/promotions?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect('/promotions');
 }
 
@@ -84,6 +89,7 @@ export default async function PromotionsPage({
   const user = await requirePermission('promotions.view');
   const { error } = await searchParams;
   const tr = await t();
+  const kept = await formDraft('promotions_new', '/promotions').read();
   const canManage =
     hasPermission(user.permissions, 'promotions.manage') || user.kind === 'platform_admin';
 
@@ -166,13 +172,23 @@ export default async function PromotionsPage({
                   placeholder={tr.ui.sankranti27}
                   pattern="[A-Za-z0-9-]{2,40}"
                   className={inputCls}
+                  defaultValue={draftOr(kept, 'code')}
                 />
               </Field>
               <Field label={tr.members.name} required>
-                <input name="name" required className={inputCls} />
+                <input
+                  name="name"
+                  required
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'name')}
+                />
               </Field>
               <Field label={tr.ui.type} required>
-                <select name="discountKind" className={inputCls} defaultValue="percentage">
+                <select
+                  name="discountKind"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'discountKind', 'percentage')}
+                >
                   <option value="percentage">Percentage</option>
                   <option value="flat">Flat ₹</option>
                   <option value="joining_fee_waiver">Joining fee waiver</option>
@@ -188,22 +204,45 @@ export default async function PromotionsPage({
                     step="0.5"
                     placeholder="10"
                     className={inputCls}
+                    defaultValue={draftOr(kept, 'percent')}
                   />
                 </Field>
                 <Field label={tr.ui.flat}>
-                  <input name="flat" inputMode="decimal" placeholder="500" className={inputCls} />
+                  <input
+                    name="flat"
+                    inputMode="decimal"
+                    placeholder="500"
+                    className={inputCls}
+                    defaultValue={draftOr(kept, 'flat')}
+                  />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label={tr.ui.from} required>
-                  <input name="validFrom" type="date" required className={inputCls} />
+                  <input
+                    name="validFrom"
+                    type="date"
+                    required
+                    className={inputCls}
+                    defaultValue={draftOr(kept, 'validFrom')}
+                  />
                 </Field>
                 <Field label="To" required>
-                  <input name="validTo" type="date" required className={inputCls} />
+                  <input
+                    name="validTo"
+                    type="date"
+                    required
+                    className={inputCls}
+                    defaultValue={draftOr(kept, 'validTo')}
+                  />
                 </Field>
               </div>
               <Field label={tr.ui.audience}>
-                <select name="audience" className={inputCls} defaultValue="all">
+                <select
+                  name="audience"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'audience', 'all')}
+                >
                   <option value="all">Everyone</option>
                   <option value="new_members">New members only</option>
                   <option value="renewals">Renewals only</option>

@@ -6,6 +6,7 @@ import { contrastRatio, isUsableAsFill, readableTextOn } from '@gymflow/utils';
 import { requirePermission } from '@/lib/session';
 import { getBrand, getSettings, updateBrand, updateSettings } from '@/lib/services/settings';
 import { toUserMessage } from '@/lib/errors';
+import { draftChecked, draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import {
   Button,
@@ -22,6 +23,9 @@ export const dynamic = 'force-dynamic';
 async function saveSettingsAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('settings.manage');
+  // Sixteen fields including both WhatsApp renewal templates. A mistyped
+  // GSTIN used to throw away the Telugu template someone had just written.
+  const draft = formDraft('settings', '/settings');
   // `|| undefined` on a number turns a deliberate 0 into "leave unchanged",
   // and on a string turns "clear this" into the same thing. Parse both
   // explicitly: missing field = leave alone, present-but-empty = clear.
@@ -42,6 +46,7 @@ async function saveSettingsAction(formData: FormData): Promise<void> {
 
   const gstin = clearable('gstin')?.toUpperCase() ?? clearable('gstin');
   if (gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(gstin)) {
+    await draft.keep(formData);
     redirect(
       `/settings?error=${encodeURIComponent(
         'GSTIN must be 15 characters, e.g. 37ABCDE1234F1Z5. Leave it empty if the gym is not registered.',
@@ -63,8 +68,10 @@ async function saveSettingsAction(formData: FormData): Promise<void> {
       tax_state_name: clearable('taxStateName'),
     });
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/settings?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect('/settings?msg=saved');
 }
 
@@ -113,6 +120,7 @@ export default async function SettingsPage({
   const user = await requirePermission('settings.view');
   const { error, msg } = await searchParams;
   const tr = await t();
+  const kept = await formDraft('settings', '/settings').read();
   const [settings, brand] = await Promise.all([getSettings(user), getBrand(user)]);
   // What the member app will actually paint: the gym's colour if it has set a
   // valid one, otherwise the product green it falls back to.
@@ -139,7 +147,7 @@ export default async function SettingsPage({
               <Field label={tr.ui.receiptPrefix} hint="e.g. SVF → SVF-2026-000123">
                 <input
                   name="receiptPrefix"
-                  defaultValue={settings.receipt_prefix}
+                  defaultValue={draftOr(kept, 'receiptPrefix', settings.receipt_prefix)}
                   pattern="[A-Za-z0-9]{1,8}"
                   className={inputCls}
                 />
@@ -150,7 +158,11 @@ export default async function SettingsPage({
                   type="number"
                   min={0}
                   max={60}
-                  defaultValue={settings.default_grace_period_days}
+                  defaultValue={draftOr(
+                    kept,
+                    'gracePeriodDays',
+                    settings.default_grace_period_days,
+                  )}
                   className={inputCls}
                 />
               </Field>
@@ -160,7 +172,7 @@ export default async function SettingsPage({
                   type="number"
                   min={0}
                   max={12}
-                  defaultValue={settings.max_freezes_per_year}
+                  defaultValue={draftOr(kept, 'maxFreezes', settings.max_freezes_per_year)}
                   className={inputCls}
                 />
               </Field>
@@ -170,7 +182,7 @@ export default async function SettingsPage({
                   type="number"
                   min={0}
                   max={365}
-                  defaultValue={settings.max_freeze_days_per_year}
+                  defaultValue={draftOr(kept, 'maxFreezeDays', settings.max_freeze_days_per_year)}
                   className={inputCls}
                 />
               </Field>
@@ -179,7 +191,7 @@ export default async function SettingsPage({
               <input
                 type="checkbox"
                 name="allowPartial"
-                defaultChecked={settings.allow_partial_payments}
+                defaultChecked={draftChecked(kept, 'allowPartial', settings.allow_partial_payments)}
                 className="h-4 w-4"
               />
               Allow partial payments
@@ -191,7 +203,7 @@ export default async function SettingsPage({
               <textarea
                 name="waTemplateEn"
                 rows={3}
-                defaultValue={settings.whatsapp_renewal_template_en}
+                defaultValue={draftOr(kept, 'waTemplateEn', settings.whatsapp_renewal_template_en)}
                 className={inputCls}
               />
             </Field>
@@ -199,14 +211,14 @@ export default async function SettingsPage({
               <textarea
                 name="waTemplateTe"
                 rows={3}
-                defaultValue={settings.whatsapp_renewal_template_te}
+                defaultValue={draftOr(kept, 'waTemplateTe', settings.whatsapp_renewal_template_te)}
                 className={inputCls}
               />
             </Field>
             <Field label={tr.ui.receiptFooter}>
               <input
                 name="receiptFooter"
-                defaultValue={settings.receipt_footer ?? ''}
+                defaultValue={draftOr(kept, 'receiptFooter', settings.receipt_footer ?? '')}
                 className={inputCls}
               />
             </Field>
@@ -221,7 +233,7 @@ export default async function SettingsPage({
               >
                 <input
                   name="gstin"
-                  defaultValue={settings.gstin ?? ''}
+                  defaultValue={draftOr(kept, 'gstin', settings.gstin ?? '')}
                   maxLength={15}
                   placeholder="37ABCDE1234F1Z5"
                   className={`${inputCls} font-mono uppercase`}
@@ -230,7 +242,7 @@ export default async function SettingsPage({
               <Field label={tr.ui.statePlaceOfSupply} hint={tr.ui.printedOnTheTaxInvoice}>
                 <input
                   name="taxStateName"
-                  defaultValue={settings.tax_state_name ?? ''}
+                  defaultValue={draftOr(kept, 'taxStateName', settings.tax_state_name ?? '')}
                   placeholder={tr.ui.andhraPradesh}
                   className={inputCls}
                 />

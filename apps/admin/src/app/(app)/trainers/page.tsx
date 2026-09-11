@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/session';
 import { createTrainer, listTrainers, setTrainerActive } from '@/lib/services/trainers';
 import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
+import { draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import {
   Badge,
@@ -21,9 +22,11 @@ export const dynamic = 'force-dynamic';
 
 async function createTrainerAction(formData: FormData): Promise<void> {
   'use server';
+  const draft = formDraft('trainers_new', '/trainers');
   const user = await requirePermission('trainers.manage');
   const rawMobile = String(formData.get('mobile') ?? '');
   if (!isValidIndianMobile(rawMobile)) {
+    await draft.keep(formData);
     redirect(`/trainers?error=${encodeURIComponent('Enter a valid 10-digit mobile number.')}`);
   }
   try {
@@ -34,8 +37,10 @@ async function createTrainerAction(formData: FormData): Promise<void> {
       specialization: String(formData.get('specialization') ?? '').trim() || null,
     });
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/trainers?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect('/trainers');
 }
 
@@ -54,6 +59,7 @@ export default async function TrainersPage({
   const user = await requirePermission('trainers.view');
   const { error } = await searchParams;
   const tr = await t();
+  const kept = await formDraft('trainers_new', '/trainers').read();
   const trainers = await listTrainers(user);
   const canManage =
     hasPermission(user.permissions, 'trainers.manage') || user.kind === 'platform_admin';
@@ -117,13 +123,28 @@ export default async function TrainersPage({
             <h2 className="mb-3 text-sm font-semibold text-slate-700">New trainer</h2>
             <form action={createTrainerAction} className="space-y-3">
               <Field label={tr.members.name} required>
-                <input name="name" required className={inputCls} />
+                <input
+                  name="name"
+                  required
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'name')}
+                />
               </Field>
               <Field label={tr.members.mobile} required>
-                <input name="mobile" type="tel" required className={inputCls} />
+                <input
+                  name="mobile"
+                  type="tel"
+                  required
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'mobile')}
+                />
               </Field>
               <Field label={tr.ui.branch} required>
-                <select name="branchId" className={inputCls}>
+                <select
+                  name="branchId"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'branchId')}
+                >
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
@@ -136,6 +157,7 @@ export default async function TrainersPage({
                   name="specialization"
                   placeholder={tr.ui.strengthWeightLossZumba}
                   className={inputCls}
+                  defaultValue={draftOr(kept, 'specialization')}
                 />
               </Field>
               <Button className="w-full">{tr.common.save}</Button>

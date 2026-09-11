@@ -6,6 +6,7 @@ import { hasPermission } from '@gymflow/core';
 import { createPlan, listPlans, setPlanActive, updatePlanTerms } from '@/lib/services/plans';
 import { createAddonPackage, listAddonPackages, updateAddonPackage } from '@/lib/services/addons';
 import { toUserMessage } from '@/lib/errors';
+import { draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import {
   Badge,
@@ -22,6 +23,7 @@ export const dynamic = 'force-dynamic';
 
 async function createPlanAction(formData: FormData): Promise<void> {
   'use server';
+  const draft = formDraft('plans_new', '/plans');
   const user = await requirePermission('plans.manage');
   let basePrice = 0;
   let joiningFee = 0;
@@ -31,6 +33,7 @@ async function createPlanAction(formData: FormData): Promise<void> {
       ? parseMoney(String(formData.get('joiningFee')))
       : 0;
   } catch {
+    await draft.keep(formData);
     redirect(`/plans?error=${encodeURIComponent('Enter valid prices, e.g. 2500')}`);
   }
   const parsed = createPlanSchema.safeParse({
@@ -51,12 +54,17 @@ async function createPlanAction(formData: FormData): Promise<void> {
       allowedTimings: String(formData.get('allowedTimings') ?? '') || null,
     },
   });
-  if (!parsed.success) redirect(`/plans?error=${encodeURIComponent('Check the plan details.')}`);
+  if (!parsed.success) {
+    await draft.keep(formData);
+    redirect(`/plans?error=${encodeURIComponent('Check the plan details.')}`);
+  }
   try {
     await createPlan(user, parsed.data);
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/plans?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect('/plans');
 }
 
@@ -174,6 +182,7 @@ export default async function PlansPage({
   const user = await requirePermission('plans.view');
   const { error } = await searchParams;
   const tr = await t();
+  const kept = await formDraft('plans_new', '/plans').read();
   const [plans, addonPackages] = await Promise.all([
     listPlans(user, true),
     listAddonPackages(user, true),
@@ -262,7 +271,13 @@ export default async function PlansPage({
             <h2 className="mb-3 text-sm font-semibold text-slate-700">New plan</h2>
             <form action={createPlanAction} className="space-y-3">
               <Field label={tr.members.name} required>
-                <input name="name" required placeholder="e.g. 3 Month" className={inputCls} />
+                <input
+                  name="name"
+                  required
+                  placeholder="e.g. 3 Month"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'name')}
+                />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label={tr.membership.duration} required>
@@ -270,13 +285,17 @@ export default async function PlansPage({
                     name="durationValue"
                     type="number"
                     min={1}
-                    defaultValue={3}
+                    defaultValue={draftOr(kept, 'durationValue', 3)}
                     required
                     className={inputCls}
                   />
                 </Field>
                 <Field label={tr.ui.unit}>
-                  <select name="durationUnit" className={inputCls} defaultValue="months">
+                  <select
+                    name="durationUnit"
+                    className={inputCls}
+                    defaultValue={draftOr(kept, 'durationUnit', 'months')}
+                  >
                     <option value="months">Months</option>
                     <option value="days">Days</option>
                   </select>
@@ -290,6 +309,7 @@ export default async function PlansPage({
                     required
                     placeholder="2500"
                     className={inputCls}
+                    defaultValue={draftOr(kept, 'basePrice')}
                   />
                 </Field>
                 <Field label={`${tr.membership.joiningFee} (₹)`}>
@@ -298,6 +318,7 @@ export default async function PlansPage({
                     inputMode="decimal"
                     placeholder="500"
                     className={inputCls}
+                    defaultValue={draftOr(kept, 'joiningFee')}
                   />
                 </Field>
               </div>
@@ -308,7 +329,7 @@ export default async function PlansPage({
                     type="number"
                     min={0}
                     max={60}
-                    defaultValue={3}
+                    defaultValue={draftOr(kept, 'gracePeriodDays', 3)}
                     className={inputCls}
                   />
                 </Field>
@@ -318,7 +339,7 @@ export default async function PlansPage({
                     type="number"
                     min={0}
                     max={365}
-                    defaultValue={30}
+                    defaultValue={draftOr(kept, 'freezeAllowanceDays', 30)}
                     className={inputCls}
                   />
                 </Field>
@@ -328,7 +349,7 @@ export default async function PlansPage({
                     type="number"
                     min={0}
                     max={12}
-                    defaultValue={2}
+                    defaultValue={draftOr(kept, 'maxFreezes', 2)}
                     className={inputCls}
                   />
                 </Field>
@@ -339,7 +360,11 @@ export default async function PlansPage({
                   here never alters an invoice already issued. */}
               <div className="grid grid-cols-2 gap-3">
                 <Field label={tr.plans.gstRate} hint={tr.plans.gstHint}>
-                  <select name="taxRateBps" defaultValue="0" className={inputCls}>
+                  <select
+                    name="taxRateBps"
+                    defaultValue={draftOr(kept, 'taxRateBps', '0')}
+                    className={inputCls}
+                  >
                     <option value="0">{tr.plans.gstNotRegistered}</option>
                     <option value="500">5%</option>
                     <option value="1200">12%</option>
@@ -348,17 +373,29 @@ export default async function PlansPage({
                   </select>
                 </Field>
                 <Field label={tr.plans.gstMode}>
-                  <select name="taxInclusive" defaultValue="true" className={inputCls}>
+                  <select
+                    name="taxInclusive"
+                    defaultValue={draftOr(kept, 'taxInclusive', 'true')}
+                    className={inputCls}
+                  >
                     <option value="true">{tr.plans.gstInclusive}</option>
                     <option value="false">{tr.plans.gstExclusive}</option>
                   </select>
                 </Field>
               </div>
               <Field label={tr.ui.allowedTimings} hint={tr.ui.optionalEG0530}>
-                <input name="allowedTimings" className={inputCls} />
+                <input
+                  name="allowedTimings"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'allowedTimings')}
+                />
               </Field>
               <Field label={tr.ui.publicDescription}>
-                <input name="publicDescription" className={inputCls} />
+                <input
+                  name="publicDescription"
+                  className={inputCls}
+                  defaultValue={draftOr(kept, 'publicDescription')}
+                />
               </Field>
               <Button className="w-full">{tr.common.save}</Button>
             </form>

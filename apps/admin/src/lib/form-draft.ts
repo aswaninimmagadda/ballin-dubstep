@@ -56,9 +56,15 @@ export function formDraft(key: string, path: string): FormDraft {
       const entries: Record<string, string> = {};
       for (const [field, value] of formData.entries()) {
         if (typeof value !== 'string') continue;
-        if (value === '') continue;
         if (field.startsWith('$ACTION')) continue;
         if (NEVER_KEEP.test(field)) continue;
+        // Empty strings are kept deliberately. On the edit form a blank field
+        // means "erase this", not "leave it alone" — dropping empties would
+        // restore the value the receptionist had just cleared, and they would
+        // have to clear it again without being told why it came back.
+        //
+        // Absence therefore means "not submitted", which is exactly what an
+        // unticked checkbox is, and what draftChecked relies on.
         entries[field] = value;
       }
       const payload = JSON.stringify(entries);

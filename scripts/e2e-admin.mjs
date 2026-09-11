@@ -1315,6 +1315,79 @@ async function main() {
     redirectTarget(goodSale).includes('msg=sold'),
     redirectTarget(goodSale),
   );
+  // A field the receptionist deliberately CLEARED must stay cleared. The
+  // draft records empty strings for exactly this reason: on the edit form a
+  // blank field means "erase this", and restoring the stored value would
+  // undo the erasure without saying so.
+  const draftEditPath = `/members/${draftMemberId}/edit`;
+  const draftEditHtml = await (await getFollow(draftEditPath)).text();
+  const withEmail = await postAction(draftEditPath, extractForm(draftEditHtml, 'firstName'), {
+    memberId: draftMemberId,
+    firstName: 'Draft',
+    lastName: 'Keeper',
+    mobile: draftMobile,
+    email: 'keeper@example.test',
+  });
+  absorbCookies(withEmail);
+  check(
+    'an email can be set',
+    redirectTarget(withEmail).includes('msg=edited'),
+    redirectTarget(withEmail),
+  );
+  // Now clear the email AND trip a validation error on another field.
+  const draftClearedHtml = await (await getFollow(draftEditPath)).text();
+  const cleared = await postAction(draftEditPath, extractForm(draftClearedHtml, 'firstName'), {
+    memberId: draftMemberId,
+    firstName: 'Draft',
+    lastName: 'Keeper',
+    mobile: '12345',
+    email: '',
+  });
+  absorbCookies(cleared);
+  check(
+    'the bad mobile is refused',
+    decodeURIComponent(redirectTarget(cleared)).includes('valid 10-digit'),
+    redirectTarget(cleared),
+  );
+  const afterClearEdit = await (await getFollow(draftEditPath)).text();
+  check(
+    'and the email they cleared has not come back',
+    !afterClearEdit.includes('keeper@example.test'),
+    'a deliberately cleared field was restored from the stored value',
+  );
+
+  // The same protection on the settings form, which is sixteen fields
+  // including both WhatsApp renewal templates. A mistyped GSTIN used to
+  // discard the Telugu template someone had just written.
+  check('owner relogin for settings', await loginAs('owner@demo.gymflow.local'));
+  const settingsHtml = await (await getFollow('/settings')).text();
+  const TE_TEMPLATE = 'నమస్తే {{member_first_name}} — డ్రాఫ్ట్ పరీక్ష';
+  const badGstin = await postAction('/settings', extractForm(settingsHtml, 'receiptPrefix'), {
+    gstin: 'NOT-A-GSTIN',
+    waTemplateTe: TE_TEMPLATE,
+    receiptPrefix: 'SVF',
+  });
+  absorbCookies(badGstin);
+  check(
+    'a malformed GSTIN is refused',
+    decodeURIComponent(redirectTarget(badGstin)).includes('GSTIN must be'),
+    redirectTarget(badGstin),
+  );
+  const afterGstin = await (await getFollow('/settings')).text();
+  check(
+    'and the Telugu template they had just written survives',
+    afterGstin.includes('డ్రాఫ్ట్ పరీక్ష'),
+    'the WhatsApp template was discarded with the bad GSTIN',
+  );
+  // Put settings back the way the suite found them.
+  const restoreSettings = await postAction('/settings', extractForm(afterGstin, 'receiptPrefix'), {
+    gstin: '',
+    waTemplateTe: 'నమస్తే {{member_first_name}}!',
+  });
+  absorbCookies(restoreSettings);
+  check('settings restored', redirectTarget(restoreSettings).includes('msg=saved'));
+  check('reception relogin after settings', await loginAs(EMAIL));
+
   const freshForm = await (await getFollow(`/members/${draftMemberId}/sell`)).text();
   check(
     'and the draft is cleared, so the next sale starts clean',

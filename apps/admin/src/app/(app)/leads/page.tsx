@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/session';
 import { createLead, listLeads, updateLeadStatus } from '@/lib/services/leads';
 import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
+import { draftOr, formDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { requireFeature } from '@/lib/flags';
 import {
@@ -22,6 +23,7 @@ export const dynamic = 'force-dynamic';
 
 async function createLeadAction(formData: FormData): Promise<void> {
   'use server';
+  const draft = formDraft('leads_new', '/leads');
   const user = await requirePermission('leads.manage');
   const parsed = createLeadSchema.safeParse({
     branchId: String(formData.get('branchId')),
@@ -31,12 +33,17 @@ async function createLeadAction(formData: FormData): Promise<void> {
     followUpDate: String(formData.get('followUpDate') ?? '') || null,
     notes: String(formData.get('notes') ?? '') || null,
   });
-  if (!parsed.success) redirect(`/leads?error=${encodeURIComponent('Check the lead details.')}`);
+  if (!parsed.success) {
+    await draft.keep(formData);
+    redirect(`/leads?error=${encodeURIComponent('Check the lead details.')}`);
+  }
   try {
     await createLead(user, parsed.data);
   } catch (err) {
+    await draft.keep(formData);
     redirect(`/leads?error=${encodeURIComponent(toUserMessage(err))}`);
   }
+  await draft.clear();
   redirect('/leads');
 }
 
@@ -59,6 +66,7 @@ export default async function LeadsPage({
   await requireFeature(user, 'leads');
   const { error, status: statusFilter } = await searchParams;
   const tr = await t();
+  const kept = await formDraft('leads_new', '/leads').read();
   // listLeads already supported a status argument; the page never passed one,
   // so a lead marked lost left the only view of leads permanently.
   const leads = await listLeads(user, statusFilter || undefined);
@@ -97,13 +105,24 @@ export default async function LeadsPage({
           <h2 className="mb-3 text-sm font-semibold text-slate-700">{tr.leads.newLead}</h2>
           <form action={createLeadAction} className="space-y-3">
             <Field label={tr.members.name} required>
-              <input name="name" required className={inputCls} />
+              <input
+                name="name"
+                required
+                className={inputCls}
+                defaultValue={draftOr(kept, 'name')}
+              />
             </Field>
             <Field label={tr.members.mobile} required>
-              <input name="mobile" type="tel" required className={inputCls} />
+              <input
+                name="mobile"
+                type="tel"
+                required
+                className={inputCls}
+                defaultValue={draftOr(kept, 'mobile')}
+              />
             </Field>
             <Field label={tr.ui.branch} required>
-              <select name="branchId" className={inputCls}>
+              <select name="branchId" className={inputCls} defaultValue={draftOr(kept, 'branchId')}>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -112,7 +131,11 @@ export default async function LeadsPage({
               </select>
             </Field>
             <Field label={tr.leads.source}>
-              <select name="source" className={inputCls} defaultValue="walk_in">
+              <select
+                name="source"
+                className={inputCls}
+                defaultValue={draftOr(kept, 'source', 'walk_in')}
+              >
                 <option value="walk_in">Walk-in</option>
                 <option value="phone">Phone</option>
                 <option value="whatsapp">WhatsApp</option>
@@ -123,10 +146,15 @@ export default async function LeadsPage({
               </select>
             </Field>
             <Field label={tr.leads.followUpDate}>
-              <input name="followUpDate" type="date" className={inputCls} />
+              <input
+                name="followUpDate"
+                type="date"
+                className={inputCls}
+                defaultValue={draftOr(kept, 'followUpDate')}
+              />
             </Field>
             <Field label={tr.members.notes}>
-              <input name="notes" className={inputCls} />
+              <input name="notes" className={inputCls} defaultValue={draftOr(kept, 'notes')} />
             </Field>
             <Button className="w-full">{tr.common.save}</Button>
           </form>

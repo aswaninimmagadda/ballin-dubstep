@@ -75,16 +75,24 @@ export async function collectionsReport(
     const byCollector = await tx.query(
       `SELECT p.received_by AS user_id,
               coalesce(u.display_name, '—') AS name,
-              (sum(p.amount) FILTER (WHERE p.method = 'cash')
-                - coalesce(sum((
-                    SELECT coalesce(sum(rf.amount), 0) FROM refunds rf
-                     WHERE rf.payment_id = p.id
-                  )) FILTER (WHERE p.method = 'cash'), 0))::bigint::text AS cash,
-              (sum(p.amount) FILTER (WHERE p.method <> 'cash')
-                - coalesce(sum((
-                    SELECT coalesce(sum(rf.amount), 0) FROM refunds rf
-                     WHERE rf.payment_id = p.id
-                  )) FILTER (WHERE p.method <> 'cash'), 0))::bigint::text AS other,
+              -- coalesce the outer sum too: a collector who took only cash
+              -- has an empty non-cash subset, and sum() over nothing is NULL,
+              -- not zero. It would reach the page as null and only render as
+              -- "₹0.00" because Number(null) happens to be 0.
+              coalesce(
+                sum(p.amount) FILTER (WHERE p.method = 'cash')
+                  - coalesce(sum((
+                      SELECT coalesce(sum(rf.amount), 0) FROM refunds rf
+                       WHERE rf.payment_id = p.id
+                    )) FILTER (WHERE p.method = 'cash'), 0),
+                0)::bigint::text AS cash,
+              coalesce(
+                sum(p.amount) FILTER (WHERE p.method <> 'cash')
+                  - coalesce(sum((
+                      SELECT coalesce(sum(rf.amount), 0) FROM refunds rf
+                       WHERE rf.payment_id = p.id
+                    )) FILTER (WHERE p.method <> 'cash'), 0),
+                0)::bigint::text AS other,
               (sum(p.amount) - coalesce(sum((
                  SELECT coalesce(sum(rf.amount), 0) FROM refunds rf WHERE rf.payment_id = p.id
                )), 0))::bigint::text AS total,
