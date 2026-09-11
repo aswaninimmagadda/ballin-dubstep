@@ -4,7 +4,7 @@ import { requirePermission } from '@/lib/session';
 import { getMemberDetail, updateMember } from '@/lib/services/members';
 import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
-import { draftOr, formDraft } from '@/lib/form-draft';
+import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -83,8 +83,8 @@ export default async function EditMemberPage({
 }) {
   const user = await requirePermission('members.edit');
   const { id } = await params;
-  const kept = await formDraft('edit', `/members/${id}/edit`).read();
   const { error } = await searchParams;
+  const kept = await loadDraft('edit', `/members/${id}/edit`, error);
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail) notFound();
   const m = detail.member;

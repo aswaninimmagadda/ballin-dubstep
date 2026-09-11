@@ -71,7 +71,13 @@ export function LoginScreen() {
       <View style={styles.box}>
         <Text style={styles.logo}>{PRODUCT.name}</Text>
         <Text style={styles.sub}>{t.member.signInHint}</Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          // A member who cannot see the box still needs to be told why the
+          // sign-in was refused — the whole point of the per-cause messages.
+          <Text style={styles.error} accessibilityLiveRegion="polite" accessibilityRole="alert">
+            {error}
+          </Text>
+        ) : null}
         <TextInput
           style={styles.input}
           placeholder={t.member.gymCode}
@@ -79,7 +85,11 @@ export function LoginScreen() {
           autoCorrect={false}
           value={gymCode}
           onChangeText={setGymCode}
+          accessibilityLabel={t.member.gymCode}
         />
+        {/* Directly under the gym-code field. It was three inputs lower,
+            under the password, where it read as advice about the password. */}
+        <Text style={styles.hint}>{t.member.gymCodeHint}</Text>
         <TextInput
           style={styles.input}
           placeholder={t.members.mobile}
@@ -94,7 +104,6 @@ export function LoginScreen() {
           value={password}
           onChangeText={setPassword}
         />
-        <Text style={styles.hint}>{t.member.gymCodeHint}</Text>
         <PrimaryButton
           label={busy ? t.common.loading : t.auth.signIn}
           onPress={submit}

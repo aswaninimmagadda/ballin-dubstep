@@ -89,3 +89,37 @@ export function readableTextOn(background: string): '#ffffff' | '#0f172a' {
 export function isUsableAsFill(background: string): boolean {
   return meetsAA(background, readableTextOn(background));
 }
+
+function toHex(r: number, g: number, b: number): string {
+  const h = (n: number) =>
+    Math.max(0, Math.min(255, Math.round(n)))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${h(r)}${h(g)}${h(b)}`;
+}
+
+/**
+ * The nearest darker version of `colour` that is readable ON `background`.
+ *
+ * Needed because a gym's brand colour is used two ways: as a button FILL,
+ * where a bright amber is fine because the label goes dark on it, and as
+ * TEXT — the active tab label in the member app sits on a white bar. Bright
+ * amber as text on white is 2.15:1, so a gym with a cheerful brand colour
+ * had an active tab it could not see, while the same colour passed the
+ * button check honestly.
+ *
+ * Blends toward black rather than jumping to a fixed dark grey, so the tab
+ * label still reads as the gym's colour. Returns black if even that will
+ * not do it, which cannot happen for any background lighter than mid-grey.
+ */
+export function darkenToMeet(colour: string, background: string, ratio = AA_NORMAL): string {
+  if (contrastRatio(colour, background) >= ratio) return colour;
+  const { r, g, b } = parseHexColor(colour);
+  // 40 steps is finer than the eye can tell apart and terminates fast.
+  for (let step = 1; step <= 40; step += 1) {
+    const k = 1 - step / 40;
+    const candidate = toHex(r * k, g * k, b * k);
+    if (contrastRatio(candidate, background) >= ratio) return candidate;
+  }
+  return '#000000';
+}

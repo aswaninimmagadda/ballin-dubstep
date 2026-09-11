@@ -10,7 +10,7 @@ import { sellMembership } from '@/lib/services/memberships';
 import { listPlans } from '@/lib/services/plans';
 import { getSettings } from '@/lib/services/settings';
 import { toUserMessage } from '@/lib/errors';
-import { draftChecked, draftOr, formDraft } from '@/lib/form-draft';
+import { draftChecked, draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import {
   Button,
@@ -110,7 +110,7 @@ export default async function SellPage({
     listPlans(user),
     t(),
     getSettings(user),
-    formDraft('sell', `/members/${id}/sell`).read(),
+    loadDraft('sell', `/members/${id}/sell`, error),
   ]);
   // The hint used to invite the exact action the service refuses when a
   // gym has not switched part payments on, which is every gym on day one.

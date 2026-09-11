@@ -38,7 +38,14 @@ export default function GlobalError({
         <div style={{ maxWidth: 420, padding: 24, textAlign: 'center' }}>
           <h1 style={{ fontSize: 20, margin: '0 0 8px' }}>{en.errorTitle}</h1>
           <p style={{ fontSize: 14, color: '#475569', margin: '0 0 4px' }}>{en.errorBody}</p>
-          <p style={{ fontSize: 14, color: '#475569', margin: '0 0 20px' }}>{te.errorBody}</p>
+          {/* lang="te" so a screen reader switches voice rather than reading
+              Telugu with English phonetics. */}
+          <h2 lang="te" style={{ fontSize: 16, margin: '16px 0 8px', fontWeight: 600 }}>
+            {te.errorTitle}
+          </h2>
+          <p lang="te" style={{ fontSize: 14, color: '#475569', margin: '0 0 20px' }}>
+            {te.errorBody}
+          </p>
           {error.digest ? (
             <p style={{ fontSize: 12, color: '#475569', margin: '0 0 20px' }}>
               {en.errorReference}: <code style={{ fontWeight: 600 }}>{error.digest}</code>
@@ -58,7 +65,7 @@ export default function GlobalError({
               cursor: 'pointer',
             }}
           >
-            {getTranslations('en').common.retry}
+            {getTranslations('en').common.retry} · {getTranslations('te').common.retry}
           </button>
         </div>
       </body>

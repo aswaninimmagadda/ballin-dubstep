@@ -76,9 +76,7 @@ export function PaymentsScreen() {
               </Muted>
               {item.status === 'refunded' || item.status === 'partially_refunded' ? (
                 <Text style={styles.refundNote}>
-                  {item.status === 'refunded'
-                    ? t.payments.statusRefunded
-                    : t.payments.statusPartiallyRefunded}
+                  {item.status === 'refunded' ? t.member.refunded : t.member.partlyRefunded}
                 </Text>
               ) : null}
             </View>

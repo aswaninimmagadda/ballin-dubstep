@@ -61,7 +61,10 @@ export default async function MembersPage({
         }
       />
       <MemberSearchForm params={params} tr={tr} />
-      <Suspense key={JSON.stringify(params)} fallback={<PageSkeleton rows={10} />}>
+      <Suspense
+        key={JSON.stringify(params)}
+        fallback={<PageSkeleton rows={10} label={tr.ui.loadingResults} />}
+      >
         <MemberResults params={params} />
       </Suspense>
     </>

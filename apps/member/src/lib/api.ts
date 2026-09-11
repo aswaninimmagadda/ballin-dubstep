@@ -262,6 +262,25 @@ export interface MeResponse {
 
 export const api = {
   me: () => getCached<MeResponse>('/api/member/v1/me'),
+  /**
+   * Tell the server which language to write notifications in. The choice
+   * used to live only on the phone, so every payment receipt and renewal
+   * message arrived in English however the app was set.
+   *
+   * Best-effort on purpose: the language must change on screen whether or
+   * not the phone has signal, and the next successful call will carry it.
+   */
+  setLanguage: async (language: 'en' | 'te'): Promise<void> => {
+    try {
+      await authedFetch('/api/member/v1/me', true, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language }),
+      });
+    } catch {
+      /* offline; the local choice still applies */
+    }
+  },
   payments: () =>
     getCached<{
       payments: {

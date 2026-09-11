@@ -3,7 +3,7 @@ import { requirePermission } from '@/lib/session';
 import { getMemberDetail } from '@/lib/services/members';
 import { cancelMembership } from '@/lib/services/memberships';
 import { toUserMessage } from '@/lib/errors';
-import { draftOr, formDraft } from '@/lib/form-draft';
+import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -41,8 +41,8 @@ export default async function CancelPage({
 }) {
   const user = await requirePermission('memberships.cancel');
   const { id } = await params;
-  const kept = await formDraft('cancel', `/members/${id}/cancel`).read();
   const { error } = await searchParams;
+  const kept = await loadDraft('cancel', `/members/${id}/cancel`, error);
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail?.currentMembership) notFound();
   // A member can hold a running membership AND a pre-sold pending renewal;

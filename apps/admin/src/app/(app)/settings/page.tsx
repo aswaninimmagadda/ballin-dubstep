@@ -6,7 +6,7 @@ import { contrastRatio, isUsableAsFill, readableTextOn } from '@gymflow/utils';
 import { requirePermission } from '@/lib/session';
 import { getBrand, getSettings, updateBrand, updateSettings } from '@/lib/services/settings';
 import { toUserMessage } from '@/lib/errors';
-import { draftChecked, draftOr, formDraft } from '@/lib/form-draft';
+import { draftChecked, draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import {
   Button,
@@ -120,7 +120,7 @@ export default async function SettingsPage({
   const user = await requirePermission('settings.view');
   const { error, msg } = await searchParams;
   const tr = await t();
-  const kept = await formDraft('settings', '/settings').read();
+  const kept = await loadDraft('settings', '/settings', error);
   const [settings, brand] = await Promise.all([getSettings(user), getBrand(user)]);
   // What the member app will actually paint: the gym's colour if it has set a
   // valid one, otherwise the product green it falls back to.

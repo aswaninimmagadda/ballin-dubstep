@@ -112,6 +112,30 @@ export function formDraft(key: string, path: string): FormDraft {
 }
 
 /**
+ * Read a draft, but only when the page was reached from a rejected
+ * submission.
+ *
+ * A draft outlives its redirect: someone whose sale is refused and who then
+ * walks away leaves the cookie behind for its full ten minutes. Restoring it
+ * on any clean open meant the NEXT person to open that form — possibly for a
+ * different member at a shared reception terminal — found an amount and a
+ * promo code already filled in that they never typed. Silently pre-filling a
+ * money field with a stale value is worse than losing it.
+ *
+ * The error parameter is the signal: it is present on exactly the redirect
+ * the draft was written for. (Clearing the cookie here instead is not an
+ * option — Next.js forbids writing cookies during a page render.)
+ */
+export async function loadDraft(
+  key: string,
+  path: string,
+  error: string | undefined,
+): Promise<Record<string, string>> {
+  if (!error) return {};
+  return formDraft(key, path).read();
+}
+
+/**
  * Pick the value for a field: what they typed last, else the current stored
  * value, else empty. Reads as `defaultValue={draftOr(draft, 'amount', quote)}`
  * at the call site, which is the whole point — restoring a draft should not

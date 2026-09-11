@@ -37,13 +37,13 @@ export default function AppError({
     >
       <button
         onClick={reset}
-        className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
+        className="inline-flex min-h-11 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-white hover:bg-primary-dark"
       >
         {tr.common.retry}
       </button>
       <a
         href="/"
-        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
       >
         {tr.errors.notFoundAction}
       </a>

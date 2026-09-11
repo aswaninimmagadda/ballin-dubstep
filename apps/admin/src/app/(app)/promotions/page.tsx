@@ -5,7 +5,7 @@ import { requirePermission } from '@/lib/session';
 import { asPrincipal } from '@/lib/db';
 import { writeAudit } from '@/lib/audit';
 import { toUserMessage } from '@/lib/errors';
-import { draftOr, formDraft } from '@/lib/form-draft';
+import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import {
   Badge,
@@ -89,7 +89,7 @@ export default async function PromotionsPage({
   const user = await requirePermission('promotions.view');
   const { error } = await searchParams;
   const tr = await t();
-  const kept = await formDraft('promotions_new', '/promotions').read();
+  const kept = await loadDraft('promotions_new', '/promotions', error);
   const canManage =
     hasPermission(user.permissions, 'promotions.manage') || user.kind === 'platform_admin';
 

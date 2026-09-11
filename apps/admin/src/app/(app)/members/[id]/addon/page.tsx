@@ -7,7 +7,7 @@ import { listAddonPackages, sellAddon } from '@/lib/services/addons';
 import { asPrincipal } from '@/lib/db';
 import { AMOUNT_ERROR, readAmount } from '@/lib/amount';
 import { toUserMessage } from '@/lib/errors';
-import { draftOr, formDraft } from '@/lib/form-draft';
+import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { requireFeature } from '@/lib/flags';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
@@ -67,8 +67,8 @@ export default async function AddonPage({
   const user = await requirePermission('pt.manage');
   await requireFeature(user, 'pt');
   const { id } = await params;
-  const kept = await formDraft('addon', `/members/${id}/addon`).read();
   const { error } = await searchParams;
+  const kept = await loadDraft('addon', `/members/${id}/addon`, error);
   const [detail, packages, tr] = await Promise.all([
     getMemberDetail(user, id),
     listAddonPackages(user),

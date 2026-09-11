@@ -106,7 +106,7 @@ export default async function ReportsPage({
           ) : (
             <p className="mb-4 mt-1 text-sm text-slate-500">no refunds in this period</p>
           )}
-          <Table headers={[tr.payments.method, 'Count', tr.payments.amount]}>
+          <Table headers={[tr.payments.method, tr.ui.count, tr.payments.amount]}>
             {collections.byMethod.map((m) => (
               <tr key={m.method}>
                 <td className="px-4 py-3">
@@ -132,14 +132,14 @@ export default async function ReportsPage({
             <Table
               headers={[
                 tr.payments.collector,
-                'Count',
+                tr.ui.count,
                 tr.payments.cashColumn,
                 tr.payments.otherColumn,
                 tr.payments.amount,
               ]}
             >
               {collections.byCollector.map((c) => (
-                <tr key={c.userId ?? 'unattributed'}>
+                <tr key={c.user_id ?? 'unattributed'}>
                   <td className="px-4 py-3">{c.name}</td>
                   <td className="px-4 py-3">{c.count}</td>
                   <td className="px-4 py-3 font-semibold tabular-nums">

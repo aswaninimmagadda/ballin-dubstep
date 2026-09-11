@@ -35,6 +35,30 @@ let ownerPasswordHash = null;
 let passed = 0;
 const failures = [];
 
+async function restoreOwnerPassword() {
+  if (!ownerPasswordHash) return;
+  console.error('\nRestoring the seed owner password after an interrupted run.');
+  await db.query(
+    `UPDATE user_credentials SET password_hash = $1
+      WHERE user_id = (SELECT id FROM users WHERE email = 'owner@demo.gymflow.local')`,
+    [ownerPasswordHash],
+  );
+  ownerPasswordHash = null;
+}
+
+// A signal does not run .finally(): Node exits straight away. A run stopped
+// by Ctrl-C, or by the `timeout` that wraps this suite, therefore used to
+// leave the rotated password in place and break every later run of this
+// suite and of e2e-acceptance.mjs — as an owner login failure a long way
+// from its cause. Restore on the way out too.
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.once(sig, () => {
+    restoreOwnerPassword()
+      .catch((err) => console.error('Could not restore the seed owner password:', err))
+      .finally(() => process.exit(sig === 'SIGINT' ? 130 : 143));
+  });
+}
+
 function check(name, cond, detail = '') {
   if (cond) {
     passed += 1;
@@ -135,6 +159,19 @@ async function loginAs(email, password = PASSWORD) {
 async function main() {
   await db.connect();
   console.log(`E2E against ${BASE}`);
+
+  // This suite deliberately fails logins — a wrong current password, a
+  // rotated-away password, a timing probe against an unknown mobile — and the
+  // product locks an identifier out after 8 failures in 15 minutes. That is
+  // correct behaviour, and it is also why two runs inside the same quarter of
+  // an hour used to break the second one: the owner login stopped working
+  // several blocks before the test that cared, and read as an unrelated
+  // failure. Clear the counters this suite itself put there before starting.
+  await db.query(
+    `DELETE FROM login_attempts
+      WHERE succeeded = false
+        AND (identifier LIKE '%@demo.gymflow.local' OR identifier LIKE 'apfitness:%')`,
+  );
 
   // ---- login ---------------------------------------------------------------
   console.log('\n[login]');
@@ -522,13 +559,20 @@ async function main() {
   );
 
   const payCsv = await (await get('/api/export/payments')).text();
-  const csvRow = payCsv.split('\n').find((l) => l.includes(String(payRow.amount)));
+  // Find the row by its receipt number, not by its amount: the export orders
+  // by payment_date, which is a date, so every payment taken today ties and
+  // an amount match picks whichever equal-valued payment an earlier run of
+  // this suite happened to leave first.
+  const [refundedReceipt] = await q(`SELECT receipt_number FROM receipts WHERE payment_id = $1`, [
+    payRow.id,
+  ]);
+  const csvRow = payCsv.split('\n').find((l) => l.startsWith(`${refundedReceipt.receipt_number},`));
   check(
     'payments export shows the refund and the net',
     Boolean(csvRow) &&
       csvRow.split(',').includes('50000') &&
       csvRow.split(',').includes(String(Number(payRow.amount) - 50000)),
-    csvRow ?? 'payment row missing from export',
+    csvRow ?? `no export row for receipt ${refundedReceipt?.receipt_number}`,
   );
 
   const reportsHtml = await (await getFollow('/reports')).text();
@@ -907,6 +951,86 @@ async function main() {
         WHERE key = 'pt' AND tenant_id = (SELECT id FROM tenants WHERE slug = 'apfitness')`,
     );
   }
+
+  // ---- the gym writes to a member in the member's language ---------------
+  // The app kept the language choice in AsyncStorage and never told the
+  // server, so users.language stayed 'en' for every member ever created and
+  // the notifications rendered at payment and renewal time — which read that
+  // column — were English for a Telugu speaker whatever they had picked. The
+  // screens were translated; the messages the gym sends were not.
+  console.log('\n[notifications follow the member, not the desk]');
+  const langTokens = await (await loginAs2('apfitness', memberMobileForApp, appPw)).json();
+  const setTe = await fetch(`${BASE}/api/member/v1/me`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${langTokens.accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ language: 'te' }),
+  });
+  check('a member can set their language', setTe.status === 204, String(setTe.status));
+  const badLang = await fetch(`${BASE}/api/member/v1/me`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${langTokens.accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ language: 'klingon' }),
+  });
+  check('and only to one we actually ship', badLang.status === 400, String(badLang.status));
+  const anonLang = await fetch(`${BASE}/api/member/v1/me`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ language: 'te' }),
+  });
+  check('not without signing in', anonLang.status === 401, String(anonLang.status));
+
+  // Now take a payment at the desk and read what the member was sent.
+  check('reception relogin for the notification check', await loginAs(EMAIL));
+  const notifyPath = `/members/${memberId}/payment`;
+  const notifyForm = extractForm(await (await getFollow(notifyPath)).text(), 'amount');
+  // Deliberately unattached to a membership: by this point in the suite this
+  // member's membership is paid in full and the product rightly refuses an
+  // overpayment against it. A standalone counter payment takes the same code
+  // path to the same notification and does not depend on what the blocks
+  // above left the balance at.
+  const notifyRes = await postAction(notifyPath, notifyForm, {
+    memberId,
+    membershipId: '',
+    amount: '100',
+    method: 'cash',
+  });
+  absorbCookies(notifyRes);
+  check(
+    'the desk payment went through',
+    redirectTarget(notifyRes).includes('/receipts/'),
+    decodeURIComponent(redirectTarget(notifyRes)),
+  );
+  const [note] = (
+    await db.query(
+      `SELECT rendered_body FROM notification_deliveries
+        WHERE member_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [memberId],
+    )
+  ).rows;
+  check(
+    'the payment notification is written in Telugu, not English',
+    /[ఀ-౿]/.test(note?.rendered_body ?? ''),
+    note?.rendered_body ?? 'no notification',
+  );
+  check(
+    'and it carries the receipt number, not a bare placeholder',
+    !(note?.rendered_body ?? '').includes('{{receipt}}'),
+    note?.rendered_body ?? '',
+  );
+  // Put the seed back the way it was.
+  await db.query(
+    `UPDATE users SET language = 'en' WHERE id = (SELECT user_id FROM members WHERE id = $1)`,
+    [memberId],
+  );
+  // This block signs in at the desk; everything after it reads reports and
+  // exports, which a receptionist rightly cannot. Hand the session back.
+  check('owner relogin after the notification check', await loginAs('owner@demo.gymflow.local'));
 
   // ---- member session security ------------------------------------------
   // Three findings from the pre-release security review, each verified here
@@ -1330,7 +1454,11 @@ async function main() {
   // The draft cookie rides back on the redirect, so follow it the way a
   // browser would.
   absorbCookies(rejected);
-  const afterReject = await (await getFollow(dSellPath)).text();
+  // Follow the redirect the action issued, exactly as a browser would. The
+  // draft is restored only on the ?error= URL, so that a stale draft cannot
+  // pre-fill the form on a later clean visit.
+  const rejectedTarget = redirectTarget(rejected).replace(/^https?:\/\/[^/]+/, '');
+  const afterReject = await (await getFollow(rejectedTarget)).text();
   check(
     'the promo code they typed is still there',
     afterReject.includes('TYPO-CODE-42'),
@@ -1350,6 +1478,16 @@ async function main() {
   );
   // And none of it is in the URL: these forms carry member data, and the
   // product's rule is that member data never reaches an access log.
+  // And the draft must NOT come back on a later clean visit. Someone whose
+  // sale is refused and who then walks away leaves the cookie behind for its
+  // full ten minutes; pre-filling an amount and a promo code the next person
+  // never typed is worse than losing them.
+  const cleanVisit = await (await getFollow(dSellPath)).text();
+  check(
+    'but a later clean visit starts empty, not pre-filled with a stale draft',
+    !cleanVisit.includes('TYPO-CODE-42') && !cleanVisit.includes('UTR-REF-9911'),
+    'an abandoned draft pre-filled a clean open',
+  );
   check(
     'none of it travelled in the URL',
     !decodeURIComponent(redirectTarget(rejected)).includes('UTR-REF-9911') &&
@@ -1425,7 +1563,8 @@ async function main() {
     decodeURIComponent(redirectTarget(cleared)).includes('valid 10-digit'),
     redirectTarget(cleared),
   );
-  const afterClearEdit = await (await getFollow(draftEditPath)).text();
+  const clearedTarget = redirectTarget(cleared).replace(/^https?:\/\/[^/]+/, '');
+  const afterClearEdit = await (await getFollow(clearedTarget)).text();
   check(
     'and the email they cleared has not come back',
     !afterClearEdit.includes('keeper@example.test'),
@@ -1449,7 +1588,8 @@ async function main() {
     decodeURIComponent(redirectTarget(badGstin)).includes('GSTIN must be'),
     redirectTarget(badGstin),
   );
-  const afterGstin = await (await getFollow('/settings')).text();
+  const gstinTarget = redirectTarget(badGstin).replace(/^https?:\/\/[^/]+/, '');
+  const afterGstin = await (await getFollow(gstinTarget)).text();
   check(
     'and the Telugu template they had just written survives',
     afterGstin.includes('డ్రాఫ్ట్ పరీక్ష'),
@@ -1554,13 +1694,6 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
-    if (ownerPasswordHash) {
-      console.error('\nRestoring the seed owner password after an interrupted run.');
-      await db.query(
-        `UPDATE user_credentials SET password_hash = $1
-          WHERE user_id = (SELECT id FROM users WHERE email = 'owner@demo.gymflow.local')`,
-        [ownerPasswordHash],
-      );
-    }
+    await restoreOwnerPassword();
     await db.end();
   });

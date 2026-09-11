@@ -9,7 +9,7 @@ import { getMemberDetail } from '@/lib/services/members';
 import { renewMembership } from '@/lib/services/memberships';
 import { listPlans } from '@/lib/services/plans';
 import { toUserMessage } from '@/lib/errors';
-import { draftOr, formDraft } from '@/lib/form-draft';
+import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { getSettings } from '@/lib/services/settings';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
@@ -64,9 +64,7 @@ async function renewAction(formData: FormData): Promise<void> {
   const parsed = renewMembershipSchema.safeParse(payload);
   if (!parsed.success) {
     await draft.keep(formData);
-    redirect(
-      `/members/${memberId}/renew?error=${encodeURIComponent('Please check the form and try again.')}`,
-    );
+    redirect(`/members/${memberId}/renew?error=${encodeURIComponent((await t()).ui.checkTheForm)}`);
   }
   try {
     await renewMembership(user, parsed.data);
@@ -93,8 +91,8 @@ export default async function RenewPage({
     hasPermission(user.permissions, 'discounts.apply') ||
     hasPermission(user.permissions, 'discounts.approve');
   const { id } = await params;
-  const kept = await formDraft('renew', `/members/${id}/renew`).read();
   const { error } = await searchParams;
+  const kept = await loadDraft('renew', `/members/${id}/renew`, error);
   const [detail, plans, tr, settings] = await Promise.all([
     getMemberDetail(user, id),
     listPlans(user),

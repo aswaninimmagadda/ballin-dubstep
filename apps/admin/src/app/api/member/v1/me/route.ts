@@ -119,3 +119,37 @@ async function handleGet(req: NextRequest): Promise<NextResponse> {
 }
 
 export const GET = withApiLogging('/api/member/v1/me', handleGet);
+
+/**
+ * The member's own language, stored where the server can act on it.
+ *
+ * The app kept the choice in AsyncStorage and never told anyone, so
+ * users.language stayed 'en' for every member ever created — and the
+ * notifications rendered at payment and renewal time, which read that
+ * column, were English for a Telugu speaker no matter what they had
+ * picked. The screens were translated; the messages the gym sends were not.
+ *
+ * RLS allows a member to update their own row as long as kind and tenant_id
+ * are unchanged (migration 0015), and language is the only column this
+ * writes.
+ */
+async function handlePatch(req: NextRequest): Promise<NextResponse> {
+  const auth = memberAuth(req);
+  if (isErrorResponse(auth)) return auth;
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
+  }
+  const language = (body as { language?: unknown } | null)?.language;
+  if (language !== 'en' && language !== 'te') {
+    return NextResponse.json({ error: 'invalid_input' }, { status: 400 });
+  }
+  await asPrincipal(auth.claims, (tx) =>
+    tx.query(`UPDATE users SET language = $1 WHERE id = $2`, [language, auth.claims.sub]),
+  );
+  return new NextResponse(null, { status: 204 });
+}
+
+export const PATCH = withApiLogging('/api/member/v1/me', handlePatch);

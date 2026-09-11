@@ -66,10 +66,13 @@ export default async function RenewalsPage({
           <Link
             key={w.key}
             href={`/renewals?window=${w.key}`}
+            // aria-current, not colour alone: which window is selected has to
+            // reach someone who cannot see the fill.
+            aria-current={w.key === window ? 'page' : undefined}
             className={
               w.key === window
-                ? 'rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white'
-                : 'rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
+                ? 'flex min-h-11 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-white'
+                : 'flex min-h-11 items-center rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50'
             }
           >
             {w.label}
@@ -144,10 +147,11 @@ export default async function RenewalsPage({
         <div className="mt-4 flex items-center justify-center gap-2 text-sm">
           {pageNum > 1 ? (
             <Link
-              className="rounded-lg border px-3 py-1.5"
+              className="flex min-h-11 items-center rounded-lg border px-4"
               href={`/renewals?window=${window}&page=${pageNum - 1}`}
+              aria-label={tr.ui.previousPage}
             >
-              ←
+              <span aria-hidden="true">←</span>
             </Link>
           ) : null}
           <span className="text-slate-600">
@@ -155,10 +159,11 @@ export default async function RenewalsPage({
           </span>
           {pageNum < pages ? (
             <Link
-              className="rounded-lg border px-3 py-1.5"
+              className="flex min-h-11 items-center rounded-lg border px-4"
               href={`/renewals?window=${window}&page=${pageNum + 1}`}
+              aria-label={tr.ui.nextPage}
             >
-              →
+              <span aria-hidden="true">→</span>
             </Link>
           ) : null}
         </div>

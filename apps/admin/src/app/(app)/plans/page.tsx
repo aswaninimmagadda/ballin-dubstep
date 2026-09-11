@@ -6,7 +6,7 @@ import { hasPermission } from '@gymflow/core';
 import { createPlan, listPlans, setPlanActive, updatePlanTerms } from '@/lib/services/plans';
 import { createAddonPackage, listAddonPackages, updateAddonPackage } from '@/lib/services/addons';
 import { toUserMessage } from '@/lib/errors';
-import { draftOr, formDraft } from '@/lib/form-draft';
+import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import {
   Badge,
@@ -56,7 +56,7 @@ async function createPlanAction(formData: FormData): Promise<void> {
   });
   if (!parsed.success) {
     await draft.keep(formData);
-    redirect(`/plans?error=${encodeURIComponent('Check the plan details.')}`);
+    redirect(`/plans?error=${encodeURIComponent((await t()).ui.checkTheForm)}`);
   }
   try {
     await createPlan(user, parsed.data);
@@ -182,7 +182,7 @@ export default async function PlansPage({
   const user = await requirePermission('plans.view');
   const { error } = await searchParams;
   const tr = await t();
-  const kept = await formDraft('plans_new', '/plans').read();
+  const kept = await loadDraft('plans_new', '/plans', error);
   const [plans, addonPackages] = await Promise.all([
     listPlans(user, true),
     listAddonPackages(user, true),

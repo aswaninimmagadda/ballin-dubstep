@@ -5,7 +5,7 @@ import { getMemberDetail } from '@/lib/services/members';
 import { correctMembership } from '@/lib/services/memberships';
 import { listPlans } from '@/lib/services/plans';
 import { toUserMessage } from '@/lib/errors';
-import { draftOr, formDraft } from '@/lib/form-draft';
+import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -49,8 +49,8 @@ export default async function CorrectMembershipPage({
 }) {
   const user = await requirePermission('memberships.override');
   const { id } = await params;
-  const kept = await formDraft('correct', `/members/${id}/correct`).read();
   const { error } = await searchParams;
+  const kept = await loadDraft('correct', `/members/${id}/correct`, error);
   const [detail, plans, tr] = await Promise.all([getMemberDetail(user, id), listPlans(user), t()]);
   if (!detail) notFound();
 

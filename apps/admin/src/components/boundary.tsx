@@ -44,7 +44,7 @@ export function BoundaryLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
+      className="inline-flex min-h-11 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-white hover:bg-primary-dark"
     >
       {label}
     </Link>
@@ -84,19 +84,26 @@ export function NotFoundBody({ tr }: { tr: TranslationTree }) {
  * Both were caught by the acceptance suite rather than by reading the docs,
  * which is the only reason this comment exists.
  */
-export function PageSkeleton({ rows = 6 }: { rows?: number }) {
+export function PageSkeleton({ rows = 6, label }: { rows?: number; label?: string }) {
   return (
-    <div className="animate-pulse" aria-hidden="true">
-      <div className="mb-6 h-8 w-52 rounded bg-slate-200" />
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <div className="h-20 rounded-xl bg-slate-200" />
-        <div className="h-20 rounded-xl bg-slate-200" />
-        <div className="h-20 rounded-xl bg-slate-200" />
-      </div>
-      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-        {Array.from({ length: rows }, (_, i) => (
-          <div key={i} className="h-10 rounded bg-slate-100" />
-        ))}
+    // The grey bars themselves are decoration and stay hidden, but the fact
+    // that something is loading has to reach a screen reader too — otherwise
+    // the new "it looks like it is working" feedback reaches only people who
+    // can see it.
+    <div role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">{label ?? 'Loading…'}</span>
+      <div className="animate-pulse" aria-hidden="true">
+        <div className="mb-6 h-8 w-52 rounded bg-slate-200" />
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <div className="h-20 rounded-xl bg-slate-200" />
+          <div className="h-20 rounded-xl bg-slate-200" />
+          <div className="h-20 rounded-xl bg-slate-200" />
+        </div>
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+          {Array.from({ length: rows }, (_, i) => (
+            <div key={i} className="h-10 rounded bg-slate-100" />
+          ))}
+        </div>
       </div>
     </div>
   );

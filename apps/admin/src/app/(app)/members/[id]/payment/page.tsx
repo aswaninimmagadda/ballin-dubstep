@@ -9,7 +9,7 @@ import {
   earliestPaymentDate as earliestPaymentDateFor,
 } from '@/lib/services/payments';
 import { toUserMessage } from '@/lib/errors';
-import { draftOr, formDraft } from '@/lib/form-draft';
+import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -41,7 +41,9 @@ async function paymentAction(formData: FormData): Promise<void> {
   const parsed = recordPaymentSchema.safeParse(payload);
   if (!parsed.success) {
     await draft.keep(formData);
-    redirect(`/members/${memberId}/payment?error=${encodeURIComponent('Please check the form.')}`);
+    redirect(
+      `/members/${memberId}/payment?error=${encodeURIComponent((await t()).ui.checkTheForm)}`,
+    );
   }
   let paymentId: string;
   try {
@@ -64,8 +66,8 @@ export default async function PaymentPage({
 }) {
   const user = await requirePermission('payments.record');
   const { id } = await params;
-  const kept = await formDraft('payment', `/members/${id}/payment`).read();
   const { error } = await searchParams;
+  const kept = await loadDraft('payment', `/members/${id}/payment`, error);
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail) notFound();
   const today = todayInTz();

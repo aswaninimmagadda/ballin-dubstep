@@ -24,7 +24,8 @@ export interface CollectionsSummary {
    * actually goes missing in a gym; this is the report that finds it.
    */
   byCollector: {
-    userId: string | null;
+    /** snake_case: this is the column name as the driver returns it. */
+    user_id: string | null;
     name: string;
     cash: string;
     other: string;
@@ -105,7 +106,10 @@ export async function collectionsReport(
           .replace('branch_id', 'p.branch_id')
           .replace('method =', 'p.method =')}
         GROUP BY p.received_by, u.display_name
-        ORDER BY 5 DESC`,
+        -- Order by the NUMBER, not by column 5, which is the total already
+        -- cast to text for the wire: "900000" sorts above "1000000", so the
+        -- biggest collector could appear halfway down the list.
+        ORDER BY sum(p.amount) DESC, u.display_name ASC`,
       params,
     );
 

@@ -5,7 +5,7 @@ import { requirePermission } from '@/lib/session';
 import { createTrainer, listTrainers, setTrainerActive } from '@/lib/services/trainers';
 import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
-import { draftOr, formDraft } from '@/lib/form-draft';
+import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import {
   Badge,
@@ -59,7 +59,7 @@ export default async function TrainersPage({
   const user = await requirePermission('trainers.view');
   const { error } = await searchParams;
   const tr = await t();
-  const kept = await formDraft('trainers_new', '/trainers').read();
+  const kept = await loadDraft('trainers_new', '/trainers', error);
   const trainers = await listTrainers(user);
   const canManage =
     hasPermission(user.permissions, 'trainers.manage') || user.kind === 'platform_admin';

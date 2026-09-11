@@ -3,7 +3,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DESIGN_TOKENS } from '@gymflow/config';
-import { contrastRatio, meetsAA, readableTextOn, isUsableAsFill } from '../src/contrast';
+import {
+  contrastRatio,
+  meetsAA,
+  readableTextOn,
+  isUsableAsFill,
+  darkenToMeet,
+} from '../src/contrast';
 
 /**
  * The shipped palette, asserted.
@@ -117,6 +123,23 @@ describe('a gym’s own brand colour stays readable', () => {
     // white. Settings refuses these rather than shipping them to members.
     expect(isUsableAsFill('#7f7f7f')).toBe(false);
     expect(isUsableAsFill('#808080')).toBe(true);
+  });
+
+  it('darkens a brand colour only as far as reading it on white requires', () => {
+    // The other way the brand colour is used: the member app's ACTIVE TAB
+    // label is the gym's colour as text on a white bar. isUsableAsFill says
+    // yes to a bright amber — correctly, for a button — but as text it is
+    // 2.15:1 and invisible.
+    for (const brand of ['#f59e0b', '#ffff00', '#fbbf24', '#22c55e']) {
+      expect(isUsableAsFill(brand)).toBe(true);
+      expect(meetsAA(brand, '#ffffff')).toBe(false);
+      expect(meetsAA(darkenToMeet(brand, '#ffffff'), '#ffffff')).toBe(true);
+    }
+  });
+
+  it('leaves a colour alone when it is already readable', () => {
+    expect(darkenToMeet('#15803d', '#ffffff')).toBe('#15803d');
+    expect(darkenToMeet('#000000', '#ffffff')).toBe('#000000');
   });
 
   it('a bright amber gets dark text, not the white it used to get', () => {

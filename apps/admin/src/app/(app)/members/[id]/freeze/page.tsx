@@ -5,7 +5,7 @@ import { requirePermission } from '@/lib/session';
 import { getMemberDetail } from '@/lib/services/members';
 import { freezeMembership } from '@/lib/services/memberships';
 import { toUserMessage } from '@/lib/errors';
-import { draftChecked, draftOr, formDraft } from '@/lib/form-draft';
+import { draftChecked, draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { Button, Card, ErrorBanner, Field, PageHeader, inputCls } from '@/components/ui';
 
@@ -49,8 +49,8 @@ export default async function FreezePage({
 }) {
   const user = await requirePermission('memberships.freeze');
   const { id } = await params;
-  const kept = await formDraft('freeze', `/members/${id}/freeze`).read();
   const { error } = await searchParams;
+  const kept = await loadDraft('freeze', `/members/${id}/freeze`, error);
   const [detail, tr] = await Promise.all([getMemberDetail(user, id), t()]);
   if (!detail?.currentMembership) notFound();
   const today = todayInTz();

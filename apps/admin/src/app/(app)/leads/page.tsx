@@ -5,7 +5,7 @@ import { requirePermission } from '@/lib/session';
 import { createLead, listLeads, updateLeadStatus } from '@/lib/services/leads';
 import { asPrincipal } from '@/lib/db';
 import { toUserMessage } from '@/lib/errors';
-import { draftOr, formDraft } from '@/lib/form-draft';
+import { draftOr, formDraft, loadDraft } from '@/lib/form-draft';
 import { t } from '@/lib/i18n';
 import { requireFeature } from '@/lib/flags';
 import {
@@ -35,7 +35,7 @@ async function createLeadAction(formData: FormData): Promise<void> {
   });
   if (!parsed.success) {
     await draft.keep(formData);
-    redirect(`/leads?error=${encodeURIComponent('Check the lead details.')}`);
+    redirect(`/leads?error=${encodeURIComponent((await t()).ui.checkTheForm)}`);
   }
   try {
     await createLead(user, parsed.data);
@@ -66,7 +66,7 @@ export default async function LeadsPage({
   await requireFeature(user, 'leads');
   const { error, status: statusFilter } = await searchParams;
   const tr = await t();
-  const kept = await formDraft('leads_new', '/leads').read();
+  const kept = await loadDraft('leads_new', '/leads', error);
   // listLeads already supported a status argument; the page never passed one,
   // so a lead marked lost left the only view of leads permanently.
   const leads = await listLeads(user, statusFilter || undefined);

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { darkenToMeet } from '@gymflow/utils';
 import { AuthProvider, useAuth } from './src/lib/auth';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -94,7 +95,11 @@ function Shell() {
                 activeTab === key && styles.tabLabelActive,
                 // The active tab picks up the gym's colour too, so the whole
                 // shell reads as the gym's app rather than GymFlow's.
-                activeTab === key && { color: brandColor },
+                // The gym's colour, darkened only as far as it must be to
+                // stay readable on the white bar. A bright brand colour is
+                // fine as a button FILL (the label goes dark on it) but is
+                // invisible as text: amber is 2.15:1 on white.
+                activeTab === key && { color: darkenToMeet(brandColor, '#ffffff') },
               ]}
               numberOfLines={1}
             >

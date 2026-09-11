@@ -1,7 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTranslations, type Language, type TranslationTree } from '@gymflow/i18n';
-import { loadTokens, login as apiLogin, setSessionEndedHandler, signOutEverywhere } from './api';
+import {
+  api,
+  loadTokens,
+  login as apiLogin,
+  setSessionEndedHandler,
+  signOutEverywhere,
+} from './api';
 import { theme } from './theme';
 
 interface AuthState {
@@ -85,7 +91,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // back to the sign-in screen. Clearing the tokens alone left the UI still
   // believing it was signed in, every request 401'ing behind a spinner.
   useEffect(() => {
-    setSessionEndedHandler(() => setSignedIn(false));
+    // Reset the same gym-owned state signOut does. This path fires when the
+    // SERVER ends the session — the gym deactivated the member, the account
+    // was deleted, the gym was suspended — and it used to clear only the
+    // signed-in flag, leaving the previous gym's colour and feature set on
+    // the sign-in screen and into whoever signed in next.
+    setSessionEndedHandler(() => {
+      setSignedIn(false);
+      setBrandColorState(theme.color.primary);
+      setFeaturesState(ALL_FEATURES);
+      void AsyncStorage.multiRemove([BRAND_KEY, FEATURES_KEY]);
+    });
     return () => setSessionEndedHandler(null);
   }, []);
 
@@ -124,10 +140,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void AsyncStorage.setItem(BRAND_KEY, next);
   }, []);
 
-  const setLanguage = useCallback(async (lang: Language) => {
-    setLanguageState(lang);
-    await AsyncStorage.setItem(LANG_KEY, lang);
-  }, []);
+  const setLanguage = useCallback(
+    async (lang: Language) => {
+      setLanguageState(lang);
+      await AsyncStorage.setItem(LANG_KEY, lang);
+      // And tell the server, so the notifications it renders — payment
+      // receipts, renewal confirmations — come in the same language as the
+      // screens. Only meaningful once signed in; on the sign-in screen the
+      // choice is local until there is an account to attach it to.
+      if (signedIn) await api.setLanguage(lang);
+    },
+    [signedIn],
+  );
 
   return (
     <AuthContext.Provider
