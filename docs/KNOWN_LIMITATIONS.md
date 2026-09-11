@@ -87,13 +87,19 @@ create-tenant -- --slug … --name … --owner-email …`) with zero source
     payment, renewal and add-on time — do follow the member's own language,
     which the app sets from its picker and pushes at sign-in. What is not
     supported is a gym-level default: `tenants.default_language` exists in
-    the schema but nothing writes it, and because `users.language` is NOT
-    NULL DEFAULT 'en' it could not take effect for an app user even if
-    something did. A gym whose members are overwhelmingly Telugu-speaking
-    therefore starts every one of them in English until they choose. Making
-    it real needs a nullable column, so "never chose" is representable, and
-    a Settings field — a small Phase-2 item, not a defect in the path that
-    works.
+    the schema but nothing writes it — no Settings field, and the
+    provisioning CLI does not set it — so it is `en` everywhere. A gym whose
+    members are overwhelmingly Telugu-speaking therefore starts every one of
+    them in English until they choose.
+
+    Two things would have to change together: `users.language` is NOT NULL
+    DEFAULT 'en', so "has not chosen yet" is not representable and a default
+    could never reach a member who has an app login; and something has to
+    write the gym's choice. The default is not inert for the members it does
+    govern, though — notifications queued before the desk switches a
+    member's app on are rendered with it, and that whole back-history
+    appears the day they first sign in, because the notifications endpoint
+    applies no date floor. Phase-2 item, sized accordingly.
 
 ## Technical
 

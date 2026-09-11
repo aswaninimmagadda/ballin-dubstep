@@ -47,16 +47,23 @@ async function memberContext(
   memberId: string,
 ): Promise<{ tenantId: string; language: Language } | null> {
   // On the tenant fallback, and what it is and is not worth:
-  // users.language is NOT NULL DEFAULT 'en', so for any member who has an
-  // app login u.language is always set and the coalesce never reaches
-  // tenants.default_language. In practice the fallback applies to members
-  // with no login — who receive no in-app notification anyway. A gym-level
-  // default that really applied to app users would need the column to be
-  // nullable, so "never chose" is representable, and a Settings field to
-  // set it with; today there is neither, and no code anywhere writes
-  // default_language. That is a missing feature, recorded in
-  // KNOWN_LIMITATIONS, not something this query can fix. The member's own
-  // choice, which the app now sends at sign-in, is the path that works.
+  // users.language is NOT NULL DEFAULT 'en', so once a member has an app
+  // login u.language is always set and the coalesce never reaches
+  // tenants.default_language. The fallback governs the other case — a
+  // member with no login yet — and those rows are NOT thrown away: the
+  // notifications endpoint selects by member_id with no created_at floor,
+  // so everything queued before the desk switched the app on appears in
+  // the member's list the day it is. A gym that had set default_language
+  // would therefore see its back-history in one language and everything
+  // after the member's first sign-in in whatever they chose.
+  //
+  // Today that cannot happen, because nothing writes default_language:
+  // there is no Settings field and the provisioning CLI does not set it,
+  // so it is 'en' everywhere. Making a gym-level default real needs the
+  // column to be nullable, so "never chose" is representable, plus
+  // somewhere to set it — a missing feature recorded in KNOWN_LIMITATIONS,
+  // not something this query can fix. The member's own choice, which the
+  // app now sends at sign-in, is the path that works.
   const r = await tx.query(
     `SELECT m.tenant_id, coalesce(u.language, t.default_language) AS language
        FROM members m
