@@ -48,7 +48,7 @@ const APP_SLUG = process.env.GYMFLOW_APP_SLUG ?? 'gymflow-member';
 const APP_SCHEME = process.env.GYMFLOW_APP_SCHEME ?? 'gymflow';
 const ANDROID_PACKAGE = process.env.GYMFLOW_ANDROID_PACKAGE ?? 'app.gymflow.member';
 const IOS_BUNDLE_ID = process.env.GYMFLOW_IOS_BUNDLE_ID ?? 'app.gymflow.member';
-const BRAND_COLOR = process.env.GYMFLOW_BRAND_COLOR ?? '#16a34a';
+const BRAND_COLOR = process.env.GYMFLOW_BRAND_COLOR ?? '#15803d';
 
 module.exports = () => ({
   expo: {

@@ -81,7 +81,7 @@ async function main() {
   const brand = (
     await q<{ id: string }>(
       `INSERT INTO brands (tenant_id, name, primary_color, support_phone, support_whatsapp)
-       VALUES ($1, 'Sri Vinayaka Fitness', '#16a34a', '+919000000001', '+919000000001') RETURNING id`,
+       VALUES ($1, 'Sri Vinayaka Fitness', '#15803d', '+919000000001', '+919000000001') RETURNING id`,
       [T],
     )
   ).rows[0]!;

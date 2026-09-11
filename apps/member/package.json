@@ -6,6 +6,7 @@
     "@gymflow/config": "workspace:*",
     "@gymflow/i18n": "workspace:*",
     "@gymflow/types": "workspace:*",
+    "@gymflow/utils": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.13",
     "expo-build-properties": "~57.0.11",

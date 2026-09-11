@@ -1,11 +1,18 @@
 @import 'tailwindcss';
 
+/*
+ * These MUST match DESIGN_TOKENS.color in packages/config/src/index.ts — that
+ * is the single source, and Tailwind cannot read TypeScript, so the values are
+ * repeated here and packages/utils/test/palette.test.ts asserts the two stay
+ * in step. Every one of them carries white text somewhere, so every one of
+ * them clears WCAG AA (4.5:1) against #ffffff; the same test enforces that.
+ */
 @theme {
-  --color-primary: #16a34a;
-  --color-primary-dark: #15803d;
-  --color-accent: #f59e0b;
+  --color-primary: #15803d;
+  --color-primary-dark: #166534;
+  --color-accent: #b45309;
   --color-danger: #dc2626;
-  --color-warning: #d97706;
+  --color-warning: #92400e;
   --color-info: #2563eb;
   --color-surface: #ffffff;
   --color-surface-muted: #f8fafc;

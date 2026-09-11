@@ -50,7 +50,7 @@ function page(title: string, bodyHtml: string, backHref: string, backLabel: stri
  .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:32px;max-width:420px;width:100%}
  h1{font-size:18px;margin:0 0 12px} p{font-size:14px;color:#475569;margin:0 0 8px}
  code{display:block;background:#f1f5f9;border:1px dashed #94a3b8;border-radius:10px;padding:14px;font-size:20px;font-weight:700;text-align:center;margin:16px 0;user-select:all}
- a{display:inline-block;margin-top:12px;background:#16a34a;color:#fff;text-decoration:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:600;min-height:44px;box-sizing:border-box}
+ a{display:inline-block;margin-top:12px;background:#15803d;color:#fff;text-decoration:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:600;min-height:44px;box-sizing:border-box}
  .warn{font-size:12px;color:#b45309}
 </style></head><body><div class="card"><h1>${esc(title)}</h1>${bodyHtml}
 <a href="${esc(backHref)}">${esc(backLabel)}</a></div></body></html>`;

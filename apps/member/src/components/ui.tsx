@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { readableTextOn } from '@gymflow/utils';
 import { useAuth } from '../lib/auth';
 import { theme, statusColors } from '../lib/theme';
 
@@ -52,7 +53,14 @@ export function PrimaryButton({
         disabled && { opacity: 0.5 },
       ]}
     >
-      <Text style={styles.buttonText}>{label}</Text>
+      {/*
+        The label was hard-coded white. Gyms pick their own brand colour in
+        Settings, so a gym that chose a bright amber or yellow was shipping
+        white-on-yellow buttons to its own members at around 2:1 — effectively
+        invisible, and invisible specifically to the people who did not choose
+        the colour. The foreground now follows the background.
+      */}
+      <Text style={[styles.buttonText, { color: readableTextOn(brandColor) }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -100,7 +108,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  buttonText: { fontSize: 16, fontWeight: '700' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   offline: {
     backgroundColor: '#fef3c7',

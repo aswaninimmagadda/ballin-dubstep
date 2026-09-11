@@ -70,7 +70,9 @@ export function Badge({
     warning: 'bg-amber-100 text-amber-800',
     danger: 'bg-red-100 text-red-800',
     info: 'bg-blue-100 text-blue-800',
-    muted: 'bg-slate-100 text-slate-500',
+    // slate-500 on slate-100 is 4.34:1 — under the 4.5:1 floor for text this
+    // size. slate-600 is 6.92:1 and reads as the same quiet grey.
+    muted: 'bg-slate-100 text-slate-600',
   } as const;
   return (
     <span

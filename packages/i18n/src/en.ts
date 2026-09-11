@@ -272,6 +272,13 @@ export const en = {
     audience: 'Audience',
     branch: 'Branch',
     branchTransfer: 'Branch (transfer)',
+    brandColorFormat: 'Brand colour must look like #15803d.',
+    // Gyms choose this colour and the member app paints every button with it.
+    // The owner picks it on a desktop monitor; the people who cannot read it
+    // are their members, who never see this screen.
+    brandColorUnreadable:
+      'That colour cannot be read at {{ratio}}:1 — buttons in the member app would be hard to see. Pick a darker or lighter shade.',
+    brandColorPreview: 'This is how buttons will look in the member app',
     brandName: 'Brand name',
     code: 'Code',
     dateOfBirth: 'Date of birth',

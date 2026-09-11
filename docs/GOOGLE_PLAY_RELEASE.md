@@ -176,7 +176,7 @@ API origin:
 | `GYMFLOW_APP_SCHEME`      | `gymflow`            | Deep-link scheme                |
 | `GYMFLOW_ANDROID_PACKAGE` | `app.gymflow.member` | Play package id (permanent)     |
 | `GYMFLOW_IOS_BUNDLE_ID`   | `app.gymflow.member` | App Store bundle id (permanent) |
-| `GYMFLOW_BRAND_COLOR`     | `#16a34a`            | Adaptive-icon background        |
+| `GYMFLOW_BRAND_COLOR`     | `#15803d`            | Adaptive-icon background        |
 
 Set them in the EAS build profile next to `GYMFLOW_API_URL`, and replace the
 icon assets. Each branded app is a separate Play listing under its own

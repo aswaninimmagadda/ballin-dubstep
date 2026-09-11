@@ -266,6 +266,10 @@ export const te: TranslationTree = {
     audience: 'ఎవరికి',
     branch: 'బ్రాంచ్',
     branchTransfer: 'బ్రాంచ్ (బదిలీ)',
+    brandColorFormat: 'బ్రాండ్ రంగు #15803d లాగా ఉండాలి.',
+    brandColorUnreadable:
+      '{{ratio}}:1 వద్ద ఆ రంగు చదవడం కష్టం — సభ్యుని యాప్‌లో బటన్లు స్పష్టంగా కనిపించవు. ముదురు లేదా లేత ఛాయను ఎంచుకోండి.',
+    brandColorPreview: 'సభ్యుని యాప్‌లో బటన్లు ఇలా కనిపిస్తాయి',
     brandName: 'బ్రాండ్ పేరు',
     code: 'కోడ్',
     dateOfBirth: 'పుట్టిన తేదీ',

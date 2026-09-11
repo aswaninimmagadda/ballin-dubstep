@@ -1,5 +1,8 @@
 import { redirect } from 'next/navigation';
 import { hasPermission } from '@gymflow/core';
+import { DESIGN_TOKENS } from '@gymflow/config';
+import { renderTemplate } from '@gymflow/i18n';
+import { contrastRatio, isUsableAsFill, readableTextOn } from '@gymflow/utils';
 import { requirePermission } from '@/lib/session';
 import { getBrand, getSettings, updateBrand, updateSettings } from '@/lib/services/settings';
 import { toUserMessage } from '@/lib/errors';
@@ -68,10 +71,24 @@ async function saveSettingsAction(formData: FormData): Promise<void> {
 async function saveBrandAction(formData: FormData): Promise<void> {
   'use server';
   const user = await requirePermission('settings.manage');
+  const tr = await t();
   const str = (n: string) => String(formData.get(n) ?? '').trim() || undefined;
   const color = str('primaryColor');
   if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) {
-    redirect(`/settings?error=${encodeURIComponent('Brand color must look like #16a34a')}`);
+    redirect(`/settings?error=${encodeURIComponent(tr.ui.brandColorFormat)}`);
+  }
+  // The member app paints every button with this colour and picks a readable
+  // label for it. A narrow band of mid-tones is unreadable against BOTH white
+  // and near-black, and a gym that picked one would ship its own members an
+  // app they cannot use — without ever seeing the problem themselves.
+  if (color && !isUsableAsFill(color)) {
+    redirect(
+      `/settings?error=${encodeURIComponent(
+        renderTemplate(tr.ui.brandColorUnreadable, {
+          ratio: contrastRatio(color, readableTextOn(color)).toFixed(1),
+        }),
+      )}`,
+    );
   }
   try {
     await updateBrand(user, {
@@ -97,6 +114,12 @@ export default async function SettingsPage({
   const { error, msg } = await searchParams;
   const tr = await t();
   const [settings, brand] = await Promise.all([getSettings(user), getBrand(user)]);
+  // What the member app will actually paint: the gym's colour if it has set a
+  // valid one, otherwise the product green it falls back to.
+  const brandColor =
+    brand?.primary_color && /^#[0-9a-fA-F]{6}$/.test(brand.primary_color)
+      ? brand.primary_color
+      : DESIGN_TOKENS.color.primary;
   const canManage =
     hasPermission(user.permissions, 'settings.manage') || user.kind === 'platform_admin';
   if (!settings) {
@@ -226,12 +249,23 @@ export default async function SettingsPage({
               <Field label={tr.ui.brandName} hint={tr.ui.shownInTheMemberApp}>
                 <input name="brandName" defaultValue={brand.name} className={inputCls} />
               </Field>
-              <Field label={tr.ui.primaryColor} hint="#16a34a">
+              <Field label={tr.ui.primaryColor} hint="#15803d">
                 <input
                   name="primaryColor"
                   defaultValue={brand.primary_color ?? ''}
                   className={inputCls}
                 />
+                {/* The owner picks this on a desktop monitor; their members
+                    read it on a phone. Show them the actual button. */}
+                <span
+                  className="mt-2 inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-semibold"
+                  style={{
+                    backgroundColor: brandColor,
+                    color: readableTextOn(brandColor),
+                  }}
+                >
+                  {tr.ui.brandColorPreview}
+                </span>
               </Field>
               <Field label={tr.ui.supportPhone}>
                 <input

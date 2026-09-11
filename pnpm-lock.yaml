@@ -90,6 +90,9 @@ importers:
       '@gymflow/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@gymflow/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@react-native-async-storage/async-storage':
         specifier: 2.2.0
         version: 2.2.0(react-native@0.86.2(@babel/core@7.29.7)(@types/react@19.2.18)(react@19.2.3))
@@ -207,6 +210,9 @@ importers:
 
   packages/utils:
     devDependencies:
+      '@gymflow/config':
+        specifier: workspace:*
+        version: link:../config
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
