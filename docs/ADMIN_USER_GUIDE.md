@@ -11,6 +11,23 @@ Open the admin address your owner gave you → enter your email and password.
 Too many wrong attempts locks sign-in for 15 minutes. If you forget your
 password, the owner can set a new one for you.
 
+## If a form is refused
+
+Nothing you typed is lost. Fix the field the message names and submit
+again — the plan you picked, the dates, the promo code and the payment
+details are all still there. A field you deliberately emptied stays empty.
+
+## Your first day
+
+A brand-new gym starts with a short checklist on the dashboard: create your
+membership plans, add your first member (or import your existing book from
+a spreadsheet), and look over your settings. It shows only the steps you
+have permission to do, and it disappears by itself once the gym has plans
+and members.
+
+You cannot sell a membership before a plan exists — the sale screen will
+say so and offer to take you to Plans.
+
 ## The dashboard = your morning to-do
 
 Big cards on top answer "what needs attention": active members, expiring in
@@ -18,6 +35,9 @@ Big cards on top answer "what needs attention": active members, expiring in
 check-ins, leads to follow up. Below: the **expiry queue** — each person has
 **Call**, **WhatsApp** (opens WhatsApp with the renewal message already
 written, in the member's language) and **Renew** buttons.
+
+The queue shows the first 30. The number beside the heading is the real
+total, and **See all** opens the full list.
 
 ## New member (under 2 minutes)
 
@@ -38,7 +58,19 @@ written, in the member's language) and **Renew** buttons.
 plan, expiry, days remaining and buttons for **Check in · Renew · Payment ·
 WhatsApp**, plus history tabs (memberships, payments, attendance, PT).
 
-## Renewals
+## Renewals — working the whole queue
+
+**Renewals** in the menu is the expiry queue in full, with the same Call,
+WhatsApp and Renew buttons on every row. Pick a window along the top:
+
+| Window                | Who is in it                                                                                                                                                                           |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overdue**           | Everyone past their expiry date and not renewed — both those still inside their grace period and those who have lapsed entirely. This is the list that is costing the gym money today. |
+| **This fortnight**    | The same range as the dashboard card: expired in the last week, or expiring in the next.                                                                                               |
+| **Today**             | Expiring today.                                                                                                                                                                        |
+| **Next 7/15/30 days** | Expiring within that many days.                                                                                                                                                        |
+
+## Renewals — one member
 
 Member page → **Renew**. Every plan shows the exact new period (e.g.
 "01-Dec-2026 → 28-Feb-2027") before you confirm. Add a promo code and the
@@ -51,6 +83,14 @@ Member page → **Payment** for any amount (e.g. clearing dues). Every payment
 gets a numbered receipt automatically — numbers can never repeat or be
 edited. Mistakes are corrected with a **refund** (accountant/owner only),
 which keeps the original record intact.
+
+## Closing the till
+
+**Reports** → set the date (or a range) → the **Cash up** table shows how
+much each person collected, with **cash in its own column**. Cash is the
+only figure that has to match a drawer rather than a bank statement, so it
+is worth checking before anyone goes home. All the figures are net of
+refunds.
 
 ## Check-in
 

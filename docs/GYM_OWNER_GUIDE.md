@@ -17,6 +17,14 @@ validity dates and audience (everyone / new members / renewals / win-back).
 The list shows uses and total ₹ discounted. Staff apply codes at
 sale/renewal; ineligible codes are refused with the reason.
 
+## Your brand colour
+
+Settings → **Brand & member app identity**. The colour you pick here is what
+your members see on every button in the app, so the page shows you the
+actual button as you type. A colour that would leave the label unreadable is
+refused rather than saved — the people who cannot read it are your members,
+and they never see this screen.
+
 ## Settings
 
 Receipt prefix, grace period, freeze caps, partial payments on/off, the
@@ -44,9 +52,10 @@ sessions.
 
 ## Reports
 
-Collections by day and by method (cash vs UPI — reconcile the cash drawer
-daily), plan mix, and CSV exports of members/memberships/payments/attendance
-that open in Excel/Sheets. **Your data is exportable at any time — you are
+Collections by day and by method (cash vs UPI), **cash up** — how much each
+member of staff collected, with cash in its own column so it can be checked
+against the drawer before anyone goes home — plan mix, and CSV exports of
+members/memberships/payments/attendance that open in Excel/Sheets. **Your data is exportable at any time — you are
 never locked in.** Exports are permission-gated and logged.
 
 ## Your data & member privacy

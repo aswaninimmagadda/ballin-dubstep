@@ -70,16 +70,19 @@ member API under `/api/member/v1/*` (login, refresh, me, payments,
 attendance, pt, notifications, pass), exports under `/api/export/*`.
 Deployment targets and domain guidance: DEPLOYMENT.md.
 
-## 5. Actual test results (executed 2026-08-14, all green)
+## 5. Actual test results (executed 2026-09-12, all green)
 
-| Layer                      | Count                   | Command                                |
-| -------------------------- | ----------------------- | -------------------------------------- |
-| Unit (vitest)              | **108 passed**          | `pnpm test:unit`                       |
-| Integration (real PG, RLS) | **49 passed**           | `pnpm --filter @gymflow/database test` |
-| E2E admin HTTP suite       | **56 checks passed**    | `node scripts/e2e-admin.mjs`           |
-| E2E final acceptance (§82) | **55 checks passed**    | `node scripts/e2e-acceptance.mjs`      |
-| Typecheck / lint / format  | clean                   | `pnpm typecheck && pnpm lint`          |
-| Production builds          | admin ✓, member Metro ✓ | CI steps                               |
+| Layer                      | Count                   | Command                                   |
+| -------------------------- | ----------------------- | ----------------------------------------- |
+| Unit (vitest)              | **183 passed**          | `pnpm test:unit`                          |
+| Integration (real PG, RLS) | **72 passed**           | `pnpm --filter @gymflow/database test`    |
+| E2E admin HTTP suite       | **168 checks passed**   | `node scripts/e2e-admin.mjs`              |
+| E2E final acceptance (§82) | **176 checks passed**   | `node scripts/e2e-acceptance.mjs`         |
+| E2E empty tenant (day one) | **28 checks passed**    | `node scripts/e2e-empty-tenant.mjs`       |
+| Android/iOS release config | **21 checks passed**    | `node scripts/check-android-manifest.mjs` |
+| i18n coverage              | clean (38 pages)        | `node scripts/check-i18n-coverage.mjs`    |
+| Typecheck / lint / format  | clean                   | `pnpm typecheck && pnpm lint`             |
+| Production builds          | admin ✓, member Metro ✓ | CI steps                                  |
 
 The §82 acceptance run provisions a second gym purely via platform
 tooling, configures it over HTTP, runs the full member lifecycle
@@ -88,7 +91,9 @@ branch transfer → renew → freeze → unfreeze → cancel pending → cancel
 running → archive), imports CSV (bad file blocked, good file imported),
 runs the sweep, and proves **bidirectional tenant isolation** over HTTP.
 Tenant isolation is additionally attacked at the DB layer by the
-15-test release-blocking integration suite on every CI run. A real
+22-test release-blocking integration suite on every CI run, which now also
+covers the platform-admin scope: an admin who has entered one gym can read
+and write only that gym's rows. A real
 `pg_dump`/restore drill was executed (row counts matched, RLS held on the
 restored DB) — see DISASTER_RECOVERY.md. Details: TESTING.md.
 

@@ -5,20 +5,24 @@ actually-executed runs (CI re-runs them on every PR).
 
 ## Layers
 
-### 1. Unit tests — 121 passing (vitest, no DB)
+### 1. Unit tests — 183 passing (vitest, no DB)
 
-| Package             | Tests | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| @gymflow/utils      | 42    | Integer money (rounding, overflow, discount clamps, inclusive/exclusive GST splits, INR formatting/parsing), calendar dates (leap years, end-of-month clamping, timezone boundaries incl. IST-vs-UTC midnight), Indian phone normalization/masking, WhatsApp links                                                                                                                                                                                              |
-| @gymflow/core       | 64    | Expiry calculation (1/3/6/12-month, Jan-31 starts, leap Februarys, day-based trials), grace, freeze extension (incl. the 15-day scenario), renewal proposals (seamless/lapsed/override/end-of-month), derived status + check-in gating, pricing quotes (promo kinds, over-discount clamps, tax), promotion eligibility (all rejection reasons), receipt/fiscal-year formatting, QR pass tokens (rotation, replay, tamper, wrong secret, no PII), scrypt hashing |
-| @gymflow/validation | 10    | Member/sale/payment/import/login schemas, E.164 transforms, idempotency-key requirement, float rejection                                                                                                                                                                                                                                                                                                                                                        |
-| @gymflow/i18n       | 5     | Telugu/English key parity (fails the build if a key is missed), template rendering. Paired with `scripts/check-i18n-coverage.mjs` in CI, which fails if a user-visible string is hard-coded in a page instead — the parity test cannot see a string that never reached a resource file                                                                                                                                                                          |
+| Package             | Tests | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| @gymflow/utils      | 88    | Integer money (rounding, overflow, discount clamps, inclusive/exclusive GST splits, INR formatting/parsing), calendar dates (leap years, end-of-month clamping, timezone boundaries incl. IST-vs-UTC midnight), Indian phone normalization/masking, WhatsApp links, CSV escaping, and the WCAG contrast maths plus the shipped palette (every design token, the member status chips, the tenant brand colour, and a walk of every `.tsx` in the admin app for a low-contrast class) |
+| @gymflow/core       | 78    | Expiry calculation (1/3/6/12-month, Jan-31 starts, leap Februarys, day-based trials), grace, freeze extension (incl. the 15-day scenario), renewal proposals (seamless/lapsed/override/end-of-month), derived status + check-in gating, pricing quotes (promo kinds, over-discount clamps, tax), promotion eligibility (all rejection reasons), receipt/fiscal-year formatting, QR pass tokens (rotation, replay, tamper, wrong secret, no PII), scrypt hashing                     |
+| @gymflow/validation | 10    | Member/sale/payment/import/login schemas, E.164 transforms, idempotency-key requirement, float rejection                                                                                                                                                                                                                                                                                                                                                                            |
+| @gymflow/i18n       | 7     | Telugu/English key parity (fails the build if a key is missed), template rendering. Paired with `scripts/check-i18n-coverage.mjs` in CI, which fails if a user-visible string is hard-coded in a page instead — the parity test cannot see a string that never reached a resource file                                                                                                                                                                                              |
 
-### 2. Integration tests — 60 passing (vitest + real Postgres, as the runtime role)
+### 2. Integration tests — 72 passing (vitest + real Postgres, as the runtime role)
 
 `packages/database/test/`:
 
-- **tenant-isolation** (15) — the release-blocking suite; see MULTI_TENANCY.md.
+- **tenant-isolation** (22) — the release-blocking suite; see MULTI_TENANCY.md.
+  Includes the platform-admin scope: an admin who has entered one gym reads
+  and writes only that gym, in every table and through the join tables that
+  carry no `tenant_id` of their own, and is cross-tenant again once they
+  leave.
 - **permissions** (7) — receptionist vs accountant vs owner write gates,
   refund authorization, instant deactivation.
 - **financial-integrity** (7) — append-only payments/receipts/audit, legal
@@ -26,6 +30,9 @@ actually-executed runs (CI re-runs them on every PR).
 - **concurrency** (5) — 20 parallel receipt allocations unique+sequential,
   per-tenant sequences, idempotent payment double-click, one-running-
   membership invariant, membership-number allocation under concurrency.
+- **refresh-rotation** (5) — a dropped refresh _response_ must not lock a
+  member out: a genuine retry inside the grace window re-issues, a replayed
+  token whose successor was already spent revokes the family.
 - **auth-functions** (11) — sealed credential tables, session lifecycle,
   refresh rotation + replay family revocation, throttling counters,
   password-set scoping (members.edit cannot touch staff logins), and
@@ -44,9 +51,9 @@ actually-executed runs (CI re-runs them on every PR).
 Each run drops and remigrates `gymflow_test`, then builds **two** complete
 tenants — so migrations themselves are exercised constantly.
 
-### 3. End-to-end — 270 checks passing (three HTTP suites)
+### 3. End-to-end — 372 checks passing (three HTTP suites)
 
-`scripts/e2e-admin.mjs` (112 checks) drives the real HTTP surface (server
+`scripts/e2e-admin.mjs` (168 checks) drives the real HTTP surface (server
 actions via progressive-enhancement form posts) against a running server +
 seeded DB, then verifies database effects:
 
@@ -106,7 +113,27 @@ plain acknowledgement with no CGST line), and **support recovery** of a gym
 whose only owner is locked out (the operator CLI issues a new password, the
 old one stops working, and the reset lands in that gym's audit log).
 
-`scripts/e2e-empty-tenant.mjs` (21 checks) is the day-one test: a
+The admin suite also covers what the acceptance panel found:
+
+- **A rejected form keeps what was typed** — a sale refused on a bad amount
+  comes back with the plan, date, promo code, payment method and reference
+  intact, none of it in the URL; a field deliberately cleared stays cleared;
+  the draft is gone once the sale goes through. Same for Settings, where a
+  mistyped GSTIN used to discard the Telugu WhatsApp template.
+- **A page that cannot be shown says so** — a missing member answers 404 and
+  explains itself without confirming whether the id belongs to another gym; a
+  streamed page still enforces permission with a real redirect; the
+  not-found page renders in Telugu with `<html lang="te">`.
+- **The whole renewal queue** — the true total, every window including
+  overdue, each dashboard count landing on exactly the range it counted, and
+  unusable window values (`constructor`, `toString`, `__proto__`) falling
+  back rather than erroring.
+- **Cash up** — who collected what, with cash separated.
+- **What the member app is told** — features per gym, the grace end date, a
+  gym code that does not exist saying so, and a wrong password staying
+  indistinguishable from an unregistered number.
+
+`scripts/e2e-empty-tenant.mjs` (28 checks) is the day-one test: a
 freshly-provisioned gym with no members, no plans and no payments. Every page
 and every export must render rather than divide by zero or 500.
 
