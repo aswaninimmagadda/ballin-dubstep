@@ -6,6 +6,19 @@
 - PostgreSQL 16 running locally
 - For the member app: Expo Go on a device, or an Android emulator
 
+## The short way
+
+```bash
+./ops/try-it.sh
+```
+
+Does everything in "One-time setup" and "Admin app" below — creates the
+role and database if they are missing, migrates, seeds the demo gym,
+writes `apps/admin/.env.local` with a generated token secret — then works
+out the address your phone can reach and prints the two commands to run
+with it already filled in. Idempotent, and it never drops data. The rest
+of this page is the same thing by hand, and what to do when a step fails.
+
 ## One-time setup
 
 ```bash
