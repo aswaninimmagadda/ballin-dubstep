@@ -15,7 +15,7 @@
     "reset": "tsx scripts/reset.ts",
     "sweep": "tsx scripts/sweep-memberships.ts",
     "create-tenant": "tsx scripts/create-tenant.mjs",
-    "test": "vitest run --pool=forks --poolOptions.forks.singleFork",
+    "test": "vitest run --pool=forks --maxWorkers=1",
     "reset-staff-password": "tsx scripts/reset-staff-password.mjs",
     "manage-tenant": "tsx scripts/manage-tenant.mjs"
   },
@@ -30,6 +30,6 @@
     "@types/pg": "^8.11.10",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.11"
   }
 }
